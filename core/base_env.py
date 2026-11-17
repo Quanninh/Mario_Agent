@@ -27,3 +27,40 @@ class RawState:
     dist_to_pit: float       # Distance to nearest pit/hole ahead
     dist_to_goal: float      # Distance remaining to finish line
 
+@dataclass
+class GameEvents:
+    """Events occurring in the current step (used by RewardStrategy)."""
+    dx: float = 0.0              # Horizontal distance traveled this tick
+    reached_goal: bool = False   # True if touched the flagpole
+    fell_in_pit: bool = False    # True if fell below the floor
+    hit_obstacle: bool = False   # True if bumped into a block/pipe side
+
+
+class BaseEnvironment(ABC):
+    """Abstract interface that any Mario environment must implement."""
+
+    @abstractmethod
+    def reset(self) -> RawState:
+        """Reset the game to initial state and return starting RawState."""
+        pass
+
+    @abstractmethod
+    def step(self, action: int) -> Tuple[RawState, GameEvents, bool]: 
+        """
+        Execute one action tick.
+        Returns:
+            - next_state (RawState): New physical measurements
+            - events (GameEvents): Game occurrences this tick
+            - done (bool): True if game over (death or win)
+        """
+        pass
+
+    @abstractmethod
+    def render(self) -> None:
+        """Draw the game on screen (Pygame window)."""
+        pass
+
+    @abstractmethod
+    def close(self) -> None:
+        """Clean up Pygame window and resources."""
+        pass
