@@ -25,11 +25,12 @@ Build a lightweight, headless-compatible 2D Mario platformer environment that im
 - [x] **Step 1: Core Abstraction & Contracts**
   - [x] `core/base_env.py`: Defined `Action`, `RawState`, `GameEvents`, and `BaseEnvironment`.
   - [x] `core/__init__.py`: Package export for clean imports.
-- [ ] **Step 2: Game Entities** (`env/entities.py`)
-  - [ ] `Mario`: Position, dimensions, vertical velocity, grounded state.
-  - [ ] `Obstacle`: Pipe / block bounding box.
-  - [ ] `Pit`: Floor gap hazard.
-  - [ ] `GoalFlag`: Level destination.
+- [x] **Step 2: Game Entities** (`env/entities.py` & `env/__init__.py`)
+  - [x] `Mario`: Position (`x`, `y`), hitbox (`24x32`), vertical velocity (`vy`), `is_grounded`, `is_alive`, and `reset()`.
+  - [x] `Obstacle`: Solid pipe / block bounding box (`32x48`).
+  - [x] `Pit`: Floor gap hazard with `contains()` center-of-mass check.
+  - [x] `GoalFlag`: Finish line (`16x96`) with `is_reached()` detection.
+  - [x] `env/__init__.py`: Exported all entity classes.
 - [ ] **Step 3: Environment Engine** (`env/mario_env.py`)
   - [ ] Gravity, jumping impulse, floor collisions.
   - [ ] Obstacle side-collisions and pit-fall death checks.
@@ -47,4 +48,5 @@ Build a lightweight, headless-compatible 2D Mario platformer environment that im
 
 ## 4. Work Log
 
-- **Milestone 1**: Defined `Action`, `RawState`, `GameEvents`, and `BaseEnvironment` in `core/base_env.py`. Verified package initialization with `core/__init__.py`.
+- **Step 1**: Defined `Action`, `RawState`, `GameEvents`, and `BaseEnvironment` in `core/base_env.py`. Verified package initialization with `core/__init__.py`.
+- **Step 2**: Implemented physical entities in `env/entities.py` (`Mario`, `Obstacle`, `Pit`, `GoalFlag`) and created `env/__init__.py` package exports. Added hitbox bounding boxes and collision helper properties (`rect`, `right`, `bottom`, `is_reached`).
