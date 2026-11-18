@@ -35,7 +35,7 @@ The game is modeled as a standard Reinforcement Learning framework:
 
 The end-to-end lifecycle follows the standard Reinforcement Learning training and evaluation workflow:
 
-![Activity Diagram: Reinforcement Learning Training Lifecycle](docs/activity_diagram.svg)
+![Activity Diagram: Reinforcement Learning Training Lifecycle](activity_diagram.svg)
 
 ---
 
