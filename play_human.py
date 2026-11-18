@@ -9,7 +9,11 @@ def load_level(level_id: int):
     env = create_env(level_id)
     state = env.reset()
     env.render()
-    print(f"\nLoaded {cfg.name} (Obstacles: {len(cfg.obstacles)}, Pits: {len(cfg.pits)})")
+    print(
+        f"\nLoaded {cfg.name} "
+        f"(Tombstones: {len(cfg.obstacles)}, Pits: {len(cfg.pits)}, "
+        f"Ghosts: {len(cfg.ghosts)}, Warmth Items: {len(cfg.items)})"
+    )
     return env, state
 
 
@@ -18,12 +22,20 @@ def main() -> None:
     env, state = load_level(current_level)
 
     print("Controls:")
-    print("  [A / Left]   Walk Left")
-    print("  [D / Right]  Walk Right")
-    print("  [Space / W]  Jump")
-    print("  [1 / 2 / 3]  Switch Level 1, 2, or 3")
-    print("  [R]          Reset Level")
-    print("  [Esc]        Quit")
+    print("  [A / Left]       Walk Left")
+    print("  [D / Right]      Walk Right")
+    print("  [Space / W]      Jump")
+    print("  [1 / 2 / 3 / 4 / 5] Switch Level 1 to 5")
+    print("  [R]              Reset Level")
+    print("  [Esc]            Quit")
+
+    level_keys = {
+        pygame.K_1: 1,
+        pygame.K_2: 2,
+        pygame.K_3: 3,
+        pygame.K_4: 4,
+        pygame.K_5: 5,
+    }
 
     while True:
         # Stop cleanly if window was closed inside env.render()
@@ -36,15 +48,8 @@ def main() -> None:
         if keys[pygame.K_ESCAPE]:
             break
 
-        # Level switching shortcuts (1, 2, 3)
-        selected_level = None
-        if keys[pygame.K_1]:
-            selected_level = 1
-        elif keys[pygame.K_2]:
-            selected_level = 2
-        elif keys[pygame.K_3]:
-            selected_level = 3
-
+        # Level switching shortcuts (1 to 5)
+        selected_level = next((lvl for k, lvl in level_keys.items() if keys[k]), None)
         if selected_level is not None and selected_level != current_level:
             env.close()
             current_level = selected_level
@@ -77,11 +82,16 @@ def main() -> None:
         state, events, done = env.step(action)
         env.render()
 
+        if events.collected_item:
+            print(f"Warmth item collected at x={state.player_x:.1f}!")
+
         if done:
             if events.reached_goal:
-                print(f"Cleared Level {current_level} in {env.step_count} steps!")
+                print(f"Hoá made it home! Cleared Level {current_level} in {env.step_count} steps!")
+            elif events.hit_ghost:
+                print(f"Caught by a ghost at x={state.player_x:.1f}!")
             elif events.fell_in_pit:
-                print(f"Fell into a pit at x={state.mario_x:.1f}!")
+                print(f"Fell into a grave pit at x={state.player_x:.1f}!")
             else:
                 print("Timeout!")
             state = env.reset()
