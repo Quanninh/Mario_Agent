@@ -17,7 +17,6 @@ class RawState:
     """Continuous physical state of the game world."""
     mario_x: float           # Mario's current horizontal position
     mario_y: float           # Mario's current vertical position
-    velocity_x: float        # Current horizontal velocity
     velocity_y: float        # Current vertical velocity (gravity / jump)
     is_grounded: bool        # True if Mario is standing on floor or platform
     
