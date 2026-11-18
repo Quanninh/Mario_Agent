@@ -1,27 +1,27 @@
-# 🍄 Reinforcement Learning Mario Agent: Architecture & Workflow
+# 👻 Reinforcement Learning Game Agent: Hoá's Midnight Escape
 
 > **Course**: Machine Learning — Project 5: Reinforcement Learning-Based Game Agent  
-> **Core Approach**: Tabular Q-Learning on a Custom 2D Pygame Platformer  
-> **Design Pattern**: Clean, modular SOLID architecture  
+> **Game Concept**: **Hoá's Midnight Escape** (2D Graveyard Platformer in Pygame)  
+> **Core Approach**: Tabular Q-Learning with SOLID Architecture  
 > **Team Size**: 4 Members  
 
 ---
 
 ## 1. Project Overview & Problem Formulation
 
-### 1.1 Project Objective
-The goal of this project is to develop an autonomous AI agent that learns to play a 2D Mario-style platformer game through **interaction and experience**, rather than manually programmed rules or heuristics.
+### 1.1 Project Objective & Story
+The goal of this project is to develop an autonomous AI agent that learns to play a custom 2D platformer through **interaction and experience**, rather than manually programmed rules.
 
-Initially, the agent knows nothing about the game mechanics and acts randomly. Through hundreds of gameplay episodes, the agent receives numerical feedback (rewards for moving right and reaching the goal, penalties for falling into pits or hitting hazards) and gradually learns an optimal navigation policy.
+- **Story**: Hoá wakes up late on a freezing night in the middle of a graveyard near his house. Terrified and cold, he must navigate his way home—jumping over tall tombstones and open grave pits, dodging floating ghosts hovering in the air, and collecting warmth items along the way until he reaches his glowing home.
+- **Learning Process**: Initially, the agent knows nothing and acts randomly. Over hundreds of episodes, it receives rewards (moving closer to home, collecting warmth items, reaching the house) and penalties (falling into grave pits, touching ghosts, stalling) to learn an optimal navigation policy.
 
 ### 1.2 Core Problem Formulation (Markov Decision Process)
-The game is modeled as a standard Reinforcement Learning framework:
-- **Agent**: Mario, who observes the environment and selects actions.
-- **Environment**: A 2D platformer containing ground, obstacles (pipes/blocks), pits, and a finish line (flagpole).
-- **State ($S$)**: Discretized representations of Mario's position, altitude, velocities, and distance to nearby hazards.
-- **Action ($A$)**: Discrete decisions (`Stay`, `Right`, `Left`, `Jump`, `Right + Jump`).
-- **Reward ($R$)**: Feedback signal reinforcing forward progress and penalizing death or stalling.
-- **Algorithm**: **Tabular Q-Learning** with a Q-Table storing $Q(s, a)$ values updated via Temporal Difference (TD) learning, guided by an $\epsilon$-greedy exploration policy.
+- **Agent**: Hoá, observing the nearby surroundings and choosing discrete actions.
+- **Environment**: A 2D midnight graveyard platformer with tall tombstones, open grave pits, hovering ghosts, warmth items, and Hoá's house as the finish line.
+- **State ($S$)**: Discretized representations of Hoá's position, altitude, grounded status, and relative distance to nearby tombstones, pits, ghosts, and home.
+- **Action ($A$)**: Discrete decisions (`Stay`, `Left`, `Jump`, `Right`, `Right + Jump`).
+- **Reward ($R$)**: Feedback reinforcing forward progress, item collection, and reaching home while penalizing traps, ghost collisions, or stalling.
+- **Algorithm**: **Tabular Q-Learning** with a Q-Table storing $Q(s, a)$ values updated via Temporal Difference (TD) learning and an $\epsilon$-greedy exploration strategy.
 
 ### 1.3 Key Deliverables
 1. **Playable Game Environment**: A functional 2D Pygame platformer with keyboard controls for humans and an API for the AI.
