@@ -25,8 +25,6 @@ def main() -> None:
     print("  [R]          Reset Level")
     print("  [Esc]        Quit")
 
-    prev_r_pressed = False
-
     while True:
         # Stop cleanly if window was closed inside env.render()
         if env._screen is None:
@@ -51,17 +49,13 @@ def main() -> None:
             env.close()
             current_level = selected_level
             env, state = load_level(current_level)
-            prev_r_pressed = False
             continue
 
-        # Manual reset shortcut (rising-edge trigger + render to pump Pygame events)
-        r_pressed = keys[pygame.K_r]
-        if r_pressed and not prev_r_pressed:
+        # Manual reset shortcut (render() pumps Pygame events so window won't freeze)
+        if keys[pygame.K_r]:
             state = env.reset()
             env.render()
-            prev_r_pressed = r_pressed
             continue
-        prev_r_pressed = r_pressed
 
         # Map keyboard input -> Discrete Action ID
         moving_right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
