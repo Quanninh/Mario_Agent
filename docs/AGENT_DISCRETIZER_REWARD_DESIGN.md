@@ -33,6 +33,8 @@ To satisfy **SOLID architecture**, each subsystem is decoupled via explicit abst
   * `select_action(state: DiscreteState) -> int`: Policy inference.
   * `update(state, action, reward, next_state, done) -> float`: Bellman value updates.
   * `save(filepath: str) -> None` / `load(filepath: str) -> None`: Checkpointing and serialization.
+  * `decay_epsilon() -> float`: Decrements exploration rate $\epsilon$.
+  * `set_mode(training: bool) -> None`: Toggles training mode (exploration active) vs evaluation mode (pure greedy).
 * **Role**: Decouples policy execution from the training loop. Evaluation scripts and real-time visualization tools depend strictly on this abstraction (**Dependency Inversion Principle**).
 
 ---
@@ -57,9 +59,10 @@ $$\mathcal{S} = \langle \text{is\_grounded}, \; V_{y\text{-sign}}, \; \text{Obst
 | :--- | :--- | :--- | :--- |
 | **`is_grounded`** | `0` or `1` | `1 if raw_state.is_grounded else 0` | Informs the agent if a jump can be initiated, preventing invalid mid-air jump attempts. |
 | **`vy_sign`** | `-1, 0, 1` | `1` if $v_y < -0.1$ (ascending jump in Pygame coordinates)<br>`-1` if $v_y > 0.1$ (falling downwards)<br>`0` otherwise (flat / grounded) | Distinguishes upward jump trajectory from downward descent. |
-| **`obstacle_dist`** | `0, 1, 2, 3` | `0`: `NONE` ($> 80\text{ px}$ or $< 0\text{ px}$ / no obstacle)<br>`1`: `FAR` ($40\text{--}80\text{ px}$)<br>`2`: `CLOSE` ($15\text{--}40\text{ px}$)<br>`3`: `IMMEDIATE` ($\le 15\text{ px}$) | Resolves **perceptual aliasing**. Allows the agent to run right when far, and jump when close. |
-| **`obstacle_height`** | `0` or `1` | `0`: `LOW / NONE` ($\le 32\text{ px}$ or no obstacle)<br>`1`: `HIGH` ($> 32\text{ px}$) | Indicates clearance needed to surmount upcoming blocks or tall pipes. |
-| **`pit_dist`** | `0, 1, 2` | `0`: `NONE` ($> 60\text{ px}$ or $< 0\text{ px}$ / no pit)<br>`1`: `FAR` ($25\text{--}60\text{ px}$)<br>`2`: `IMMEDIATE` ($\le 25\text{ px}$) | High-priority hazard indicator signaling mandatory forward-jump execution over voids. |
+| **`obstacle_dist`** | `0, 1, 2, 3` | `0`: `NONE` ($> 80\text{ px}$, $< 0\text{ px}$, or obstacle already cleared vertically)<br>`1`: `FAR` ($40\text{--}80\text{ px}$)<br>`2`: `CLOSE` ($15\text{--}40\text{ px}$)<br>`3`: `IMMEDIATE` ($\le 15\text{ px}$) | Resolves **perceptual aliasing**. If Mario's feet are at or above the obstacle top ($\text{feet} \le 320 - h + 2\text{px}$), the obstacle is treated as cleared (`0 = NONE`). |
+| **`obstacle_height`** | `0` or `1` | `0`: `LOW / NONE` ($\le 50\text{ px}$ or cleared)<br>`1`: `HIGH` ($> 50\text{ px}$) | Calibrated for level heights ($44\text{--}68\text{ px}$): $44\text{--}48\text{ px}$ pipes are `0 = Low`, while $56\text{--}68\text{ px}$ pipes are `1 = High`. |
+| **`pit_dist`** | `0, 1, 2` | `0`: `NONE` ($> 80\text{ px}$ or $< 0\text{ px}$ / no pit)<br>`1`: `FAR` ($32\text{--}80\text{ px}$, approach zone)<br>`2`: `IMMEDIATE` ($\le 32\text{ px}$, safe take-off zone) | Calibrated for $65\text{--}75\text{ px}$ wide pits to ensure Mario initiates jumps within the safe take-off window without falling short. |
+
 
 ### 2.3 State Space Cardinality Calculation
 
