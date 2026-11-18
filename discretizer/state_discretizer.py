@@ -10,16 +10,24 @@ class MarioStateDiscretizer(BaseDiscretizer):
     Cardinality:
         is_grounded:          2 values (0: airborne, 1: on ground)
         vy_sign:              3 values (-1: falling, 0: stationary/flat, 1: ascending)
-        obstacle_dist_bin:    4 values (0: None >80px, 1: Far 40-80px, 2: Close 15-40px, 3: Immediate <=15px)
-        obstacle_height_bin:  2 values (0: None/Low <=32px, 1: High >32px)
-        pit_dist_bin:         3 values (0: None >60px, 1: Far 25-60px, 2: Immediate <=25px)
+        obstacle_dist_bin:    4 values (0: None >80px or cleared, 1: Far 40-80px, 2: Close 15-40px, 3: Immediate <=15px)
+        obstacle_height_bin:  2 values (0: Low <=50px, 1: High >50px)
+        pit_dist_bin:         3 values (0: None >80px, 1: Far 32-80px, 2: Immediate <=32px)
 
     Total States: 2 * 3 * 4 * 2 * 3 = 144 states.
     """
 
-    def __init__(self, velocity_threshold: float = 0.1, high_obstacle_threshold: float = 32.0):
+    def __init__(
+        self,
+        velocity_threshold: float = 0.1,
+        high_obstacle_threshold: float = 50.0,
+        floor_y: float = 320.0,
+        mario_height: float = 32.0,
+    ):
         self.velocity_threshold = velocity_threshold
         self.high_obstacle_threshold = high_obstacle_threshold
+        self.floor_y = floor_y
+        self.mario_height = mario_height
 
     def discretize(self, raw_state: RawState) -> DiscreteState:
         # 1. Ground Contact Flag (0 or 1)
@@ -27,9 +35,9 @@ class MarioStateDiscretizer(BaseDiscretizer):
 
         # 2. Vertical Velocity Direction (-1: falling, 0: flat, 1: ascending)
         if raw_state.velocity_y < -self.velocity_threshold:
-            vy_bin = 1   # Ascending (jumping up)
+            vy_bin = 1   # Ascending (jumping up, vy is negative in Pygame)
         elif raw_state.velocity_y > self.velocity_threshold:
-            vy_bin = -1  # Falling (falling down)
+            vy_bin = -1  # Falling (falling down, vy is positive in Pygame)
         else:
             vy_bin = 0   # Flat / stationary
 
@@ -44,18 +52,25 @@ class MarioStateDiscretizer(BaseDiscretizer):
         else:
             obs_dist_bin = 3  # IMMEDIATE
 
+        # Check if obstacle is already cleared vertically:
+        # When Mario's feet (mario_y + mario_height) are at or above obstacle's top (floor_y - obstacle_height + 2.0)
+        mario_feet_y = raw_state.mario_y + self.mario_height
+        obstacle_top_y = self.floor_y - raw_state.obstacle_height
+        if obs_dist_bin != 0 and mario_feet_y <= (obstacle_top_y + 2.0):
+            obs_dist_bin = 0  # Treat obstacle as already cleared
+
         # 4. Obstacle Height Bin
         obs_height_bin = (
             1 if (obs_dist_bin != 0 and raw_state.obstacle_height > self.high_obstacle_threshold) else 0
         )
 
-        # 5. Pit Proximity Bin
+        # 5. Pit Proximity Bin (safe take-off zone <= 32px, approach zone 32..80px, none > 80px)
         dist_pit = raw_state.dist_to_pit
-        if dist_pit < 0.0 or dist_pit > 60.0:
+        if dist_pit < 0.0 or dist_pit > 80.0:
             pit_dist_bin = 0  # NONE (negative indicates no pit ahead)
-        elif dist_pit >= 25.0:
-            pit_dist_bin = 1  # FAR
+        elif dist_pit > 32.0:
+            pit_dist_bin = 1  # FAR (approach zone)
         else:
-            pit_dist_bin = 2  # IMMEDIATE
+            pit_dist_bin = 2  # IMMEDIATE (safe take-off zone <= 32px)
 
         return (grounded_bin, vy_bin, obs_dist_bin, obs_height_bin, pit_dist_bin)

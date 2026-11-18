@@ -68,3 +68,13 @@ class BaseAgent(ABC):
     def load(self, filepath: str) -> None:
         """Restores agent policy / Q-table from disk."""
         pass
+
+    @abstractmethod
+    def decay_epsilon(self) -> float:
+        """Decays the exploration rate epsilon according to schedule."""
+        pass
+
+    @abstractmethod
+    def set_mode(self, training: bool) -> None:
+        """Toggles between training mode (exploration active) and evaluation mode (pure greedy)."""
+        pass
