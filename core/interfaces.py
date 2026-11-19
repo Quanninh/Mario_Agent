@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Tuple
 from core.base_env import RawState, GameEvents
 
-# Type alias for the 5-tuple discrete state representation:
-# (is_grounded, vy_sign, obstacle_dist_bin, obstacle_height_bin, pit_dist_bin)
-DiscreteState = Tuple[int, int, int, int, int]
+# Type alias for the hashable discrete state representation:
+# Default 7-tuple: (is_grounded, vy_sign, obstacle_dist_bin, obstacle_height_bin, pit_dist_bin, ghost_dist_bin, ghost_alt_bin)
+DiscreteState = Tuple[int, ...]
 
 
 class BaseDiscretizer(ABC):
