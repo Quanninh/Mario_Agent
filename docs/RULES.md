@@ -14,7 +14,7 @@
 - **Do Not Break Shared Interfaces Silently**: Any change to `RawState`, `GameEvents`, or `Action` in `core/base_env.py` must be documented and synced with the team.
 - **Single Responsibility**:
   - `env/entities.py` holds data & hitbox geometry only (no Pygame rendering, no RL logic).
-  - `env/mario_env.py` (or `env/graveyard_env.py`) handles physics, collisions, and rendering only (no reward formulas, no Q-table logic).
+  - `env/game_env.py` (`GameEnvironment`) handles physics, collisions, and rendering only (no reward formulas, no Q-table logic).
   - `env/map_levels.py` holds level definitions via `LEVEL_BUILDERS` registry (Open/Closed Principle).
 - **Keep It Simple (KISS)**: Avoid redundant parameters (e.g., use `DEFAULT_FLOOR_Y` constant instead of threading `floor_y` through every builder) and unnecessary state variables.
 
