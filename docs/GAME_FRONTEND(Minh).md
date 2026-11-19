@@ -71,10 +71,10 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 > **Tier 3 (#9–#12)** changes `Action` / `RawState` / `GameEvents`—coordinate with Members 2 & 3 (or branch after v2 is merged to `main`).
 
 #### Tier 1 — Quick Visual & HUD Polish *(Easiest, Zero RL Contract Impact)*
-- [ ] **1. Larger Game Window**: Increase default screen dimensions (e.g., `1000x500` or `1200x500`) and adjust moon/star/floor proportions for a wider, clearer view.
-- [ ] **2. Display `"Hoá"` Label Above Player**: Render `"Hoá"` floating directly above Hoá's head in `_draw_player()`.
-- [ ] **3. Display Current Level Name HUD**: Pass/store `level_name` and draw it at the top-left corner during `render()`.
-- [ ] **4. Warmth Item Counter (`items_collected`)**: Track collected vs. total warmth items in `GameEnvironment` (reset to `0` on `reset()`) and show a HUD counter (e.g., `Warmth: 2/3`).
+- [x] **1. Larger Game Window**: Scaled game display canvas to `1400x700` via Pygame surface scaling (`pygame.transform.scale`), keeping internal physics canvas fixed at `800x400` so physics, hitboxes, and unit tests remain 100% stable.
+- [x] **2. Display `"Hoá"` Label Above Player**: Rendered `"Hoá"` floating directly above Hoá's head (`y - 16` px) with high-contrast drop shadow in `_draw_player()`.
+- [x] **3. Display Current Level Name HUD**: Wired `level_name` through `create_env()` and rendered it at the top-left corner (`x=16, y=14`).
+- [x] **4. Warmth Counter & Countdown Steps Left HUD**: Stacked top-left HUD showing level name, remaining steps countdown (`Steps Left: 980`, turning warning red/orange at $\le 150$), and collected warmth items (`Warmth: 0/4`). Fixed star positioning to prevent background overlap.
 - [ ] **5. Diverse Tombstone Styles**: Add a `style` field on `Obstacle` (e.g., `"cross"` for cross engraving vs. `"buddhist"` for *chữ Vạn* `卍` engraving) for authentic Vietnamese graveyard variety.
 - [ ] **6. Brief Game Over / Win Overlay Before Reset**: Show a short `"GAME OVER"` / `"HOME SAFE!"` banner pause (~1–1.5s) in `play_human.py` before resetting *(keep `GameEnvironment.step()` instant so headless RL training stays fast!)*.
 
@@ -83,10 +83,11 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 - [ ] **8. Win with Fewest Steps & Most Warmth Items**: Track and display run score / personal bests (steps + warmth items collected) on level clear, and align with **Member 3's `RewardStrategy`** (small step penalty + strong warmth item bonus) so the Q-Agent optimizes both speed and item collection.
 
 #### Tier 3 — New Gameplay & Dynamic Hazard Mechanics *(Most Complex — Impacts AI State/Action Space)*
-- [ ] **9. Player Crouch / Duck (`Action.CROUCH`)**: Add crouch action (`S` / `Down` key) that lowers Hoá's hitbox height (e.g., `32 -> 18` px) to duck under mid-height ghosts or laser beams *(expands `Action.NUM_ACTIONS` from 5 to 6)*.
-- [ ] **10. Fire Erupting from Grave Pits**: Periodic flame jets shooting upward out of selected pits on a cycle (`idle -> warning glow -> active lethal flame -> cooldown`), with pit-fire phase exposed in `RawState` so the AI can time its jumps.
-- [ ] **11. Ghosts Shooting Rotating Eye-Laser Beams**: Opt-in per ghost (`has_laser=True`) — fires a lethal laser beam from the ghost's eyes that **rotates continuously in a circle (`0..2π`) while the ghost patrols** (using `(eye_x + L*cos(θ), eye_y + L*sin(θ))`, pure-Python line-segment vs. player AABB collision for headless speed, and nearest-laser angle/danger flag in `RawState`).
-- [ ] **12. Skeleton Rising Randomly from Special Tombs**: Support both normal static tombstones and special mausoleum tombs that randomly spawn a `Skeleton` enemy which pops up and walks along the ground *(requires seeded randomness for reproducible RL experiments, a new `Skeleton` entity with ground physics, and state/event integration)*.
+- [ ] **9. Mid-air Double Jump Mechanic (`can_double_jump`)**: Allow Hoá to execute a second jump while airborne (`not is_grounded`), allowing recovery from miscalculated pit leaps and dodging high hovering ghosts. Resets `jumps_left = 1` upon landing on the floor or on tombstone tops. Reuses existing `Action.JUMP` and `Action.RIGHT_JUMP` without expanding the action space, while exposing a binary `can_double_jump: bool` flag in `RawState` for the RL agent.
+- [ ] **10. Player Crouch / Duck (`Action.CROUCH`)**: Add crouch action (`S` / `Down` key) that lowers Hoá's hitbox height (e.g., `32 -> 18` px) to duck under mid-height ghosts or laser beams *(expands `Action.NUM_ACTIONS` from 5 to 6)*.
+- [ ] **11. Fire Erupting from Grave Pits**: Periodic flame jets shooting upward out of selected pits on a cycle (`idle -> warning glow -> active lethal flame -> cooldown`), with pit-fire phase exposed in `RawState` so the AI can time its jumps.
+- [ ] **12. Ghosts Shooting Rotating Eye-Laser Beams**: Opt-in per ghost (`has_laser=True`) — fires a lethal laser beam from the ghost's eyes that **rotates continuously in a circle (`0..2π`) while the ghost patrols** (using `(eye_x + L*cos(θ), eye_y + L*sin(θ))`, pure-Python line-segment vs. player AABB collision for headless speed, and nearest-laser angle/danger flag in `RawState`).
+- [ ] **13. Skeleton Rising Randomly from Special Tombs**: Support both normal static tombstones and special mausoleum tombs that randomly spawn a `Skeleton` enemy which pops up and walks along the ground *(requires seeded randomness for reproducible RL experiments, a new `Skeleton` entity with ground physics, and state/event integration)*.
 
 ---
 
@@ -98,7 +99,14 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 - **Step 4**: Built modular level registry in `env/map_levels.py` using `DEFAULT_FLOOR_Y = 320.0`.
 - **Step 5**: Created `play_human.py` manual keyboard runner and fixed the macOS window freeze on `R` reset by pumping Pygame events via `env.render()`. Committed v1 on `game_frontend`.
 - **Step 6**: Completed full v2 upgrade (**Hoá's Midnight Escape**): refactored `MarioEnvironment` $\to$ `GameEnvironment` (`env/game_env.py`) and `Mario` $\to$ `Player`; added hovering `Ghost` and `WarmthItem`; updated `RawState`/`GameEvents`; built midnight graveyard Pygame visuals; expanded `env/map_levels.py` to 5 progressive levels (uniform ghosts in Level 4, diverse ghosts in Level 5, items from Level 3 onwards); updated `play_human.py` for Levels `1–5` and play-tested successfully.
-- **Step 7**: Added headless unit tests in `tests/test_env.py` (6/6 passing in `0.022s`) and created `.gitignore`. Documented the prioritized 12-item v3 Enhancement Backlog (Tier 1–3, easiest to most complex).
+- **Step 7**: Added headless unit tests in `tests/test_env.py` (6/6 passing in `0.022s`) and created `.gitignore`. Documented the prioritized 13-item v3 Enhancement Backlog (Tier 1–3, easiest to most complex).
+- **Step 8**: Implemented Tier 1 visual & HUD overhaul:
+  - Canvas window scaling to `1400x700` (`canvas_width=800, canvas_height=400` logic scaled via `pygame.transform.scale`).
+  - Rendered `"Hoá"` floating name tag with contrast drop-shadow above player head.
+  - Implemented fixed 3-line top-left HUD (`level_name`, countdown `Steps Left` with warning coloring at $\le 150$, and `Warmth: X/Y` item counter).
+  - Repositioned star coordinates to `(70, 75)` to eliminate background overlap.
+  - Added Mid-air Double Jump (`can_double_jump`) design specification to roadmap and root `README.md`.
+  - Re-verified all 6 headless unit tests pass cleanly in `0.020s`.
 
 ---
 
@@ -127,12 +135,12 @@ Holds lightweight data models and hitbox geometry with zero rendering or RL coup
 ### 5.3 `env/game_env.py` — 2D Physics Engine & Graveyard Renderer
 Concrete `GameEnvironment(BaseEnvironment)` driving physics, collisions, dynamic hazards, state extraction, and midnight graveyard Pygame rendering.
 
-- **Physics Constants**: `GRAVITY = 0.8`, `WALK_SPEED = 4.0`, `JUMP_FORCE = -13.0` (max jump height $\approx 105\text{ px}$, max jump span $\approx 130\text{ px}$).
+- **Physics Constants & Resolution**: `GRAVITY = 0.8`, `WALK_SPEED = 4.0`, `JUMP_FORCE = -13.0` (max jump height $\approx 105\text{ px}$, max jump span $\approx 130\text{ px}$). Logic runs on `canvas_width=800, canvas_height=400` with `floor_y=320.0`, scaled to `screen_width=1400, screen_height=700` display.
 - **Lifecycle Methods**:
   - `reset() -> RawState`: Restores Hoá, all ghosts, all warmth items, and `step_count = 0`.
   - `step(action) -> (RawState, GameEvents, bool)`: Runs axis-separated X/Y AABB collisions, pit-fall guard (`old_bottom <= floor_y`), updates ghosts, checks warmth pickups, checks termination (`hit_ghost`, `fell_in_pit`, `reached_goal`, `max_steps`), and returns state + events.
-  - `render()` / `close()`: Lazy-initializes Pygame (`"Hoá's Midnight Escape"`) and delegates rendering to `_draw_background`, `_draw_tombstone`, `_draw_ghost`, `_draw_item`, `_draw_home`, and `_draw_player` with horizontal camera scrolling (`camera_x`).
-- **Helpers**: `_get_raw_state()` (nearest upcoming tombstone, pit, ghost + Y, uncollected item, and home) and `_rects_overlap()`.
+  - `render()` / `close()`: Lazy-initializes Pygame (`"Hoá's Midnight Escape"`), renders to internal canvas, draws fixed 3-line HUD (`_draw_hud`), floating name tag (`_draw_player`), and scales to the display window.
+- **Helpers**: `_get_raw_state()` (nearest upcoming tombstone, pit, ghost + Y, uncollected item, and home), `_rects_overlap()`, and `_draw_hud()` (level name, remaining step countdown, warmth counter).
 
 ### 5.4 `env/map_levels.py` — 5-Level Curriculum Registry
 Separates stage definitions from `GameEnvironment` (Open/Closed Principle) with `DEFAULT_FLOOR_Y = 320.0`.

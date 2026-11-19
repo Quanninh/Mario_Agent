@@ -1,1 +1,111 @@
-# Mario_Agent
+# Hoá's Midnight Escape — Reinforcement Learning Platformer
+
+A 2D midnight graveyard platformer environment engineered for **Tabular Q-Learning** research and benchmark evaluation. Built with a strict **SOLID** architecture, decoupled MDP abstractions, and high-speed headless physics simulation (>100,000 steps/sec).
+
+---
+
+## 1. Story & Gameplay Overview
+
+Hoá wakes up stranded in an eerie midnight graveyard far from home. The cold is creeping in, open graves gape in the dark, and spectral ghosts hover in sinusoidal flight paths. Hoá must traverse the hazardous graveyard, avoid falling into open pits, dodge haunting ghosts, collect glowing warmth items to maintain stamina, and reach the sanctuary of his home.
+
+---
+
+## 2. System Architecture & SOLID Principles
+
+The system strictly decouples the physics environment from the machine learning agents:
+
+```
+Mario_Agent/
+├── core/                   # [Contract] Abstract MDP definitions & interfaces
+│   ├── base_env.py         # Action, RawState, GameEvents, BaseEnvironment (ABC)
+│   └── __init__.py
+├── env/                    # [Physics & Graphics] 2D platformer implementation
+│   ├── entities.py         # Player, Obstacle, Pit, Ghost, WarmthItem, GoalFlag
+│   ├── game_env.py         # GameEnvironment (AABB collisions, headless mode, Pygame HUD)
+│   ├── map_levels.py       # 5 progressive curriculum stages (LevelConfig & registry)
+│   └── __init__.py
+├── agent/                  # [RL Agent] Tabular Q-Learning implementation
+├── discretizer/            # [State Discretizer] Continuous -> discrete state space mapping
+├── rewards/                # [Reward Strategy] Balanced & customized reward shaping
+├── tests/                  # [Verification] Headless unit tests (0.02s suite execution)
+└── play_human.py           # Interactive keyboard runner for manual playtesting
+```
+
+### Key Architectural Highlights:
+- **Dependency Inversion**: Higher-level learning modules (Q-Agent, Trainer, Reward Strategies) depend solely on abstract interfaces in `core/base_env.py`, never on Pygame or concrete entity classes.
+- **Headless-First Design**: Rendering is strictly decoupled and lazily initialized. Stepping headlessly bypasses all graphical overhead, ensuring blazingly fast training throughput.
+- **Canvas Scaling**: Internal physics and relative vision sensors operate on a clean `800x400` logical canvas, scaled smoothly to higher-resolution display viewports (e.g., `1400x700`) without altering physics equations or Q-table cardinality.
+
+---
+
+## 3. Curriculum Stages (Levels 1–5)
+
+The environment supports a progressive 5-stage curriculum designed for staged reinforcement learning:
+
+1. **Level 1 — Quiet Graveyard**: Introduction to basic jumping over static tombstones (0 pits, 0 ghosts, 0 items).
+2. **Level 2 — Open Grave Pits**: Introduces lethal gap hazards requiring timed leaps.
+3. **Level 3 — Cold Trail**: Introduces Warmth Items placed along challenging jump trajectories.
+4. **Level 4 — Whispering Graves**: Introduces hovering, sinusoidal ghosts with uniform speeds and patrol zones.
+5. **Level 5 — Midnight Escape**: The ultimate gauntlet featuring 4 diverse ghosts with varying velocities, bobbing frequencies, and wave amplitudes alongside pits and items.
+
+---
+
+## 4. Controls & Quick Start
+
+### Prerequisites
+- Python 3.9+
+- `pygame` (required only for GUI playtesting; headless training runs with zero external dependencies)
+
+### Manual Playtesting
+To explore the environment and test level mechanics directly:
+```bash
+python play_human.py
+```
+
+| Key | Action |
+| :--- | :--- |
+| `A` / `Left Arrow` | Walk Left |
+| `D` / `Right Arrow` | Walk Right |
+| `Space` / `W` / `Up Arrow` | Jump |
+| `1` – `5` | Instant Curriculum Level Switch |
+| `R` | Reset Current Level |
+| `Esc` | Quit Application |
+
+### Automated Headless Tests
+Run the 6 automated unit tests verifying deterministic resets, ghost/pit collision physics, item pickups, and win triggers:
+```bash
+python -m unittest discover tests
+```
+
+---
+
+## 5. Upcoming Roadmap & Enhancement Backlog
+
+Future enhancements categorized from immediate visual polish to advanced dynamic gameplay mechanics:
+
+### Tier 1 — Visual & HUD Polish *(Zero RL Contract Impact)*
+- [x] **Canvas Window Scaling**: Scaled display viewport to `1400x700` while preserving `800x400` physics space.
+- [x] **Player Name Tag**: Floating `"Hoá"` label rendered above player hitbox with contrast drop-shadow.
+- [x] **Level Name HUD**: Displays current curriculum stage in the top-left corner.
+- [x] **Countdown Steps Left & Warmth Counter**: Real-time step countdown (with alert coloring at $\le 150$ steps) and collected item counter stacked in the top-left HUD.
+- [ ] **Diverse Tombstones**: Visual variants for Christian cross engravings and Buddhist sauwastika (*chữ Vạn* `卍`) engravings.
+- [ ] **Game Over & Victory Overlay**: Brief 1-second banner pause before level reset in human play mode.
+
+### Tier 2 — Architecture & Goal Optimization
+- [ ] **SOLID Dynamic Level Registry**: Scalable level switcher driven directly by `LEVEL_BUILDERS` metadata.
+- [ ] **Speedrun & Warmth Score Tracking**: Optimization objective encouraging clearing stages with minimum steps and maximum warmth items.
+
+### Tier 3 — Dynamic Gameplay & Hazard Mechanics
+- [ ] **Mid-air Double Jump (`can_double_jump`)**: Enables Hoá to execute a second jump while airborne to recover from missed pit jumps or leap over high ghosts. Reuses `Action.JUMP` / `Action.RIGHT_JUMP` without expanding the action space; exposes `can_double_jump: bool` in `RawState`.
+- [ ] **Player Crouch / Duck (`Action.CROUCH`)**: Lowers Hoá's hitbox (`32 -> 18` px) to duck under hovering ghosts or traps.
+- [ ] **Pit Flame Hazards**: Periodic flame jets erupting from grave pits on timed cycles.
+- [ ] **Rotating Ghost Eye-Lasers**: Ghosts firing lethal rotating laser beams while patrolling.
+- [ ] **Rising Skeletons**: Random spawns of ground-patrolling skeletons emerging from mausoleum tombs.
+
+---
+
+## 6. Team & Contributions
+- **Member 1 (Current Branch Lead)**: Environment & Game Physics Lead (Entities, AABB Collision Engine, Pygame Visuals, Level Curriculum).
+- **Member 2**: State Discretization & Tabular Q-Learning Agent.
+- **Member 3**: Reward Strategy Shaping & Training Loop.
+- **Member 4**: Evaluation, Performance Metrics, and Visualization.
