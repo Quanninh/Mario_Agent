@@ -58,10 +58,35 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
   - [x] Expanded `env/map_levels.py` to **5 progressive levels**: Levels 1–2 (baseline & pits), Level 3 (shifted layout + warmth items), Level 4 (2 uniform ghosts + items), Level 5 (4 diverse ghosts with distinct speeds & wave patterns + items).
   - [x] Updated `play_human.py` for live switching across Levels `1–5`, `state.player_x`, warmth pickup logs, and ghost/pit death feedback.
 
-### Phase 3 — Verification & Team Hand-off (Remaining)
+### Phase 3 — Verification & Team Hand-off
 - [ ] **Step 7: Headless Verification & PR to `main`**
-  - [ ] Add automated headless test (`tests/test_env.py`) verifying fast stepping across all 5 levels, clean resets (player, ghosts, items), and termination/event flags.
-  - [ ] Freeze final contract and merge `game_frontend` into `main` for Members 2, 3, and 4.
+  - [x] Add automated headless test (`tests/test_env.py`) — all 6/6 tests pass in `0.022s` (smoke test across Levels 1–5, full reset check, item pickup, ghost death, pit death, home win).
+  - [x] Add `.gitignore` to exclude `__pycache__/`, `*.pyc`, virtualenvs, and `.DS_Store`.
+  - [ ] Merge `game_frontend` into `main` so Members 2, 3, and 4 can integrate against v2.
+
+### Phase 4 — v3 Enhancement Backlog *(Sorted: Easiest $\to$ Most Complex)*
+
+> [!TIP]
+> **Tier 1 & Tier 2 (#1–#8)** do **not** break `core/base_env.py` and are safe to build without disrupting Members 2–4.  
+> **Tier 3 (#9–#12)** changes `Action` / `RawState` / `GameEvents`—coordinate with Members 2 & 3 (or branch after v2 is merged to `main`).
+
+#### Tier 1 — Quick Visual & HUD Polish *(Easiest, Zero RL Contract Impact)*
+- [ ] **1. Larger Game Window**: Increase default screen dimensions (e.g., `1000x500` or `1200x500`) and adjust moon/star/floor proportions for a wider, clearer view.
+- [ ] **2. Display `"Hoá"` Label Above Player**: Render `"Hoá"` floating directly above Hoá's head in `_draw_player()`.
+- [ ] **3. Display Current Level Name HUD**: Pass/store `level_name` and draw it at the top-left corner during `render()`.
+- [ ] **4. Warmth Item Counter (`items_collected`)**: Track collected vs. total warmth items in `GameEnvironment` (reset to `0` on `reset()`) and show a HUD counter (e.g., `Warmth: 2/3`).
+- [ ] **5. Diverse Tombstone Styles**: Add a `style` field on `Obstacle` (e.g., `"cross"` for cross engraving vs. `"buddhist"` for *chữ Vạn* `卍` engraving) for authentic Vietnamese graveyard variety.
+- [ ] **6. Brief Game Over / Win Overlay Before Reset**: Show a short `"GAME OVER"` / `"HOME SAFE!"` banner pause (~1–1.5s) in `play_human.py` before resetting *(keep `GameEnvironment.step()` instant so headless RL training stays fast!)*.
+
+#### Tier 2 — Clean Architecture & Goal Optimization *(Medium Complexity)*
+- [ ] **7. SOLID Dynamic Level Switching**: Replace hardcoded `K_1..K_5` switching in `play_human.py` with a scalable level manager driven by `LEVEL_BUILDERS` (e.g., Previous/Next level keys `[` / `]` or `N` / `P` + dynamic IDs) so adding Level 6, 7, 10+ requires zero changes to `play_human.py`.
+- [ ] **8. Win with Fewest Steps & Most Warmth Items**: Track and display run score / personal bests (steps + warmth items collected) on level clear, and align with **Member 3's `RewardStrategy`** (small step penalty + strong warmth item bonus) so the Q-Agent optimizes both speed and item collection.
+
+#### Tier 3 — New Gameplay & Dynamic Hazard Mechanics *(Most Complex — Impacts AI State/Action Space)*
+- [ ] **9. Player Crouch / Duck (`Action.CROUCH`)**: Add crouch action (`S` / `Down` key) that lowers Hoá's hitbox height (e.g., `32 -> 18` px) to duck under mid-height ghosts or laser beams *(expands `Action.NUM_ACTIONS` from 5 to 6)*.
+- [ ] **10. Fire Erupting from Grave Pits**: Periodic flame jets shooting upward out of selected pits on a cycle (`idle -> warning glow -> active lethal flame -> cooldown`), with pit-fire phase exposed in `RawState` so the AI can time its jumps.
+- [ ] **11. Ghosts Shooting Rotating Eye-Laser Beams**: Opt-in per ghost (`has_laser=True`) — fires a lethal laser beam from the ghost's eyes that **rotates continuously in a circle (`0..2π`) while the ghost patrols** (using `(eye_x + L*cos(θ), eye_y + L*sin(θ))`, pure-Python line-segment vs. player AABB collision for headless speed, and nearest-laser angle/danger flag in `RawState`).
+- [ ] **12. Skeleton Rising Randomly from Special Tombs**: Support both normal static tombstones and special mausoleum tombs that randomly spawn a `Skeleton` enemy which pops up and walks along the ground *(requires seeded randomness for reproducible RL experiments, a new `Skeleton` entity with ground physics, and state/event integration)*.
 
 ---
 
@@ -73,6 +98,7 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 - **Step 4**: Built modular level registry in `env/map_levels.py` using `DEFAULT_FLOOR_Y = 320.0`.
 - **Step 5**: Created `play_human.py` manual keyboard runner and fixed the macOS window freeze on `R` reset by pumping Pygame events via `env.render()`. Committed v1 on `game_frontend`.
 - **Step 6**: Completed full v2 upgrade (**Hoá's Midnight Escape**): refactored `MarioEnvironment` $\to$ `GameEnvironment` (`env/game_env.py`) and `Mario` $\to$ `Player`; added hovering `Ghost` and `WarmthItem`; updated `RawState`/`GameEvents`; built midnight graveyard Pygame visuals; expanded `env/map_levels.py` to 5 progressive levels (uniform ghosts in Level 4, diverse ghosts in Level 5, items from Level 3 onwards); updated `play_human.py` for Levels `1–5` and play-tested successfully.
+- **Step 7**: Added headless unit tests in `tests/test_env.py` (6/6 passing in `0.022s`) and created `.gitignore`. Documented the prioritized 12-item v3 Enhancement Backlog (Tier 1–3, easiest to most complex).
 
 ---
 
