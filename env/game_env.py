@@ -31,7 +31,7 @@ class GameEnvironment(BaseEnvironment):
     COLOR_HOUSE_DOOR = (100, 65, 40)
     COLOR_HOUSE_WINDOW = (255, 230, 115)
 
-    # Decorative stars in the night sky (screen-space coordinates)
+    # Decorative stars in the night sky (canvas-space coordinates)
     STARS = [
         (70, 45), (150, 90), (230, 35), (320, 75), (410, 40),
         (510, 85), (590, 30), (740, 110), (270, 125), (470, 120),
@@ -44,11 +44,15 @@ class GameEnvironment(BaseEnvironment):
         ghosts: Optional[List[Ghost]] = None,
         items: Optional[List[WarmthItem]] = None,
         goal: Optional[GoalFlag] = None,
-        screen_width: int = 800,
-        screen_height: int = 400,
+        canvas_width: int = 800,
+        canvas_height: int = 400,
         floor_y: float = 320.0,
         max_steps: int = 1000,
+        screen_width: int = 1400,   # For larger game window scaling
+        screen_height: int = 700    # For larger game window scaling
     ) -> None:
+        self.canvas_width = canvas_width
+        self.canvas_height = canvas_height
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.floor_y = floor_y
@@ -78,6 +82,7 @@ class GameEnvironment(BaseEnvironment):
 
         # Pygame rendering state (lazy-initialized in render())
         self._screen: Optional[pygame.Surface] = None
+        self._canvas: Optional[pygame.Surface] = None
         self._clock: Optional[pygame.time.Clock] = None
 
     def reset(self) -> RawState:
@@ -176,7 +181,7 @@ class GameEnvironment(BaseEnvironment):
             done = True
 
         # Check pit death
-        elif self.player.y > self.screen_height:
+        elif self.player.y > self.canvas_height:
             self.player.is_alive = False
             events.fell_in_pit = True
             done = True
@@ -196,7 +201,13 @@ class GameEnvironment(BaseEnvironment):
         """Render Hoá's Midnight Escape using Pygame."""
         if self._screen is None:
             pygame.init()
+
+            # Displaying the game on the laptop's screen (can be scaled)
             self._screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+
+            # Core internal logic canvas (800 x 400 pixels)
+            self._canvas = pygame.Surface((self.canvas_width, self.canvas_height))
+
             pygame.display.set_caption("Hoá's Midnight Escape")
             self._clock = pygame.time.Clock()
 
@@ -206,26 +217,30 @@ class GameEnvironment(BaseEnvironment):
                 self.close()
                 return
 
-        screen = self._screen
+        canvas = self._canvas
         # Camera offset (keeps Mario visible on wide levels)
-        camera_x = max(0.0, self.player.x - self.screen_width * 0.3)
+        camera_x = max(0.0, self.player.x - self.canvas_width * 0.3)
 
         # Drawing entities in the game environment
-        self._draw_background(screen, camera_x)
+        self._draw_background(canvas, camera_x)
 
         for obs in self.obstacles:
-            self._draw_tombstone(screen, obs, camera_x)
+            self._draw_tombstone(canvas, obs, camera_x)
 
         for ghost in self.ghosts:
-            self._draw_ghost(screen, ghost, camera_x)
+            self._draw_ghost(canvas, ghost, camera_x)
 
         for item in self.items:
             if not item.is_collected:
-                self._draw_item(screen, item, camera_x)
+                self._draw_item(canvas, item, camera_x)
 
-        self._draw_home(screen, camera_x)
+        self._draw_home(canvas, camera_x)
 
-        self._draw_player(screen, camera_x)
+        self._draw_player(canvas, camera_x)
+
+        # Scale from canvas logic to screen displaying
+        scaled = pygame.transform.scale(canvas, (self.screen_width, self.screen_height))
+        self._screen.blit(scaled, (0, 0))
 
         # Set the FPS of the game
         pygame.display.flip()
@@ -237,110 +252,111 @@ class GameEnvironment(BaseEnvironment):
         if self._screen is not None:
             pygame.quit()
             self._screen = None
+            self._canvas = None
             self._clock = None
 
     # ------------------------------------------
     # Drawing Helpers (Midnight Graveyard Theme)
     # ------------------------------------------
-    def _draw_background(self, screen: pygame.Surface, camera_x: float) -> None:
-        screen.fill(self.COLOR_SKY)
+    def _draw_background(self, canvas: pygame.Surface, camera_x: float) -> None:
+        canvas.fill(self.COLOR_SKY)
 
         # Stars & full moon
         for sx, sy in self.STARS:
-            pygame.draw.circle(screen, self.COLOR_STAR, (sx, sy), 2)
-        pygame.draw.circle(screen, self.COLOR_MOON, (self.screen_width - 90, 65), 28)
+            pygame.draw.circle(canvas, self.COLOR_STAR, (sx, sy), 2)
+        pygame.draw.circle(canvas, self.COLOR_MOON, (self.canvas_width - 90, 65), 28)
 
         # Graveyard soil & dark grass trim
         pygame.draw.rect(
-            screen,
+            canvas,
             self.COLOR_SOIL,
-            (0, self.floor_y, self.screen_width, self.screen_height - self.floor_y),
+            (0, self.floor_y, self.canvas_width, self.canvas_height - self.floor_y),
         )
-        pygame.draw.rect(screen, self.COLOR_GRASS, (0, self.floor_y, self.screen_width, 6))
+        pygame.draw.rect(canvas, self.COLOR_GRASS, (0, self.floor_y, self.canvas_width, 6))
 
         # Carve out open grave pits
         for pit in self.pits:
             pit_x = pit.x_start - camera_x
             pit_w = pit.x_end - pit.x_start
             pygame.draw.rect(
-                screen,
+                canvas,
                 self.COLOR_SKY,
-                (pit_x, self.floor_y, pit_w, self.screen_height - self.floor_y),
+                (pit_x, self.floor_y, pit_w, self.canvas_height - self.floor_y),
             )
 
-    def _draw_tombstone(self, screen: pygame.Surface, obs: Obstacle, camera_x: float) -> None:
+    def _draw_tombstone(self, canvas: pygame.Surface, obs: Obstacle, camera_x: float) -> None:
         x = obs.x - camera_x
         y, w, h = obs.y, obs.width, obs.height
         radius = int(w / 2)
 
         # Rounded arch top + rectangular stone body
-        pygame.draw.circle(screen, self.COLOR_TOMBSTONE, (int(x + radius), int(y + radius)), radius)
-        pygame.draw.rect(screen, self.COLOR_TOMBSTONE, (x, y + radius, w, h - radius))
+        pygame.draw.circle(canvas, self.COLOR_TOMBSTONE, (int(x + radius), int(y + radius)), radius)
+        pygame.draw.rect(canvas, self.COLOR_TOMBSTONE, (x, y + radius, w, h - radius))
 
         # Engraved cross (+)
         cx = int(x + w / 2)
         cy = int(y + h * 0.45)
-        pygame.draw.line(screen, self.COLOR_TOMBSTONE_DETAIL, (cx, cy - 8), (cx, cy + 10), 2)
-        pygame.draw.line(screen, self.COLOR_TOMBSTONE_DETAIL, (cx - 6, cy - 2), (cx + 6, cy - 2), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx, cy - 8), (cx, cy + 10), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx - 6, cy - 2), (cx + 6, cy - 2), 2)
 
-    def _draw_ghost(self, screen: pygame.Surface, ghost: Ghost, camera_x: float) -> None:
+    def _draw_ghost(self, canvas: pygame.Surface, ghost: Ghost, camera_x: float) -> None:
         x = ghost.x - camera_x
         y, w, h = ghost.y, ghost.width, ghost.height
         radius = int(w / 2)
 
         # Ghost head dome + body
-        pygame.draw.circle(screen, self.COLOR_GHOST, (int(x + radius), int(y + radius)), radius)
-        pygame.draw.rect(screen, self.COLOR_GHOST, (x, y + radius, w, h - radius - 4))
+        pygame.draw.circle(canvas, self.COLOR_GHOST, (int(x + radius), int(y + radius)), radius)
+        pygame.draw.rect(canvas, self.COLOR_GHOST, (x, y + radius, w, h - radius - 4))
 
         # Wavy ghost tail (3 small circles along the bottom)
         wave_r = int(w / 6)
         for i in range(3):
             wx = int(x + wave_r + i * (w / 3))
             wy = int(y + h - wave_r)
-            pygame.draw.circle(screen, self.COLOR_GHOST, (wx, wy), wave_r)
+            pygame.draw.circle(canvas, self.COLOR_GHOST, (wx, wy), wave_r)
 
         # Two dark hollow eyes
-        pygame.draw.circle(screen, self.COLOR_GHOST_EYE, (int(x + w * 0.35), int(y + h * 0.4)), 3)
-        pygame.draw.circle(screen, self.COLOR_GHOST_EYE, (int(x + w * 0.65), int(y + h * 0.4)), 3)
+        pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (int(x + w * 0.35), int(y + h * 0.4)), 3)
+        pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (int(x + w * 0.65), int(y + h * 0.4)), 3)
 
-    def _draw_item(self, screen: pygame.Surface, item: WarmthItem, camera_x: float) -> None:
+    def _draw_item(self, canvas: pygame.Surface, item: WarmthItem, camera_x: float) -> None:
         cx = int(item.x - camera_x + item.width / 2)
         cy = int(item.y + item.height / 2)
 
-        pygame.draw.circle(screen, self.COLOR_ITEM_GLOW, (cx, cy), 9)
-        pygame.draw.circle(screen, self.COLOR_ITEM_CORE, (cx, cy), 4)
+        pygame.draw.circle(canvas, self.COLOR_ITEM_GLOW, (cx, cy), 9)
+        pygame.draw.circle(canvas, self.COLOR_ITEM_CORE, (cx, cy), 4)
 
-    def _draw_home(self, screen: pygame.Surface, camera_x: float) -> None:
+    def _draw_home(self, canvas: pygame.Surface, camera_x: float) -> None:
         x = self.goal.x - camera_x
         y, w, h = self.goal.y, self.goal.width, self.goal.height
         roof_h = 28
 
         # House wall
-        pygame.draw.rect(screen, self.COLOR_HOUSE_WALL, (x, y + roof_h, w, h - roof_h))
+        pygame.draw.rect(canvas, self.COLOR_HOUSE_WALL, (x, y + roof_h, w, h - roof_h))
 
         # Triangular roof
         roof_pts = [(x - 6, y + roof_h), (x + w / 2, y), (x + w + 6, y + roof_h)]
-        pygame.draw.polygon(screen, self.COLOR_HOUSE_ROOF, roof_pts)
+        pygame.draw.polygon(canvas, self.COLOR_HOUSE_ROOF, roof_pts)
 
         # Front door
-        pygame.draw.rect(screen, self.COLOR_HOUSE_DOOR, (x + 10, y + h - 30, 16, 30))
+        pygame.draw.rect(canvas, self.COLOR_HOUSE_DOOR, (x + 10, y + h - 30, 16, 30))
 
         # Glowing warm yellow window
-        pygame.draw.rect(screen, self.COLOR_HOUSE_WINDOW, (x + 34, y + roof_h + 14, 18, 18))
+        pygame.draw.rect(canvas, self.COLOR_HOUSE_WINDOW, (x + 34, y + roof_h + 14, 18, 18))
 
-    def _draw_player(self, screen: pygame.Surface, camera_x: float) -> None:
+    def _draw_player(self, canvas: pygame.Surface, camera_x: float) -> None:
         x = self.player.x - camera_x
         y, w, h = self.player.y, self.player.width, self.player.height
 
         # Winter jacket body
-        pygame.draw.rect(screen, self.COLOR_PLAYER_JACKET, (x + 2, y + 12, w - 4, h - 12))
+        pygame.draw.rect(canvas, self.COLOR_PLAYER_JACKET, (x + 2, y + 12, w - 4, h - 12))
 
         # Head
-        pygame.draw.circle(screen, self.COLOR_PLAYER_HEAD, (int(x + w / 2), int(y + 8)), 8)
+        pygame.draw.circle(canvas, self.COLOR_PLAYER_HEAD, (int(x + w / 2), int(y + 8)), 8)
 
         # Eye facing movement direction
         eye_x = int(x + w * 0.65) if self.player.facing_right else int(x + w * 0.35)
-        pygame.draw.circle(screen, self.COLOR_GHOST_EYE, (eye_x, int(y + 7)), 2)
+        pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (eye_x, int(y + 7)), 2)
 
 
     # --------------
