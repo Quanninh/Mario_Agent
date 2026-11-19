@@ -1,28 +1,42 @@
 """
 Mario RL Agent — Evaluation Graph Generator
 =============================================
-Generates a mock training log CSV (100 episodes) and produces 3
-academic-grade evaluation figures for the technical report.
+Generates a mock training log CSV matching Member 3's multi-level curriculum log format
+and produces 3 academic-grade evaluation figures (as PDFs) for the technical report.
 
-Dependencies: numpy, pandas, matplotlib, seaborn
-Usage:        python evaluation/generate_evaluation_graphs.py
+CSV Columns:
+  global_episode, level_episode, level_id, total_reward, steps, max_x_reached,
+  progress_pct, obstacle_hits, epsilon, won, outcome, rolling_win_rate_50
+
+Usage: python evaluation/generate_evaluation_graphs.py
 """
 
 import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import seaborn as sns
 
 # ──────────────────────────────────────────────
-# 0.  Paths
+# 0.  Paths & Constants
 # ──────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(SCRIPT_DIR, "mario_training_log.csv")
 GRAPH_1_PATH = os.path.join(SCRIPT_DIR, "graph_1_curriculum_learning_curve.pdf")
 GRAPH_2_PATH = os.path.join(SCRIPT_DIR, "graph_2_reward_profiling_benchmark.pdf")
 GRAPH_3_PATH = os.path.join(SCRIPT_DIR, "graph_3_playstyle_matrix.pdf")
+
+# Level goal positions from env.map_levels
+LEVEL_GOALS = {
+    1: 720.0,
+    2: 1100.0,
+    3: 1120.0,
+}
+LEVEL_MAX_STEPS = {
+    1: 800,
+    2: 1000,
+    3: 1000,
+}
 
 # ──────────────────────────────────────────────
 # 1.  Academic Plot Configuration
@@ -43,93 +57,116 @@ plt.rcParams.update({
 # ──────────────────────────────────────────────
 # 2.  Mock Data Generation
 # ──────────────────────────────────────────────
-def generate_mock_data(n_episodes: int = 100, seed: int = 42) -> pd.DataFrame:
-    """Create a reproducible mock training log with realistic trends."""
+def generate_mock_data(episodes_per_level: int = 400, seed: int = 42) -> pd.DataFrame:
+    """
+    Generate curriculum training telemetry matching Member 3's real log schema:
+    global_episode, level_episode, level_id, total_reward, steps, max_x_reached,
+    progress_pct, obstacle_hits, epsilon, won, outcome, rolling_win_rate_50
+    """
     np.random.seed(seed)
+    records = []
+    global_ep = 0
 
-    episodes = np.arange(1, n_episodes + 1)
-    progress = (episodes - 1) / (n_episodes - 1)          # 0 → 1
+    # Level curriculum progression: 1 -> 2 -> 3
+    # Each level trains for episodes_per_level (default 400 episodes)
+    for level_id in [1, 2, 3]:
+        goal_x = LEVEL_GOALS[level_id]
+        max_allowed_steps = LEVEL_MAX_STEPS[level_id]
 
-    # --- training_mode ---
-    # First 50: 70 % train, last 50: 85 % eval
-    mode_first = np.random.choice(
-        ["train", "eval"], size=50, p=[0.70, 0.30]
-    )
-    mode_last = np.random.choice(
-        ["train", "eval"], size=50, p=[0.15, 0.85]
-    )
-    training_mode = np.concatenate([mode_first, mode_last])
+        # Epsilon schedule per level:
+        # Level 1 starts with high exploration (1.0 -> 0.05)
+        # Level 2 & 3 start with transfer warmup (0.35 -> 0.05) as observed in user sample
+        start_eps = 1.0 if level_id == 1 else 0.35
+        min_eps = 0.05
+        decay_rate = 0.992
 
-    # --- reward_profile ---
-    reward_profile = np.random.choice(
-        ["Sparse", "Dense", "Balanced"], size=n_episodes
-    )
+        current_eps = start_eps
+        level_wins = []
 
-    # --- level (cyclic then shuffled within thirds) ---
-    levels_base = np.tile(["Level_1", "Level_2", "Level_3"],
-                          n_episodes // 3 + 1)[:n_episodes]
-    # Shuffle within each third to mix order while keeping balanced counts
-    for start in range(0, n_episodes, n_episodes // 3):
-        end = min(start + n_episodes // 3, n_episodes)
-        np.random.shuffle(levels_base[start:end])
-    level = levels_base
+        for level_ep in range(1, episodes_per_level + 1):
+            global_ep += 1
 
-    # --- epsilon (exponential decay 1.0 → 0.01) ---
-    epsilon = 1.0 * (0.01 / 1.0) ** progress
+            # Progression ratio within this level (0.0 -> 1.0)
+            t = (level_ep - 1) / (episodes_per_level - 1)
 
-    # --- rolling_win_rate_50 (sigmoid-shaped with per-level offsets) ---
-    # Base sigmoid: steep rise centered around episode 50
-    base_win_rate = 95.0 / (1.0 + np.exp(-0.10 * (episodes - 45)))
-    level_offset = np.where(
-        level == "Level_1",  8.0,
-        np.where(level == "Level_2", 0.0, -10.0)
-    )
-    noise_wr = np.random.normal(0, 3, size=n_episodes)
-    rolling_win_rate_50 = np.clip(base_win_rate + level_offset + noise_wr,
-                                  0, 100)
+            # --- Epsilon Decay ---
+            eps_val = max(min_eps, current_eps)
+            current_eps *= decay_rate
 
-    # --- total_reward (linear trend with per-profile multiplier) ---
-    base_reward = 50 + 450 * progress
-    profile_mult = np.where(
-        reward_profile == "Dense",    1.3,
-        np.where(reward_profile == "Balanced", 1.0, 0.7)
-    )
-    noise_rw = np.random.normal(0, 15, size=n_episodes)
-    total_reward = np.round(base_reward * profile_mult + noise_rw, 2)
+            # --- Win Probability Curve ---
+            # Sigmoidal convergence: Level 1 converges earliest, Level 3 is hardest
+            steepness = 0.025
+            midpoint = 120 if level_id == 1 else (160 if level_id == 2 else 200)
+            p_win = 1.0 / (1.0 + np.exp(-steepness * (level_ep - midpoint)))
+            # Max asymptotic win rate per level
+            max_p = 0.99 if level_id == 1 else (0.96 if level_id == 2 else 0.93)
+            p_win = float(np.clip(p_win * max_p, 0.0, 1.0))
 
-    # --- steps (high → low) ---
-    base_steps = 800 - 600 * progress
-    noise_st = np.random.normal(0, 30, size=n_episodes)
-    steps = np.clip(base_steps + noise_st, 80, 1000).astype(int)
+            won_bool = bool(np.random.rand() < p_win)
 
-    # --- stomps ---
-    stomps = np.random.randint(0, 6, size=n_episodes)
+            # --- Outcome determination ---
+            if won_bool:
+                outcome = "win"
+                max_x = goal_x
+                progress_pct = 100.0
+                # Steps decrease as policy optimizes
+                base_steps = 150 + int((1.0 - t) * 350) + np.random.randint(-25, 25)
+                steps = int(np.clip(base_steps, 120, max_allowed_steps))
+                # Obstacle hits drop to near 0 upon mastery
+                obstacle_hits = int(np.random.choice([0, 1, 2], p=[0.7, 0.25, 0.05]))
+                # High positive reward for winning
+                base_reward = 420.0 + (level_id * 80.0) + (t * 120.0)
+                total_reward = round(float(base_reward + np.random.normal(0, 18)), 1)
+            else:
+                # Failure modes: timeout, pit_death, obstacle_death
+                if level_id == 1:
+                    # Level 1 has no pits, failure is purely timeout or collision
+                    outcome = "timeout" if np.random.rand() < 0.8 else "obstacle_death"
+                else:
+                    outcome = "pit_death" if np.random.rand() < 0.75 else "timeout"
 
-    # --- coins ---
-    coins = np.array([np.random.randint(0, 3 + ep // 10) for ep in episodes])
+                if outcome == "timeout":
+                    steps = max_allowed_steps
+                    max_x = round(float(np.random.uniform(0.2, 0.85) * goal_x), 1)
+                    progress_pct = round((max_x / goal_x) * 100.0, 2)
+                    obstacle_hits = int(np.random.randint(10, 45))
+                    total_reward = round(float(-80.0 + (progress_pct * 0.8) + np.random.normal(0, 10)), 1)
+                elif outcome == "pit_death":
+                    steps = int(np.random.randint(80, 450))
+                    max_x = round(float(np.random.uniform(0.15, 0.70) * goal_x), 1)
+                    progress_pct = round((max_x / goal_x) * 100.0, 2)
+                    obstacle_hits = int(np.random.randint(2, 18))
+                    total_reward = round(float(-75.0 + (progress_pct * 0.5) + np.random.normal(0, 12)), 1)
+                else:
+                    steps = int(np.random.randint(100, 500))
+                    max_x = round(float(np.random.uniform(0.1, 0.6) * goal_x), 1)
+                    progress_pct = round((max_x / goal_x) * 100.0, 2)
+                    obstacle_hits = int(np.random.randint(5, 30))
+                    total_reward = round(float(-60.0 + (progress_pct * 0.4) + np.random.normal(0, 10)), 1)
 
-    # --- won (probability scales with episode + level adjustment) ---
-    p_win = 0.10 + 0.80 * progress
-    level_p_adj = np.where(
-        level == "Level_1",  0.08,
-        np.where(level == "Level_2", 0.0, -0.10)
-    )
-    p_win_adj = np.clip(p_win + level_p_adj, 0, 1)
-    won = (np.random.rand(n_episodes) < p_win_adj).astype(int)
+            # --- Rolling Win Rate 50 Calculation ---
+            # Calculated over the last 50 episodes of the current level
+            level_wins.append(1 if won_bool else 0)
+            window_slice = level_wins[-50:]
+            # Expanding window during early episodes (1..49)
+            rolling_wr = round(float(np.mean(window_slice) * 100.0), 1)
 
-    df = pd.DataFrame({
-        "episode": episodes,
-        "training_mode": training_mode,
-        "reward_profile": reward_profile,
-        "level": level,
-        "epsilon": np.round(epsilon, 6),
-        "rolling_win_rate_50": np.round(rolling_win_rate_50, 2),
-        "total_reward": total_reward,
-        "steps": steps,
-        "stomps": stomps,
-        "coins": coins,
-        "won": won,
-    })
+            records.append({
+                "global_episode": global_ep,
+                "level_episode": level_ep,
+                "level_id": level_id,
+                "total_reward": total_reward,
+                "steps": steps,
+                "max_x_reached": max_x,
+                "progress_pct": progress_pct,
+                "obstacle_hits": obstacle_hits,
+                "epsilon": round(float(eps_val), 4),
+                "won": won_bool,
+                "outcome": outcome,
+                "rolling_win_rate_50": rolling_wr,
+            })
+
+    df = pd.DataFrame(records)
     return df
 
 
@@ -137,39 +174,54 @@ def generate_mock_data(n_episodes: int = 100, seed: int = 42) -> pd.DataFrame:
 # 3.  Graph 1 — Curriculum Learning Curve
 # ──────────────────────────────────────────────
 def plot_curriculum_learning_curve(df: pd.DataFrame, save_path: str) -> None:
-    """Win-rate per level with epsilon decay on a secondary axis."""
+    """
+    Plot level_episode vs rolling_win_rate_50 grouped by level_id (1, 2, 3).
+    Secondary Y-axis displays exploration epsilon decay.
+    """
     fig, ax1 = plt.subplots(figsize=(10, 5.5))
 
-    # Primary axis — win rate by level
     palette = sns.color_palette("viridis", n_colors=3)
     sns.lineplot(
-        data=df, x="episode", y="rolling_win_rate_50",
-        hue="level", hue_order=["Level_1", "Level_2", "Level_3"],
-        palette=palette, linewidth=1.8, ax=ax1,
+        data=df,
+        x="level_episode",
+        y="rolling_win_rate_50",
+        hue="level_id",
+        palette=palette,
+        linewidth=1.8,
+        ax=ax1,
     )
-    ax1.set_xlabel("Episode")
-    ax1.set_ylabel("Rolling Win Rate (%)")
+    ax1.set_xlabel("Level Episode (1–400)")
+    ax1.set_ylabel("Rolling Win Rate (%) [Window = 50]")
     ax1.set_title("Curriculum Learning Curve (Generalization Benchmark)")
-    ax1.set_ylim(-5, 110)
+    ax1.set_ylim(-5, 105)
 
-    # Secondary axis — epsilon
+    # Secondary Y-axis for epsilon decay (Level 1 baseline decay)
+    df_l1 = df[df["level_id"] == 1]
     ax2 = ax1.twinx()
     ax2.plot(
-        df["episode"], df["epsilon"],
-        color="grey", linestyle="--", linewidth=1.5, alpha=0.7,
-        label="ε (Exploration Rate)",
+        df_l1["level_episode"],
+        df_l1["epsilon"],
+        color="grey",
+        linestyle="--",
+        linewidth=1.5,
+        alpha=0.75,
+        label="ε (Exploration Rate, L1)",
     )
     ax2.set_ylabel("Epsilon (ε)", color="grey")
     ax2.tick_params(axis="y", labelcolor="grey")
     ax2.set_ylim(-0.05, 1.10)
 
-    # Combined legend
+    # Combined clean legend
     handles1, labels1 = ax1.get_legend_handles_labels()
+    # Replace labels with formatted level names
+    formatted_labels1 = [f"Level {lbl}" if lbl in ["1", "2", "3", 1, 2, 3] else lbl for lbl in labels1]
     handles2, labels2 = ax2.get_legend_handles_labels()
     ax1.get_legend().remove()
     ax1.legend(
-        handles1 + handles2, labels1 + labels2,
-        loc="center right", framealpha=0.9,
+        handles1 + handles2,
+        formatted_labels1 + labels2,
+        loc="center right",
+        framealpha=0.9,
     )
 
     plt.tight_layout()
@@ -179,23 +231,41 @@ def plot_curriculum_learning_curve(df: pd.DataFrame, save_path: str) -> None:
 
 
 # ──────────────────────────────────────────────
-# 4.  Graph 2 — Reward Profiling Benchmark
+# 4.  Graph 2 — Reward Trajectory Benchmark
 # ──────────────────────────────────────────────
 def plot_reward_profiling(df: pd.DataFrame, save_path: str) -> None:
-    """Total reward by reward profile (eval runs only)."""
-    df_eval = df[df["training_mode"] == "eval"].copy()
-
+    """
+    Plot total_reward trajectories across curriculum levels,
+    demonstrating reward growth, stability, and convergence.
+    """
     fig, ax = plt.subplots(figsize=(10, 5.5))
-    sns.lineplot(
-        data=df_eval, x="episode", y="total_reward",
-        hue="reward_profile",
-        hue_order=["Dense", "Balanced", "Sparse"],
-        palette="deep", linewidth=1.8, ax=ax,
+
+    # Rolling smoothed reward for academic presentation
+    df_plot = df.copy()
+    df_plot["smooth_reward"] = (
+        df_plot.groupby("level_id")["total_reward"]
+        .transform(lambda s: s.rolling(20, min_periods=1).mean())
     )
-    ax.set_xlabel("Episode")
-    ax.set_ylabel("Total Reward")
-    ax.set_title("Reward Profiling Benchmark (Eval Runs Only)")
-    ax.legend(title="Reward Profile", framealpha=0.9)
+
+    palette = sns.color_palette("deep", n_colors=3)
+    sns.lineplot(
+        data=df_plot,
+        x="level_episode",
+        y="smooth_reward",
+        hue="level_id",
+        palette=palette,
+        linewidth=1.8,
+        ax=ax,
+    )
+
+    ax.set_xlabel("Level Episode (1–400)")
+    ax.set_ylabel("Episode Reward (20-Episode Rolling Mean)")
+    ax.set_title("Curriculum Reward Trajectory Benchmark")
+    
+    # Legend update
+    handles, labels = ax.get_legend_handles_labels()
+    formatted_labels = [f"Level {lbl}" if lbl in ["1", "2", "3", 1, 2, 3] else lbl for lbl in labels]
+    ax.legend(handles, formatted_labels, title="Curriculum Tier", framealpha=0.9)
 
     plt.tight_layout()
     fig.savefig(save_path, dpi=300)
@@ -204,30 +274,40 @@ def plot_reward_profiling(df: pd.DataFrame, save_path: str) -> None:
 
 
 # ──────────────────────────────────────────────
-# 5.  Graph 3 — Playstyle Matrix
+# 5.  Graph 3 — Playstyle Matrix (Converged Agent Identity)
 # ──────────────────────────────────────────────
 def plot_playstyle_matrix(df: pd.DataFrame, save_path: str) -> None:
-    """Scatter of steps vs stomps for the last 50 episodes."""
-    df_last50 = df[df["episode"] > 50].copy()
-    df_last50["outcome"] = df_last50["won"].map(
-        {1: "Victory", 0: "Death/Failure"}
-    )
+    """
+    Analyze converged agent behavior across the final 100 episodes of each level.
+    Scatter plot mapping Steps to Finish (X) vs Obstacle Hits (Y),
+    colored by Victory vs Failure.
+    """
+    # Evaluate converged runs: last 100 episodes across all levels (e.g., episodes 301–400 per level)
+    df_converged = df[df["level_episode"] > 300].copy()
+    df_converged["Status"] = df_converged["won"].map({True: "Victory", False: "Death/Failure"})
 
     custom_palette = {"Victory": "#2196F3", "Death/Failure": "#F44336"}
 
     fig, ax = plt.subplots(figsize=(9, 6))
     sns.scatterplot(
-        data=df_last50, x="steps", y="stomps",
-        hue="outcome", style="outcome",
+        data=df_converged,
+        x="steps",
+        y="obstacle_hits",
+        hue="Status",
+        style="Status",
         hue_order=["Victory", "Death/Failure"],
         palette=custom_palette,
         markers={"Victory": "o", "Death/Failure": "X"},
-        s=100, alpha=0.8, edgecolor="black", linewidth=0.6,
+        s=100,
+        alpha=0.8,
+        edgecolor="black",
+        linewidth=0.6,
         ax=ax,
     )
+
     ax.set_xlabel("Steps to Finish (Lower = Faster)")
-    ax.set_ylabel("Enemies Defeated (Stomps)")
-    ax.set_title("Playstyle Matrix (Converged Agent Identity, Last 50 Episodes)")
+    ax.set_ylabel("Obstacle Hits / Collisions (Lower = Smoother Navigation)")
+    ax.set_title("Playstyle Matrix (Converged Agent Identity, Final 100 Episodes/Level)")
     ax.legend(title="Outcome", framealpha=0.9)
 
     plt.tight_layout()
@@ -240,26 +320,26 @@ def plot_playstyle_matrix(df: pd.DataFrame, save_path: str) -> None:
 # 6.  Main
 # ──────────────────────────────────────────────
 def main() -> None:
-    print("=" * 55)
-    print("  Mario RL — Evaluation Graph Generator")
-    print("=" * 55)
+    print("=" * 60)
+    print("  Mario RL — Curriculum Evaluation Graph Generator")
+    print("=" * 60)
 
     # Phase 1: Generate CSV
-    print("\n[Phase 1] Generating mock training log …")
-    df = generate_mock_data()
+    print("\n[Phase 1] Generating mock training log matching project schema …")
+    df = generate_mock_data(episodes_per_level=400)
     df.to_csv(CSV_PATH, index=False)
     print(f"  ✓ Saved: {CSV_PATH}")
-    print(f"    Shape: {df.shape}  |  Columns: {list(df.columns)}")
+    print(f"    Shape: {df.shape}  |  Columns:\n    {list(df.columns)}")
 
     # Phase 2: Generate Graphs
-    print("\n[Phase 2] Generating evaluation graphs …")
+    print("\n[Phase 2] Generating academic evaluation figures (PDF) …")
     plot_curriculum_learning_curve(df, GRAPH_1_PATH)
     plot_reward_profiling(df, GRAPH_2_PATH)
     plot_playstyle_matrix(df, GRAPH_3_PATH)
 
-    print("\n" + "=" * 55)
-    print("  Done! All files saved to:", SCRIPT_DIR)
-    print("=" * 55)
+    print("\n" + "=" * 60)
+    print("  Done! All files generated in:", SCRIPT_DIR)
+    print("=" * 60)
 
 
 if __name__ == "__main__":
