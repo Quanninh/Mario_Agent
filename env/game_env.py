@@ -33,7 +33,7 @@ class GameEnvironment(BaseEnvironment):
 
     # Decorative stars in the night sky (canvas-space coordinates)
     STARS = [
-        (70, 45), (150, 90), (230, 35), (320, 75), (410, 40),
+        (70, 75), (150, 90), (230, 35), (320, 75), (410, 40),
         (510, 85), (590, 30), (740, 110), (270, 125), (470, 120),
     ]
 
@@ -49,12 +49,14 @@ class GameEnvironment(BaseEnvironment):
         floor_y: float = 320.0,
         max_steps: int = 1000,
         screen_width: int = 1400,   # For larger game window scaling
-        screen_height: int = 700    # For larger game window scaling
+        screen_height: int = 700,   # For larger game window scaling
+        level_name: str = "Graveyard",
     ) -> None:
         self.canvas_width = canvas_width
         self.canvas_height = canvas_height
         self.screen_width = screen_width
         self.screen_height = screen_height
+        self.level_name = level_name
         self.floor_y = floor_y
         self.max_steps = max_steps
 
@@ -84,6 +86,7 @@ class GameEnvironment(BaseEnvironment):
         self._screen: Optional[pygame.Surface] = None
         self._canvas: Optional[pygame.Surface] = None
         self._clock: Optional[pygame.time.Clock] = None
+        self._font: Optional[pygame.font.Font] = None
 
     def reset(self) -> RawState:
         """Reset Hoá, ghosts, warmth items, and step counter."""
@@ -211,6 +214,10 @@ class GameEnvironment(BaseEnvironment):
             pygame.display.set_caption("Hoá's Midnight Escape")
             self._clock = pygame.time.Clock()
 
+            # Font style initialization for the player's name label
+            pygame.font.init()
+            self._font = pygame.font.SysFont("Arial", 11, bold=True)
+
         # Process window quit events cleanly
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -238,6 +245,9 @@ class GameEnvironment(BaseEnvironment):
 
         self._draw_player(canvas, camera_x)
 
+        # Draw fixed top HUD (Level name, countdown timer, warmth counter)
+        self._draw_hud(canvas)
+
         # Scale from canvas logic to screen displaying
         scaled = pygame.transform.scale(canvas, (self.screen_width, self.screen_height))
         self._screen.blit(scaled, (0, 0))
@@ -254,6 +264,7 @@ class GameEnvironment(BaseEnvironment):
             self._screen = None
             self._canvas = None
             self._clock = None
+            self._font = None
 
     # ------------------------------------------
     # Drawing Helpers (Midnight Graveyard Theme)
@@ -358,7 +369,50 @@ class GameEnvironment(BaseEnvironment):
         eye_x = int(x + w * 0.65) if self.player.facing_right else int(x + w * 0.35)
         pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (eye_x, int(y + 7)), 2)
 
+        # "Hoá" label above the player
+        if self._font is not None:
+            tag_text = self._font.render("Hoá", True, (245, 235, 190))  # Warm pale yellow
+            shadow_text = self._font.render("Hoá", True, (10, 10, 20))   # Dark shadow for contrast
 
+            tag_x = int(x + w / 2 - tag_text.get_width() / 2)
+            tag_y = int(y - 16)  # 14px above player head
+
+            # Draw drop shadow first, then main text on top
+            canvas.blit(shadow_text, (tag_x + 1, tag_y + 1))
+            canvas.blit(tag_text, (tag_x, tag_y))
+
+    def _draw_hud(self, canvas: pygame.Surface) -> None:
+        """Render fixed HUD stacked vertically in the top-left corner."""
+        if self._font is None:
+            return
+
+        # Line 1: Level name
+        lvl_text = self._font.render(self.level_name, True, (230, 235, 245))
+        lvl_shadow = self._font.render(self.level_name, True, (10, 10, 20))
+        canvas.blit(lvl_shadow, (17, 15))
+        canvas.blit(lvl_text, (16, 14))
+
+        # Line 2: Remaining steps countdown (right below level name)
+        steps_left = max(0, self.max_steps - self.step_count)
+        timer_str = f"Steps Left: {steps_left}"
+        timer_color = (255, 95, 85) if steps_left <= 150 else (210, 220, 240)
+
+        timer_text = self._font.render(timer_str, True, timer_color)
+        timer_shadow = self._font.render(timer_str, True, (10, 10, 20))
+        canvas.blit(timer_shadow, (17, 30))
+        canvas.blit(timer_text, (16, 29))
+
+        # Line 3: Warmth counter (right below steps left)
+        if self.items:
+            collected = sum(1 for item in self.items if item.is_collected)
+            total = len(self.items)
+            warmth_str = f"Warmth: {collected}/{total}"
+
+            warmth_text = self._font.render(warmth_str, True, self.COLOR_ITEM_GLOW)
+            warmth_shadow = self._font.render(warmth_str, True, (10, 10, 20))
+            canvas.blit(warmth_shadow, (17, 45))
+            canvas.blit(warmth_text, (16, 44))
+        
     # --------------
     # Helper Methods
     # --------------

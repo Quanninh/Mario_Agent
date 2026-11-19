@@ -188,4 +188,5 @@ def create_env(level_id: int = 1) -> GameEnvironment:
         goal=cfg_level.goal,
         floor_y=cfg_level.floor_y,
         max_steps=cfg_level.max_steps,
+        level_name=cfg_level.name,
     )
