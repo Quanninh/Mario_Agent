@@ -94,5 +94,66 @@ class TestGameEnvironment(unittest.TestCase):
         self.assertIsNotNone(events)
         self.assertTrue(events.reached_goal)
 
+    def test_double_jump_and_recovery(self) -> None:
+        """Double jump works in mid-air and ledge-slip recovery grants 1 jump."""
+        env = GameEnvironment(obstacles=[], pits=[], ghosts=[], items=[])
+        env.reset()
+
+        # 1. Ground jump unlocks air jump
+        state, _, _ = env.step(Action.JUMP)
+        self.assertTrue(state.can_double_jump)
+
+        # 2. Air jump consumes ability
+        state, _, _ = env.step(Action.JUMP)
+        self.assertFalse(state.can_double_jump)
+
+        # 3. Subsequent air jump does nothing extra
+        state, _, _ = env.step(Action.JUMP)
+        self.assertFalse(state.can_double_jump)
+
+    def test_ledge_slip_recovery_over_pit(self) -> None:
+        """Walking into a pit grants 1 air jump, allowing Hoá to jump mid-air to recover."""
+        # A pit located right ahead of the starting position (x=50.0)
+        pit = Pit(x_start=55.0, x_end=100.0)
+        env = GameEnvironment(obstacles=[], pits=[pit], ghosts=[], items=[])
+        env.reset()
+
+        # Step 1: Walk right off the ledge into the pit without jumping
+        state, _, done = env.step(Action.RIGHT)
+        self.assertFalse(done)
+        self.assertFalse(env.player.is_grounded)
+        # Slipped into air -> recovery jump MUST be unlocked
+        self.assertTrue(state.can_double_jump)
+
+        # Step 2: Trigger mid-air recovery jump
+        state, _, done = env.step(Action.RIGHT_JUMP)
+        # Ability consumed, vertical velocity boosted upward (vy < 0)
+        self.assertFalse(state.can_double_jump)
+        self.assertLess(env.player.vy, 0)
+
+    def test_pit_death_after_double_jump(self) -> None:
+        """Exhausting double jump over a wide pit still results in fell_in_pit death."""
+        # A very wide pit that cannot be cleared
+        pit = Pit(x_start=50.0, x_end=500.0)
+        env = GameEnvironment(obstacles=[], pits=[pit], ghosts=[], items=[])
+        env.reset()
+
+        # Double jump as high as possible into the pit
+        env.step(Action.RIGHT_JUMP)  # First jump from ground
+        env.step(Action.RIGHT_JUMP)  # Double jump in mid-air
+
+        # Keep falling until hitting bottom of canvas
+        done = False
+        events = None
+        for _ in range(50):
+            _, events, done = env.step(Action.STAY)
+            if done:
+                break
+
+        self.assertTrue(done)
+        self.assertTrue(events.fell_in_pit)
+        self.assertFalse(env.player.is_alive)
+        self.assertFalse(env.player.can_double_jump)
+
 if __name__ == "__main__":
     unittest.main()

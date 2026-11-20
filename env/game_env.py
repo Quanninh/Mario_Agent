@@ -11,6 +11,7 @@ class GameEnvironment(BaseEnvironment):
     GRAVITY: float = 0.8
     WALK_SPEED: float = 4.0
     JUMP_FORCE: float = -13.0
+    DOUBLE_JUMP_RATIO: float = 0.88
 
     # Midnight Graveyard color palette 
     COLOR_SKY = (15, 20, 45)
@@ -102,6 +103,7 @@ class GameEnvironment(BaseEnvironment):
         """Run one physics tick for the given discrete action."""
         self.step_count += 1
         old_x = self.player.x
+        was_grounded = self.player.is_grounded
         events = GameEvents()
 
         # --------------------------------------
@@ -133,10 +135,17 @@ class GameEnvironment(BaseEnvironment):
         # -----------------------------------------------------
         # Vertical Movement (Jump + Gravity) & Y-Axis Collision
         # -----------------------------------------------------
-        if action in (Action.JUMP, Action.RIGHT_JUMP) and self.player.is_grounded:
-            self.player.vy = self.JUMP_FORCE
-            self.player.is_grounded = False
-
+        if action in (Action.JUMP, Action.RIGHT_JUMP):
+            if self.player.is_grounded:
+                # 1. First ground jump: take off and ENABLE double jump for mid-air!
+                self.player.vy = self.JUMP_FORCE
+                self.player.is_grounded = False
+                self.player.can_double_jump = True
+            elif self.player.can_double_jump:
+                # 2. Mid-air double jump: second impulse and CONSUME double jump!
+                self.player.vy = self.JUMP_FORCE * self.DOUBLE_JUMP_RATIO
+                self.player.can_double_jump = False
+            
         self.player.vy += self.GRAVITY
         old_bottom = self.player.bottom
         self.player.y += self.player.vy
@@ -149,6 +158,7 @@ class GameEnvironment(BaseEnvironment):
                     self.player.y = obs.y - self.player.height
                     self.player.vy = 0.0
                     self.player.is_grounded = True
+                    self.player.can_double_jump = False
                 elif self.player.vy < 0:  # Hitting bottom of obstacle
                     self.player.y = obs.bottom
                     self.player.vy = 0.0
@@ -159,6 +169,10 @@ class GameEnvironment(BaseEnvironment):
             self.player.y = self.floor_y - self.player.height
             self.player.vy = 0.0
             self.player.is_grounded = True
+            self.player.can_double_jump = False     # Landed on ground -> False
+
+        if was_grounded and not self.player.is_grounded:
+            self.player.can_double_jump = True
 
         # -------------------------------------------
         # Update Ghosts and Check Warmth Item Pickups
@@ -316,7 +330,7 @@ class GameEnvironment(BaseEnvironment):
             bar_h = int(w * 0.32)
             bar_y = int(y + (h - pedestal_h) * 0.28)
             pygame.draw.rect(canvas, self.COLOR_TOMBSTONE, (x + 2, bar_y, w - 4, bar_h))
-            
+
             # Engraved center seam detail for 3D stone texture
             cx = int(x + w / 2)
             pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx, y + 4), (cx, y + h - pedestal_h - 4), 1)
@@ -497,6 +511,7 @@ class GameEnvironment(BaseEnvironment):
             player_y=self.player.y,
             velocity_y=self.player.vy,
             is_grounded=self.player.is_grounded,
+            can_double_jump=self.player.can_double_jump,
             dist_to_obstacle=dist_to_obstacle,
             obstacle_height=obstacle_height,
             dist_to_pit=dist_to_pit,

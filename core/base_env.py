@@ -19,6 +19,7 @@ class RawState:
     player_y: float          # Hoá's current vertical position
     velocity_y: float        # Current vertical velocity (gravity / jump)
     is_grounded: bool        # True if standing on ground or tombstone
+    
 
     # Proximity features (what Hoá "sees" ahead)
     dist_to_obstacle: float  # Distance to nearest tombstone ahead (-1 if none)
@@ -28,6 +29,9 @@ class RawState:
     ghost_y: float           # Y-position of that ghost (0 if none; low vs high)
     dist_to_item: float      # Distance to nearest warmth item ahead (-1 if none)
     dist_to_goal: float      # Distance remaining to Hoá's home
+
+    can_double_jump: bool = False    # True ONLY when in mid-air with second jump available
+    
 
 @dataclass
 class GameEvents:

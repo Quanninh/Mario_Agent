@@ -83,7 +83,7 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 - [x] **8. Win with Fewest Steps & Most Warmth Items**: Successfully delegated to **Member 3's `RewardStrategy`** (negative step penalty `-1` + positive warmth reward `+30` + goal bonus `+100`), ensuring the Q-Learning agent naturally converges to the optimal path without redundant client-side UI code.
 
 #### Tier 3 — New Gameplay & Dynamic Hazard Mechanics *(Active Focus)*
-- [ ] **9. Mid-air Double Jump Mechanic (`can_double_jump`)**: Allow Hoá to execute a second jump while airborne (`not is_grounded`), allowing recovery from miscalculated pit leaps and dodging high hovering ghosts. Resets `jumps_left = 1` upon landing on the floor or on tombstone tops. Reuses existing `Action.JUMP` and `Action.RIGHT_JUMP` without expanding the action space, while exposing a binary `can_double_jump: bool` flag in `RawState` for the RL agent.
+- [x] **9. Mid-air Double Jump & Ledge Recovery (`can_double_jump`)**: Allow Hoá to execute a second jump while airborne (`not is_grounded`), allowing recovery from miscalculated pit leaps and dodging high hovering ghosts. Also grants 1 recovery jump if walking off a ledge into the air. Reuses existing `Action.JUMP` and `Action.RIGHT_JUMP` without expanding the action space, while exposing a binary `can_double_jump: bool` flag in `RawState` for the RL agent.
 - [ ] **10. Player Crouch / Duck (`Action.CROUCH`)**: Add crouch action (`S` / `Down` key) that lowers Hoá's hitbox height (e.g., `32 -> 18` px) to duck under mid-height ghosts or laser beams *(expands `Action.NUM_ACTIONS` from 5 to 6)*.
 - [ ] **11. Fire Erupting from Grave Pits**: Periodic flame jets shooting upward out of selected pits on a cycle (`idle -> warning glow -> active lethal flame -> cooldown`), with pit-fire phase exposed in `RawState` so the AI can time its jumps.
 - [ ] **12. Ghosts Shooting Rotating Eye-Laser Beams**: Opt-in per ghost (`has_laser=True`) — fires a lethal laser beam from the ghost's eyes that **rotates continuously in a circle (`0..2π`) while the ghost patrols** (using `(eye_x + L*cos(θ), eye_y + L*sin(θ))`, pure-Python line-segment vs. player AABB collision for headless speed, and nearest-laser angle/danger flag in `RawState`).
@@ -110,6 +110,12 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 - **Step 9**: Implemented diverse tombstones and game over / victory overlay:
   - Added `style` attribute on `Obstacle` supporting `"cross"` (stone cross monuments) and `"buddhist"` (arch tombstones with engraved `卍` sauwastikas).
   - Implemented semi-transparent pause overlay in `play_human.py` with instant key-press skipping (`R`, `Space`, `Enter`). All 6 headless unit tests remain 100% passing.
+- **Step 10**: Implemented Mid-air Double Jump & Ledge-Slip Recovery:
+  - Extended `core/base_env.py` `RawState` with `can_double_jump: bool = False` (maintaining 5-action space for Member 2 & 3).
+  - Added `can_double_jump: bool = False` to `Player` entity in `env/entities.py`.
+  - Added `DOUBLE_JUMP_RATIO = 0.88` to `GameEnvironment` in `env/game_env.py`. Enabled double jump on initial jump and granted 1 recovery jump on stepping off ledges (`was_grounded and not is_grounded`). Reset to `False` upon landing on obstacles or the ground.
+  - Implemented tap-only air jump input detection in `play_human.py`.
+  - Expanded test suite in `tests/test_env.py` from 6 to 9 tests (`test_double_jump_and_recovery`, `test_ledge_slip_recovery_over_pit`, `test_pit_death_after_double_jump`), all passing cleanly in `0.026s`.
 
 ---
 
@@ -120,7 +126,7 @@ Defines the shared interface and data structures decoupling the physics engine f
 
 - **`Action`**: Discrete action constants (`STAY=0`, `LEFT=1`, `JUMP=2`, `RIGHT=3`, `RIGHT_JUMP=4`, `NUM_ACTIONS=5`).
 - **`RawState` *(dataclass)***: Continuous physical snapshot passed to Member 2's discretizer:
-  - Player kinematics: `player_x`, `player_y`, `velocity_y`, `is_grounded`.
+  - Player kinematics: `player_x`, `player_y`, `velocity_y`, `is_grounded`, `can_double_jump` (binary recovery/air-jump flag).
   - Local vision ahead: `dist_to_obstacle`, `obstacle_height`, `dist_to_pit`, `dist_to_ghost`, `ghost_y`, `dist_to_item`, `dist_to_goal`.
 - **`GameEvents` *(dataclass)***: Per-step outcome flags passed to Member 3's reward strategy (`dx`, `reached_goal`, `fell_in_pit`, `hit_obstacle`, `hit_ghost`, `collected_item`).
 - **`BaseEnvironment(ABC)`**: Abstract contract enforcing `reset()`, `step(action)`, `render()`, and `close()`.
@@ -128,7 +134,7 @@ Defines the shared interface and data structures decoupling the physics engine f
 ### 5.2 `env/entities.py` — Physical Game Objects
 Holds lightweight data models and hitbox geometry with zero rendering or RL coupling (Single Responsibility Principle).
 
-- **`Player`**: Hoá's entity (`x`, `y`, hitbox `24x32`, `vy`, `is_grounded`, `is_alive`, `facing_right`) with `reset(start_x, start_y)` and bounding-box properties (`rect`, `right`, `bottom`).
+- **`Player`**: Hoá's entity (`x`, `y`, hitbox `24x32`, `vy`, `is_grounded`, `can_double_jump`, `is_alive`, `facing_right`) with `reset(start_x, start_y)` and bounding-box properties (`rect`, `right`, `bottom`).
 - **`Obstacle`**: Tall tombstone (`x`, `y`, default `32x48`) with `rect`, `right`, `bottom`.
 - **`Pit`**: Bottomless open grave (`x_start`, `x_end`) with `contains(x, width)` center-of-mass check.
 - **`Ghost`**: Hovering ghost (`x`, `y`, `patrol_min_x`, `patrol_max_x`, `speed=1.5`, `width=24`, `height=28`, `float_amplitude=8.0`, `float_speed=0.08`) with wrapped sinusoidal wave (`% 2*pi`), `update()`, `reset()`, and `rect`/`right`/`bottom`.
@@ -138,7 +144,7 @@ Holds lightweight data models and hitbox geometry with zero rendering or RL coup
 ### 5.3 `env/game_env.py` — 2D Physics Engine & Graveyard Renderer
 Concrete `GameEnvironment(BaseEnvironment)` driving physics, collisions, dynamic hazards, state extraction, and midnight graveyard Pygame rendering.
 
-- **Physics Constants & Resolution**: `GRAVITY = 0.8`, `WALK_SPEED = 4.0`, `JUMP_FORCE = -13.0` (max jump height $\approx 105\text{ px}$, max jump span $\approx 130\text{ px}$). Logic runs on `canvas_width=800, canvas_height=400` with `floor_y=320.0`, scaled to `screen_width=1400, screen_height=700` display.
+- **Physics Constants & Resolution**: `GRAVITY = 0.8`, `WALK_SPEED = 4.0`, `JUMP_FORCE = -13.0`, `DOUBLE_JUMP_RATIO = 0.88` (air jump force $\approx -11.44$). Logic runs on `canvas_width=800, canvas_height=400` with `floor_y=320.0`, scaled to `screen_width=1400, screen_height=700` display.
 - **Lifecycle Methods**:
   - `reset() -> RawState`: Restores Hoá, all ghosts, all warmth items, and `step_count = 0`.
   - `step(action) -> (RawState, GameEvents, bool)`: Runs axis-separated X/Y AABB collisions, pit-fall guard (`old_bottom <= floor_y`), updates ghosts, checks warmth pickups, checks termination (`hit_ghost`, `fell_in_pit`, `reached_goal`, `max_steps`), and returns state + events.

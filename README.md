@@ -72,9 +72,9 @@ python play_human.py
 | `Esc` | Quit Application |
 
 ### Automated Headless Tests
-Run the 6 automated unit tests verifying deterministic resets, ghost/pit collision physics, item pickups, and win triggers:
+Run the 9 automated unit tests verifying deterministic resets, ghost/pit collision physics, item pickups, double jump & ledge recovery mechanics, and win triggers:
 ```bash
-python -m unittest discover tests
+python3 -m unittest discover tests
 ```
 
 ---
@@ -96,7 +96,7 @@ Future enhancements categorized from immediate visual polish to advanced dynamic
 - [x] **Speedrun & Warmth Optimization**: Integrated into **Member 3's `RewardStrategy`** (step penalty `-1` + warmth pickup `+30`), driving the Q-learning agent to naturally optimize path and collection without redundant client code.
 
 ### Tier 3 — Dynamic Gameplay & Hazard Mechanics *(Active Focus)*
-- [ ] **Mid-air Double Jump (`can_double_jump`)**: Enables Hoá to execute a second jump while airborne to recover from missed pit jumps or leap over high ghosts. Reuses `Action.JUMP` / `Action.RIGHT_JUMP` without expanding the action space; exposes `can_double_jump: bool` in `RawState`.
+- [x] **Mid-air Double Jump & Ledge Recovery (`can_double_jump`)**: Enables Hoá to execute a second jump while airborne to recover from missed pit jumps or leap over high ghosts. Also grants 1 recovery jump if stepping off an edge without jumping. Reuses `Action.JUMP` / `Action.RIGHT_JUMP` without expanding the action space; exposes `can_double_jump: bool` in `RawState`.
 - [ ] **Player Crouch / Duck (`Action.CROUCH`)**: Lowers Hoá's hitbox (`32 -> 18` px) to duck under hovering ghosts or traps.
 - [ ] **Pit Flame Hazards**: Periodic flame jets erupting from grave pits on timed cycles.
 - [ ] **Rotating Ghost Eye-Lasers**: Ghosts firing lethal rotating laser beams while patrolling.

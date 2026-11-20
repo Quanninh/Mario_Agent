@@ -84,6 +84,8 @@ def main() -> None:
         pygame.K_5: 5,
     }
 
+    jump_key_pressed = False
+
     while True:
         # Stop cleanly if window was closed inside env.render()
         if env._screen is None:
@@ -112,7 +114,16 @@ def main() -> None:
         # Map keyboard input -> Discrete Action ID
         moving_right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
         moving_left = keys[pygame.K_LEFT] or keys[pygame.K_a]
-        jumping = keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]
+        jump_key_down = keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]
+
+        # Grounded: holding jump triggers initial jump.
+        # Airborne: requires a fresh tap to trigger mid-air double jump.
+        if env.player.is_grounded:
+            jumping = jump_key_down
+        else:
+            jumping = jump_key_down and not jump_key_pressed
+
+        jump_key_pressed = jump_key_down
 
         if moving_right and jumping:
             action = Action.RIGHT_JUMP

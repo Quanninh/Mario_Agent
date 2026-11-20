@@ -5,14 +5,15 @@ import math
 @dataclass
 class Player:
     """Represents Hoá (the player character)."""
-    x: float                    # Horizontal coordinates on the 2D grid
-    y: float                    # Vertical coordinates on the 2D grid
-    width: float = 24.0         # Hitbox (24 pixels) used for collision detection 
-    height: float = 32.0        # Hitbox (32 pixels) used for collision detection 
-    vy: float = 0.0             # Vertical Velocity: handle airborne physics
-    is_grounded: bool = True    # True only when Mario is resting on solid ground or a platform
-    is_alive: bool = True       # Set to False if Mario falls into a pit or hits a lethal hazard
-    facing_right: bool = True   # Direction Hoá is facing (for rendering eyes)
+    x: float                        # Horizontal coordinates on the 2D grid
+    y: float                        # Vertical coordinates on the 2D grid
+    width: float = 24.0             # Hitbox (24 pixels) used for collision detection 
+    height: float = 32.0            # Hitbox (32 pixels) used for collision detection 
+    vy: float = 0.0                 # Vertical Velocity: handle airborne physics
+    is_grounded: bool = True        # True only when Mario is resting on solid ground or a platform
+    can_double_jump: bool = False   # False on ground; becomes True only while airborne
+    is_alive: bool = True           # Set to False if Mario falls into a pit or hits a lethal hazard
+    facing_right: bool = True       # Direction Hoá is facing (for rendering eyes)
 
     def reset(self, start_x: float, start_y: float) -> None:
         """Reset Hoá to starting position."""
@@ -20,6 +21,7 @@ class Player:
         self.y = start_y
         self.vy = 0.0
         self.is_grounded = True
+        self.can_double_jump = False
         self.is_alive = True
         self.facing_right = True
 
