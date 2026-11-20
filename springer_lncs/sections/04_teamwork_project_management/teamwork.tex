@@ -1,0 +1,25 @@
+\section{Teamwork \& Project Management}
+\label{sec:teamwork}
+
+This project was developed by a four-member university engineering team over a multi-week development cycle. This section outlines our task distribution, software engineering workflow, and initial conceptual ideation.
+
+\subsection{Task Distribution and Member Contributions}
+To ensure clear accountability and parallel productivity, responsibilities were partitioned strictly across subsystem boundaries:
+
+\begin{itemize}
+    \item \textbf{Member 1 (Environment \& Physics Lead)}: Responsible for the 2D Pygame game loop, jump and gravity physics modeling, axis-aligned bounding box (AABB) collision detection, and multi-tier tilemap layouts.
+    \item \textbf{Member 2 (Agent \& State Discretization Lead)}: Designed the invariant continuous-to-discrete spatial feature projection, implemented the hashable $Q$-table data structures, Bellman TD updates, and deterministic random tie-breaking.
+    \item \textbf{Member 3 (Reward \& Training Orchestration Lead)}: Formulated the pluggable reward strategies (Sparse, Dense, Balanced), orchestrated the multi-episode curriculum loop, implemented $\epsilon$-decay schedules, and handled policy serialization.
+    \item \textbf{Member 4 (Evaluation \& Empirical Reporting Lead --- Author of Section~\ref{sec:eval})}: Designed the automated telemetry logging pipeline, computed Welch's $t$-tests and effect sizes, generated academic-grade vector visualizations (Figures~\ref{fig:curriculum_curve}--\ref{fig:playstyle_matrix}), performed failure mode breakdowns, and authored the empirical evaluation report.
+\end{itemize}
+
+\subsection{Workflow, Version Control, and Software Engineering Practices}
+To avoid code conflicts and ensure seamless module integration, the team adopted several modern software engineering practices:
+\begin{itemize}
+    \item \textbf{Version Control and Branching}: The codebase was hosted on a private GitHub repository. Each member worked in dedicated feature branches (\texttt{feature/env-physics}, \texttt{feature/discretizer}, \texttt{feature/training-loop}, \texttt{feature/evaluation-telemetry}). Pull requests required peer review and smoke-test verification before merging into \texttt{main}.
+    \item \textbf{Decoupled SOLID Architecture}: Subsystems were decoupled via abstract base classes in \texttt{core/interfaces.py} (\texttt{BaseEnvironment}, \texttt{BaseDiscretizer}, \texttt{BaseRewardStrategy}, \texttt{BaseAgent}). This ensured the Open/Closed and Dependency Inversion principles: modifications to game physics or tilemaps did not require modifications to the agent's Q-table update logic.
+    \item \textbf{Communication and Bug Tracking}: Weekly synchronous sprint meetings were supplemented with asynchronous Discord communication. Technical bugs and task milestones were tracked using GitHub Issues and GitHub Projects Kanban boards.
+\end{itemize}
+
+\subsection{Ideation and Concept Development}
+During initial brainstorming, the team explored several benchmark concepts, including grid-world mazes, Flappy Bird clones, and endless runners. We selected a continuous 2D graveyard platformer entitled \textit{Ho{\'a}'s Midnight Escape} because it combined continuous jump kinematics with non-trivial hazard diversity (variable-height gravestones, chasms, and airborne obstacles). The narrative framing provided clear physical constraints that guided reward shaping and curriculum design.

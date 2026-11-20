@@ -1,0 +1,72 @@
+% Main LaTeX Document for Springer Nature LNCS Proceedings
+% Modular Multi-Author Setup for 4-Member Team Project
+% Course: Machine Learning - Project 5: Reinforcement Learning-Based Game Agent
+
+\documentclass[runningheads]{llncs}
+
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{url}
+\usepackage{cite}
+\usepackage{tabularx}
+\usepackage{subcaption}
+
+\begin{document}
+
+\title{Autonomous Navigation in 2D Platformers via Tabular Q-Learning: A Curriculum-Driven Evaluation}
+\titlerunning{Evaluation of Curriculum Tabular Q-Learning in 2D Platformers}
+
+\author{Member 1\inst{1} \and
+Member 2\inst{1} \and
+Member 3\inst{1} \and
+Member 4\inst{1}\thanks{Corresponding evaluation author: responsible for empirical evaluation, statistical verification, and Section 7.}}
+
+\authorrunning{Team Mario Agent et al.}
+
+\institute{Department of Computer Science and Engineering\\
+University Team Project --- Reinforcement Learning Course\\
+\email{evaluation-member4@university.edu}}
+
+\maketitle
+
+% =========================================================================
+% MODULAR SECTIONS (Each member edits their assigned section file)
+% =========================================================================
+
+% Abstract (Joint / Lead: Member 4)
+\input{sections/00_abstract/abstract.tex}
+
+% Section 1: Introduction (Joint / Lead: Member 1 & Member 4)
+\input{sections/01_introduction/introduction.tex}
+
+% Section 2: Related Work (Lead: Member 2 & Member 3)
+\input{sections/02_related_work/related_work.tex}
+
+% Section 3: Objectives, Problem Description, and Research Gaps (Lead: Member 2 & Member 3)
+\input{sections/03_objectives_problem_gaps/objectives.tex}
+
+% Section 4: Teamwork & Project Management (Lead: Member 1, 2, 3, 4)
+\input{sections/04_teamwork_project_management/teamwork.tex}
+
+% Section 5: Proposed Approach (Lead: Member 2 & Member 3)
+\input{sections/05_proposed_approach/approach.tex}
+
+% Section 6: Implementation Details (Lead: Member 1, Member 2, Member 3)
+\input{sections/06_implementation_details/implementation.tex}
+
+% Section 7: Experimental Results & Evaluation (Lead: Member 4 [USER])
+\input{sections/07_experimental_results_evaluation/evaluation.tex}
+
+% Section 8: Conclusion and Future Work (Lead: Member 1, 2, 3, 4)
+\input{sections/08_conclusion_future_work/conclusion.tex}
+
+% =========================================================================
+% REFERENCES (Springer LNCS Style)
+% =========================================================================
+\bibliographystyle{splncs04}
+\bibliography{references}
+
+\end{document}

@@ -1,0 +1,19 @@
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+
+This paper presented the engineering, implementation, and empirical evaluation of an autonomous tabular Q-learning agent for continuous 2D platformer navigation. By projecting continuous kinematic states into an invariant 144-state partition and applying asymmetric progress shaping, our system overcame the credit assignment bottleneck and prevented policy dithering without requiring deep neural architectures. The curriculum training regimen validated that pre-trained jump policies transfer effectively to complex hazard tiers, achieving asymptotic success rates of 99.0\% in Level 1, 93.0\% in Level 2, and 88.0\% in Level 3. Rigorous two-sample Welch's $t$-tests confirmed that observed performance gains in cumulative rewards and navigation efficiency are statistically significant ($p < 0.001$).
+
+\subsection{Team Reflections and Collaborative Takeaways}
+Developing this project across a four-member engineering team yielded several key pedagogical insights:
+\begin{itemize}
+    \item \textbf{Decoupled Architectural Interfaces}: Establishing strict abstract base classes in \texttt{core/interfaces.py} at project inception allowed Member 1 (Physics), Member 2 (Agent), Member 3 (Training), and Member 4 (Evaluation) to implement, test, and refactor their respective subsystems independently without merge friction.
+    \item \textbf{Value of Early Empirical Telemetry}: Implementing automated logging pipelines early in the development lifecycle enabled rapid diagnostic feedback, exposing policy dithering and perceptual aliasing bugs before final model training.
+\end{itemize}
+
+\subsection{Future Scope and Research Directions}
+While the tabular paradigm provides transparency and computational efficiency, several avenues remain open for future investigation:
+\begin{enumerate}
+    \item \textbf{Mitigating Perceptual Aliasing}: Extending the state discretizer with multi-tile lookahead sensors or hierarchical state bucketing would resolve spatial ambiguity in compound obstacle-pit transitions.
+    \item \textbf{Continuous Function Approximation}: Transitioning to Tile Coding, Radial Basis Functions (RBFs), or Deep Q-Networks (DQN) would enable the agent to navigate dynamic moving hazards (e.g., hovering ghosts) and procedurally randomized terrain.
+    \item \textbf{Multi-Objective Reward Tuning}: Investigating Pareto-optimal reward balancing between survival probability and time-trial speed-running could uncover diverse agent navigation personalities.
+\end{enumerate}

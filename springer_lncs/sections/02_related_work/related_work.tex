@@ -1,0 +1,13 @@
+\section{Related Work}
+\label{sec:related}
+
+Autonomous gameplay in 2D platformers has long served as a standard benchmark for artificial intelligence, spanning classical search, evolutionary computation, and reinforcement learning.
+
+\subsection{Reinforcement Learning in Video Games}
+Model-free Temporal Difference (TD) algorithms, initiated by Watkins~\cite{watkins1992q}, form the mathematical foundation for learning optimal policies without explicit transition probability models. The integration of deep neural networks with Q-learning (Deep Q-Networks, DQN) by Mnih et al.~\cite{mnih2015human} enabled agents to learn directly from raw video pixels in Atari 2600 environments. In the context of platformers like Nintendo's \textit{Super Mario Bros.}, deep reinforcement learning methods, including Proximal Policy Optimization (PPO)~\cite{schulman2017proximal} and Asynchronous Advantage Actor-Critic (A3C), have demonstrated impressive capabilities in navigating complex stages~\cite{khalid2024mario}. However, deep RL methods require millions of environment steps, specialized GPU hardware, and extensive hyperparameter tuning, frequently operating as black-box systems with high training instability.
+
+\subsection{State Discretization and Tabular Control}
+When computational resources or real-time constraints preclude deep neural architectures, state space quantization offers a compelling, interpretable alternative~\cite{sutton2018reinforcement}. By partitioning continuous spatial coordinates into discrete spatial bins, tabular methods maintain exact $Q(s, a)$ lookup tables with provable convergence guarantees. Early work by Sutton demonstrated that feature tile-coding and domain-specific bucketing can effectively mitigate the curse of dimensionality. Our work builds upon this principle by discarding global world coordinates in favor of invariant relative hazard distance features.
+
+\subsection{Curriculum Learning and Reward Shaping}
+Curriculum learning, introduced by Bengio et al.~\cite{bengio2009curriculum}, structures training by presenting task variants of increasing difficulty. In robotic locomotion and obstacle avoidance, curriculum schedules prevent agents from falling into local failure traps during early training~\cite{chen2024curriculum,ray2024dynamic}. In parallel, reward shaping—formalized by Ng et al. in potential-based reward theory—accelerates learning in sparse domains. Recent studies have demonstrated that asymmetric progress penalties effectively eradicate cyclical stalling and dithering behaviors in obstacle navigation benchmarks~\cite{zhang2023comparative}.

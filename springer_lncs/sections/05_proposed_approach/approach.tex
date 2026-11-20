@@ -1,0 +1,54 @@
+\section{Proposed Approach}
+\label{sec:approach}
+
+This section details the theoretical and algorithmic formulation of our reinforcement learning system, authored collaboratively by Members 2 and 3.
+
+\subsection{State Representation and Discretization Mapping}
+To eliminate the curse of dimensionality and ensure spatial invariance across different level layouts, the continuous coordinate state $\mathbf{s}_{\text{raw}}$ is mapped into a compact, discrete 5-tuple:
+\begin{equation}
+\mathcal{S} = \langle \text{is\_grounded}, \; V_{y\text{-sign}}, \; \text{Obstacle}_{\text{dist}}, \; \text{Obstacle}_{\text{height}}, \; \text{Pit}_{\text{dist}} \rangle
+\end{equation}
+
+The individual feature dimensions are partitioned as follows:
+\begin{enumerate}
+    \item \textbf{Grounded Status ($\text{is\_grounded} \in \{0, 1\}$)}: Binary indicator ($1$ if Mario's feet contact ground, $0$ otherwise). This prevents the agent from attempting invalid mid-air jump commands.
+    \item \textbf{Vertical Velocity Sign ($V_{y\text{-sign}} \in \{-1, 0, 1\}$)}: Differentiates ascending jump trajectories ($v_y < -0.1 \implies 1$), descending freefall ($v_y > 0.1 \implies -1$), and horizontal motion ($0$).
+    \item \textbf{Obstacle Proximity ($\text{Obstacle}_{\text{dist}} \in \{0, 1, 2, 3\}$)}: Measures horizontal distance to the nearest upcoming obstacle. Partitioned into $\text{NONE} (0, > 80\text{ px})$, $\text{FAR} (1, 40\text{--}80\text{ px})$, $\text{CLOSE} (2, 15\text{--}40\text{ px})$, and $\text{IMMEDIATE} (3, \le 15\text{ px})$. Obstacles already vertically cleared are suppressed to $\text{NONE} (0)$ to avoid perceptual aliasing.
+    \item \textbf{Obstacle Height ($\text{Obstacle}_{\text{height}} \in \{0, 1\}$)}: Calibrated binary threshold: $\text{LOW} (0, \le 50\text{ px})$ vs. $\text{HIGH} (1, > 50\text{ px})$. High obstacles require early, maximum-velocity jumps.
+    \item \textbf{Pit Proximity ($\text{Pit}_{\text{dist}} \in \{0, 1, 2\}$)}: Quantizes distance to lethal chasms into $\text{NONE} (0, > 80\text{ px})$, $\text{APPROACH} (1, 32\text{--}80\text{ px})$, and $\text{TAKEOFF} (2, \le 32\text{ px})$, delineating the safe jump initiation window.
+\end{enumerate}
+
+The resulting cardinality of the quantized state space is:
+\begin{equation}
+|\mathcal{S}| = 2 \times 3 \times 4 \times 2 \times 3 = 144 \text{ discrete states.}
+\end{equation}
+This allows high visitation frequencies across all states within several hundred episodes, enabling rapid tabular value convergence.
+
+\subsection{Tabular Q-Learning Algorithm and Tie-Breaking}
+The agent maintains an explicit lookup table $Q: \mathcal{S} \times \mathcal{A} \to \mathbb{R}$. During interaction, actions are selected using an $\epsilon$-greedy policy with deterministic random tie-breaking. At initialization ($Q(s, a) = 0$), standard \texttt{argmax} introduces severe index-0 bias (\texttt{STAY}); our agent instead identifies all maximal candidates $\mathcal{A}^* = \{a \in \mathcal{A} \mid Q(s, a) = \max_{a'} Q(s, a')\}$ and samples uniformly:
+\begin{equation}
+a_t = \begin{cases}
+\text{Uniform}(\mathcal{A}), & \text{with probability } \epsilon \\
+\text{Uniform}(\mathcal{A}^*), & \text{with probability } 1 - \epsilon
+\end{cases}
+\end{equation}
+
+Upon executing $a_t$, transitioning to $s_{t+1}$, and receiving scalar reward $r_{t+1}$, the Q-value is updated via the Temporal Difference (TD) rule:
+\begin{equation}
+Q(s_t, a_t) \leftarrow Q(s_t, a_t) + \alpha \left[ r_{t+1} + \gamma \max_{a' \in \mathcal{A}} Q(s_{t+1}, a') - Q(s_t, a_t) \right]
+\end{equation}
+with learning rate $\alpha = 0.1$ and discount factor $\gamma = 0.99$. Exploration decays after each episode according to $\epsilon_{k+1} = \max(\epsilon_{\min}, \epsilon_k \cdot \lambda_{\text{decay}})$.
+
+\subsection{Modular Reward Shaping Formulations}
+To prevent reward hacking and cyclical dithering, our primary production strategy (\texttt{BalancedRewardStrategy}) employs asymmetric horizontal progress shaping:
+\begin{equation}
+r_{t+1} = r_{\text{progress}}(\Delta x) + r_{\text{goal}} \cdot \mathbb{I}_{\text{win}} + r_{\text{pit}} \cdot \mathbb{I}_{\text{pit}} + r_{\text{obstacle}} \cdot \mathbb{I}_{\text{hit}} + r_{\text{step}}
+\end{equation}
+where:
+\begin{equation}
+r_{\text{progress}}(\Delta x) = \begin{cases}
++1.0 \cdot \Delta x, & \text{if } \Delta x > 0 \quad (\text{forward motion}) \\
+-1.5 \cdot |\Delta x|, & \text{if } \Delta x \le 0 \quad (\text{backward regression})
+\end{cases}
+\end{equation}
+with terminal victory bonus $r_{\text{goal}} = +200.0$, pit death penalty $r_{\text{pit}} = -75.0$, obstacle collision penalty $r_{\text{obstacle}} = -3.0$, and per-step living cost $r_{\text{step}} = -0.1$. The $1.5\times$ asymmetry ensures that retreating is mathematically unprofitable, eliminating oscillatory dithering.
