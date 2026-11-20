@@ -25,8 +25,8 @@ def _build_level_1() -> LevelConfig:
     return LevelConfig(
         name="Level 1: Quiet Graveyard",
         obstacles=[
-            Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 44.0, width=32.0, height=44.0),
-            Obstacle(x=480.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0),
+            Obstacle(x=250.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="cross"),
+            Obstacle(x=500.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0, style="buddhist"),
         ],
         pits=[],
         goal=GoalFlag(x=720.0, y=DEFAULT_FLOOR_Y - 88.0),
@@ -83,9 +83,9 @@ def _build_level_4() -> LevelConfig:
     return LevelConfig(
         name="Level 4: Whispering Graves",
         obstacles=[
-            Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
-            Obstacle(x=560.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0),
-            Obstacle(x=920.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0),
+            Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="cross"),
+            Obstacle(x=560.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0, style="buddhist"),
+            Obstacle(x=920.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0, style="cross"),
         ],
         pits=[
             Pit(x_start=360.0, x_end=430.0),  # 70px wide
@@ -112,11 +112,11 @@ def _build_level_5() -> LevelConfig:
     """Level 5 (Diverse Ghosts): 4 ghosts with distinct speeds, bobbing heights, and wave speeds."""
     return LevelConfig(
         name="Level 5: Midnight Escape",
-        obstacles=[
-            Obstacle(x=220.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
-            Obstacle(x=620.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0),
-            Obstacle(x=1000.0, y=DEFAULT_FLOOR_Y - 52.0, width=32.0, height=52.0),
-            Obstacle(x=1320.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0),
+                obstacles=[
+            Obstacle(x=220.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="cross"),
+            Obstacle(x=620.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0, style="buddhist"),
+            Obstacle(x=1000.0, y=DEFAULT_FLOOR_Y - 52.0, width=32.0, height=52.0, style="cross"),
+            Obstacle(x=1320.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0, style="buddhist"),
         ],
         pits=[
             Pit(x_start=460.0, x_end=535.0),  # 75px wide

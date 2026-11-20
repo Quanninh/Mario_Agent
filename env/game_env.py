@@ -298,17 +298,53 @@ class GameEnvironment(BaseEnvironment):
     def _draw_tombstone(self, canvas: pygame.Surface, obs: Obstacle, camera_x: float) -> None:
         x = obs.x - camera_x
         y, w, h = obs.y, obs.width, obs.height
-        radius = int(w / 2)
+        if obs.style == "cross":
+            # ----------------------------------------------------
+            # Cross-Shaped Tombstone (Latin stone cross monument)
+            # ----------------------------------------------------
+            pedestal_h = 8
 
-        # Rounded arch top + rectangular stone body
-        pygame.draw.circle(canvas, self.COLOR_TOMBSTONE, (int(x + radius), int(y + radius)), radius)
-        pygame.draw.rect(canvas, self.COLOR_TOMBSTONE, (x, y + radius, w, h - radius))
+            # Base stone pedestal at the bottom
+            pygame.draw.rect(canvas, self.COLOR_TOMBSTONE, (x, y + h - pedestal_h, w, pedestal_h))
 
-        # Engraved cross (+)
-        cx = int(x + w / 2)
-        cy = int(y + h * 0.45)
-        pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx, cy - 8), (cx, cy + 10), 2)
-        pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx - 6, cy - 2), (cx + 6, cy - 2), 2)
+            # Vertical stone pillar of the cross
+            col_w = int(w * 0.38)
+            col_x = int(x + (w - col_w) / 2)
+            pygame.draw.rect(canvas, self.COLOR_TOMBSTONE, (col_x, y, col_w, h - pedestal_h))
+
+            # Horizontal crossbar (arms of the cross)
+            bar_h = int(w * 0.32)
+            bar_y = int(y + (h - pedestal_h) * 0.28)
+            pygame.draw.rect(canvas, self.COLOR_TOMBSTONE, (x + 2, bar_y, w - 4, bar_h))
+            
+            # Engraved center seam detail for 3D stone texture
+            cx = int(x + w / 2)
+            pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx, y + 4), (cx, y + h - pedestal_h - 4), 1)
+            pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (x + 4, int(bar_y + bar_h / 2)), (x + w - 4, int(bar_y + bar_h / 2)), 1)
+        else:
+            # ----------------------------------------------------
+            # Buddhist Tombstone (Classic arch shape with engraved chữ Vạn 卍)
+            # ----------------------------------------------------
+            radius = int(w / 2)
+
+            # Rounded arch top + rectangular stone body (classic shape)
+            pygame.draw.circle(canvas, self.COLOR_TOMBSTONE, (int(x + radius), int(y + radius)), radius)
+            pygame.draw.rect(canvas, self.COLOR_TOMBSTONE, (x, y + radius, w, h - radius))
+
+            # Engraved Buddhist Sauwastika symbol (chữ Vạn 卍)
+            cx = int(x + w / 2)
+            cy = int(y + h * 0.45)
+            s = 5  # Symbol half-size
+
+            # Center cross bars
+            pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx, cy - s), (cx, cy + s), 2)
+            pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx - s, cy), (cx + s, cy), 2)
+
+            # 4 bent arms forming the auspicious 卍 (left-facing sauwastika)
+            pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx, cy - s), (cx - s, cy - s), 2)  # Top arm -> left
+            pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx - s, cy), (cx - s, cy + s), 2)  # Left arm -> down
+            pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx, cy + s), (cx + s, cy + s), 2)  # Bottom arm -> right
+            pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx + s, cy), (cx + s, cy - s), 2)  # Right arm -> up
 
     def _draw_ghost(self, canvas: pygame.Surface, ghost: Ghost, camera_x: float) -> None:
         x = ghost.x - camera_x

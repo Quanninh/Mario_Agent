@@ -43,6 +43,7 @@ class Obstacle:
     y: float
     width: float = 32.0
     height: float = 48.0
+    style: str = "buddhist"  # "buddhist" (classic arch + chữ Vạn) or "cross" (cross-shaped tombstone)
 
     @property
     def rect(self) -> Tuple[float, float, float, float]:
