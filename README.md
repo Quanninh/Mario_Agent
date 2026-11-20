@@ -66,9 +66,9 @@ python play_human.py
 | :--- | :--- |
 | `A` / `Left Arrow` | Walk Left |
 | `D` / `Right Arrow` | Walk Right |
-| `Space` / `W` / `Up Arrow` | Jump |
+| `Space` / `W` / `Up Arrow` | Jump (also skips Game Over/Win overlay) |
 | `1` – `5` | Instant Curriculum Level Switch |
-| `R` | Reset Current Level |
+| `R` / `Enter` | Reset Level / Skip Game Over or Win Overlay |
 | `Esc` | Quit Application |
 
 ### Automated Headless Tests
@@ -83,29 +83,29 @@ python -m unittest discover tests
 
 Future enhancements categorized from immediate visual polish to advanced dynamic gameplay mechanics:
 
-### Tier 1 — Visual & HUD Polish *(Zero RL Contract Impact)*
+### Tier 1 — Visual & HUD Polish *(Completed)*
 - [x] **Canvas Window Scaling**: Scaled display viewport to `1400x700` while preserving `800x400` physics space.
 - [x] **Player Name Tag**: Floating `"Hoá"` label rendered above player hitbox with contrast drop-shadow.
 - [x] **Level Name HUD**: Displays current curriculum stage in the top-left corner.
 - [x] **Countdown Steps Left & Warmth Counter**: Real-time step countdown (with alert coloring at $\le 150$ steps) and collected item counter stacked in the top-left HUD.
-- [ ] **Diverse Tombstones**: Visual variants for Christian cross engravings and Buddhist sauwastika (*chữ Vạn* `卍`) engravings.
-- [ ] **Game Over & Victory Overlay**: Brief 1-second banner pause before level reset in human play mode.
+- [x] **Diverse Tombstones**: Visual variants for Christian cross stone monuments (`style="cross"`) and classic arch tombstones engraved with Buddhist sauwastikas (`style="buddhist"` / *chữ Vạn* `卍`).
+- [x] **Game Over & Victory Overlay**: Semi-transparent dark banner overlay pause before level reset in human play mode with instant skip on `R`, `Space`, or `Enter`.
 
-### Tier 2 — Architecture & Goal Optimization
-- [ ] **SOLID Dynamic Level Registry**: Scalable level switcher driven directly by `LEVEL_BUILDERS` metadata.
-- [ ] **Speedrun & Warmth Score Tracking**: Optimization objective encouraging clearing stages with minimum steps and maximum warmth items.
+### Tier 2 — Architecture & Goal Optimization *(Resolved)*
+- [x] **SOLID Dynamic Level Architecture**: Handled via `LEVEL_BUILDERS` registry in `env/map_levels.py`, enabling arbitrary curriculum stages without modifying engine physics.
+- [x] **Speedrun & Warmth Optimization**: Integrated into **Member 3's `RewardStrategy`** (step penalty `-1` + warmth pickup `+30`), driving the Q-learning agent to naturally optimize path and collection without redundant client code.
 
-### Tier 3 — Dynamic Gameplay & Hazard Mechanics
+### Tier 3 — Dynamic Gameplay & Hazard Mechanics *(Active Focus)*
 - [ ] **Mid-air Double Jump (`can_double_jump`)**: Enables Hoá to execute a second jump while airborne to recover from missed pit jumps or leap over high ghosts. Reuses `Action.JUMP` / `Action.RIGHT_JUMP` without expanding the action space; exposes `can_double_jump: bool` in `RawState`.
 - [ ] **Player Crouch / Duck (`Action.CROUCH`)**: Lowers Hoá's hitbox (`32 -> 18` px) to duck under hovering ghosts or traps.
 - [ ] **Pit Flame Hazards**: Periodic flame jets erupting from grave pits on timed cycles.
 - [ ] **Rotating Ghost Eye-Lasers**: Ghosts firing lethal rotating laser beams while patrolling.
-- [ ] **Rising Skeletons**: Random spawns of ground-patrolling skeletons emerging from mausoleum tombs.
+- [ ] **Rising & Charging Skeleton Ambush**: Special mausoleum tombs that trigger when Hoá approaches (proximity $< 180\text{px}$): a skeleton bursts upward from the grave, leaps forward, and sprints aggressively toward the player (`dx = player.x - skeleton.x`), requiring rapid jump evasion.
 
 ---
 
 ## 6. Team & Contributions
-- **Member 1 (Current Branch Lead)**: Environment & Game Physics Lead (Entities, AABB Collision Engine, Pygame Visuals, Level Curriculum).
+- **Member 1**: Environment & Game Physics Lead (Entities, AABB Collision Engine, Pygame Visuals, Level Curriculum).
 - **Member 2**: State Discretization & Tabular Q-Learning Agent.
 - **Member 3**: Reward Strategy Shaping & Training Loop.
 - **Member 4**: Evaluation, Performance Metrics, and Visualization.

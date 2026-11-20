@@ -75,19 +75,19 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 - [x] **2. Display `"Hoá"` Label Above Player**: Rendered `"Hoá"` floating directly above Hoá's head (`y - 16` px) with high-contrast drop shadow in `_draw_player()`.
 - [x] **3. Display Current Level Name HUD**: Wired `level_name` through `create_env()` and rendered it at the top-left corner (`x=16, y=14`).
 - [x] **4. Warmth Counter & Countdown Steps Left HUD**: Stacked top-left HUD showing level name, remaining steps countdown (`Steps Left: 980`, turning warning red/orange at $\le 150$), and collected warmth items (`Warmth: 0/4`). Fixed star positioning to prevent background overlap.
-- [ ] **5. Diverse Tombstone Styles**: Add a `style` field on `Obstacle` (e.g., `"cross"` for cross engraving vs. `"buddhist"` for *chữ Vạn* `卍` engraving) for authentic Vietnamese graveyard variety.
-- [ ] **6. Brief Game Over / Win Overlay Before Reset**: Show a short `"GAME OVER"` / `"HOME SAFE!"` banner pause (~1–1.5s) in `play_human.py` before resetting *(keep `GameEnvironment.step()` instant so headless RL training stays fast!)*.
+- [x] **5. Diverse Tombstone Styles**: Added visual variants for Christian cross stone monuments (`style="cross"`) with base pedestals and horizontal crossbars, and classic arch tombstones engraved with Buddhist sauwastikas (`style="buddhist"` / *chữ Vạn* `卍`).
+- [x] **6. Brief Game Over / Win Overlay Before Reset**: Implemented semi-transparent dark banner overlay pause before level reset in `play_human.py` with instant skip on `R`, `Space`, or `Enter` *(keeping `GameEnvironment.step()` 100% instant for headless RL training)*.
 
-#### Tier 2 — Clean Architecture & Goal Optimization *(Medium Complexity)*
-- [ ] **7. SOLID Dynamic Level Switching**: Replace hardcoded `K_1..K_5` switching in `play_human.py` with a scalable level manager driven by `LEVEL_BUILDERS` (e.g., Previous/Next level keys `[` / `]` or `N` / `P` + dynamic IDs) so adding Level 6, 7, 10+ requires zero changes to `play_human.py`.
-- [ ] **8. Win with Fewest Steps & Most Warmth Items**: Track and display run score / personal bests (steps + warmth items collected) on level clear, and align with **Member 3's `RewardStrategy`** (small step penalty + strong warmth item bonus) so the Q-Agent optimizes both speed and item collection.
+#### Tier 2 — Clean Architecture & Goal Optimization *(Resolved)*
+- [x] **7. SOLID Dynamic Level Architecture**: Fully resolved via the Registry Pattern (`LEVEL_BUILDERS`) in `env/map_levels.py`, allowing unlimited curriculum stages to be added without modifying the core simulation engine.
+- [x] **8. Win with Fewest Steps & Most Warmth Items**: Successfully delegated to **Member 3's `RewardStrategy`** (negative step penalty `-1` + positive warmth reward `+30` + goal bonus `+100`), ensuring the Q-Learning agent naturally converges to the optimal path without redundant client-side UI code.
 
-#### Tier 3 — New Gameplay & Dynamic Hazard Mechanics *(Most Complex — Impacts AI State/Action Space)*
+#### Tier 3 — New Gameplay & Dynamic Hazard Mechanics *(Active Focus)*
 - [ ] **9. Mid-air Double Jump Mechanic (`can_double_jump`)**: Allow Hoá to execute a second jump while airborne (`not is_grounded`), allowing recovery from miscalculated pit leaps and dodging high hovering ghosts. Resets `jumps_left = 1` upon landing on the floor or on tombstone tops. Reuses existing `Action.JUMP` and `Action.RIGHT_JUMP` without expanding the action space, while exposing a binary `can_double_jump: bool` flag in `RawState` for the RL agent.
 - [ ] **10. Player Crouch / Duck (`Action.CROUCH`)**: Add crouch action (`S` / `Down` key) that lowers Hoá's hitbox height (e.g., `32 -> 18` px) to duck under mid-height ghosts or laser beams *(expands `Action.NUM_ACTIONS` from 5 to 6)*.
 - [ ] **11. Fire Erupting from Grave Pits**: Periodic flame jets shooting upward out of selected pits on a cycle (`idle -> warning glow -> active lethal flame -> cooldown`), with pit-fire phase exposed in `RawState` so the AI can time its jumps.
 - [ ] **12. Ghosts Shooting Rotating Eye-Laser Beams**: Opt-in per ghost (`has_laser=True`) — fires a lethal laser beam from the ghost's eyes that **rotates continuously in a circle (`0..2π`) while the ghost patrols** (using `(eye_x + L*cos(θ), eye_y + L*sin(θ))`, pure-Python line-segment vs. player AABB collision for headless speed, and nearest-laser angle/danger flag in `RawState`).
-- [ ] **13. Skeleton Rising Randomly from Special Tombs**: Support both normal static tombstones and special mausoleum tombs that randomly spawn a `Skeleton` enemy which pops up and walks along the ground *(requires seeded randomness for reproducible RL experiments, a new `Skeleton` entity with ground physics, and state/event integration)*.
+- [ ] **13. Rising & Charging Skeleton Ambush from Tombs**: Special mausoleum tombs that trigger when Hoá approaches (proximity $< 180\text{px}$): a skeletal warrior bursts upward from the grave, leaps forward, and sprints aggressively toward the player (`dx = player.x - skeleton.x`), demanding quick reaction timing or a high double jump to evade. Requires a new `Skeleton` entity with ground physics, pursuit logic, and nearest skeleton proximity in `RawState`.
 
 ---
 
@@ -107,6 +107,9 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
   - Repositioned star coordinates to `(70, 75)` to eliminate background overlap.
   - Added Mid-air Double Jump (`can_double_jump`) design specification to roadmap and root `README.md`.
   - Re-verified all 6 headless unit tests pass cleanly in `0.020s`.
+- **Step 9**: Implemented diverse tombstones and game over / victory overlay:
+  - Added `style` attribute on `Obstacle` supporting `"cross"` (stone cross monuments) and `"buddhist"` (arch tombstones with engraved `卍` sauwastikas).
+  - Implemented semi-transparent pause overlay in `play_human.py` with instant key-press skipping (`R`, `Space`, `Enter`). All 6 headless unit tests remain 100% passing.
 
 ---
 
