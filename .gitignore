@@ -16,3 +16,5 @@ venv/
 
 # Optional: uncomment if training logs become too large for Git
 # logs/
+
+specs/

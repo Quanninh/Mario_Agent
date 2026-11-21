@@ -16,6 +16,7 @@ class DenseRewardStrategy(BaseRewardStrategy):
         obstacle_penalty: float = -2.0,
         item_bonus: float = 20.0,
         idle_penalty: float = -0.5,
+        timeout_penalty: float = -40.0,
     ):
         self.progress_mult = progress_mult
         self.goal_bonus = goal_bonus
@@ -23,6 +24,7 @@ class DenseRewardStrategy(BaseRewardStrategy):
         self.obstacle_penalty = obstacle_penalty
         self.item_bonus = item_bonus
         self.idle_penalty = idle_penalty
+        self.timeout_penalty = timeout_penalty
 
     def calculate_reward(
         self,
@@ -46,5 +48,12 @@ class DenseRewardStrategy(BaseRewardStrategy):
             reward += self.item_bonus
         if abs(events.dx) < 0.05:
             reward += self.idle_penalty
+        if (
+            done
+            and not events.reached_goal
+            and not events.fell_in_pit
+            and not events.hit_ghost
+        ):
+            reward += self.timeout_penalty
 
         return float(reward)
