@@ -36,6 +36,7 @@ def main() -> None:
         pygame.K_4: 4,
         pygame.K_5: 5,
         pygame.K_6: 6,
+        pygame.K_7: 7,
     }
 
     jump_key_pressed = False

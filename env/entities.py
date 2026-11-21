@@ -71,12 +71,12 @@ class Pit:
     x_end: float
     has_fire: bool = False      # True if this pit shoots periodic flame jets
     fire_offset: int = 0        # Tick offset for staggered timing with other pits
+    fire_height: float = 65.0
 
     # Flame timing constants
     FIRE_CYCLE: float = 100.0
     FIRE_WARN_START: float = 65.0
     FIRE_ACTIVE_START: float = 80.0
-    FIRE_HEIGHT: float = 65.0
 
     def contains(self, x: float, width: float) -> bool:
         """Checks if an entity is over the pit (meaning no floor beneath it)."""
@@ -100,9 +100,9 @@ class Pit:
         if self.get_fire_phase(step_count) == 2:
             return (
                 self.x_start,
-                floor_y - self.FIRE_HEIGHT,
+                floor_y - self.fire_height,
                 self.x_end - self.x_start,
-                canvas_height - (floor_y - self.FIRE_HEIGHT),
+                canvas_height - (floor_y - self.fire_height),
             )
         return None
 

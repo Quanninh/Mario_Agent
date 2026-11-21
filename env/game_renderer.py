@@ -373,7 +373,7 @@ class GameRenderer:
         step_count: int,
     ) -> None:
         """Draws multi-tiered pixel-art flame eruption matching reference design."""
-        h = pit.FIRE_HEIGHT
+        h = pit.fire_height
         top_y = floor_y - h
         bot_y = self.canvas_height
         cx = pit_x + pit_w / 2.0

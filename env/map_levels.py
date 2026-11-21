@@ -227,6 +227,104 @@ def _build_level_6() -> LevelConfig:
         max_steps=1400,
     )
 
+def _build_level_7() -> LevelConfig:
+    """Level 7 (The Eternal Abyss): Marathon gauntlet with variable flame heights, multi-speed laser ghosts, varied tombs, and mandatory crouch tunnels."""
+    return LevelConfig(
+        name="Level 7: The Eternal Abyss",
+        obstacles=[
+            # Section 1: Varied tombstone heights (low step vs tall monolith)
+            Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 36.0, width=32.0, height=36.0, style="buddhist"),    # Low step
+            Obstacle(x=600.0, y=DEFAULT_FLOOR_Y - 72.0, width=32.0, height=72.0, style="cross"),       # Tall monolith
+            Obstacle(x=920.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="buddhist"),
+            
+            # Section 2: Stepping stones over the Great Inferno
+            Obstacle(x=1300.0, y=DEFAULT_FLOOR_Y - 84.0, width=36.0, height=84.0, style="cross"),     # High sanctuary perch
+            
+            # Section 3: THE MANDATORY CROUCH TUNNEL (Low clearance = 20px)
+            Obstacle(x=1750.0, y=DEFAULT_FLOOR_Y - 72.0, width=90.0, height=52.0, style="cross"),      # Low ceiling: MUST SLIDE!
+            
+            # Section 4: Deep catacomb pillars
+            Obstacle(x=2220.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0, style="buddhist"),
+            Obstacle(x=2580.0, y=DEFAULT_FLOOR_Y - 92.0, width=32.0, height=92.0, style="cross"),     # Colossal obelisk
+            Obstacle(x=2980.0, y=DEFAULT_FLOOR_Y - 44.0, width=32.0, height=44.0, style="buddhist"),
+        ],
+        pits=[
+            # Pit 1: Low ember flame (fire_height = 40px, can be hopped over)
+            Pit(x_start=380.0, x_end=450.0, has_fire=True, fire_offset=0, fire_height=40.0),
+            
+            # Pit 2: Deep bottomless grave (no fire, wide leap)
+            Pit(x_start=760.0, x_end=845.0, has_fire=False),
+            
+            # Pit 3: Towering Volcanic Inferno (fire_height = 100px! Must jump from high perch at x=1300)
+            Pit(x_start=1180.0, x_end=1265.0, has_fire=True, fire_offset=30, fire_height=100.0),
+            Pit(x_start=1336.0, x_end=1420.0, has_fire=True, fire_offset=70, fire_height=50.0),
+            
+            # Pit 4 & 5: Rapid fire gauntlet
+            Pit(x_start=2050.0, x_end=2130.0, has_fire=True, fire_offset=15, fire_height=65.0),
+            Pit(x_start=2420.0, x_end=2500.0, has_fire=False),
+            Pit(x_start=2780.0, x_end=2870.0, has_fire=True, fire_offset=50, fire_height=85.0),
+        ],
+        ghosts=[
+            # 1. Slow, heavy ground stalker (no laser, jump over)
+            Ghost(
+                x=480.0, y=DEFAULT_FLOOR_Y - 36.0,
+                patrol_min_x=455.0, patrol_max_x=580.0,
+                speed=0.9, float_amplitude=4.0, float_speed=0.04,
+            ),
+            # 2. Fast-spinning rapid laser ghost (clockwise 0.06 rad/tick)
+            Ghost(
+                x=860.0, y=DEFAULT_FLOOR_Y - 82.0,
+                patrol_min_x=835.0, patrol_max_x=980.0,
+                speed=-2.0, float_amplitude=6.0, float_speed=0.12,
+                has_laser=True, laser_length=80.0, laser_rotation_speed=0.06, laser_initial_angle=0.0,
+            ),
+            # 3. High soaring poltergeist above the Towering Inferno
+            Ghost(
+                x=1240.0, y=DEFAULT_FLOOR_Y - 96.0,
+                patrol_min_x=1160.0, patrol_max_x=1380.0,
+                speed=1.5, float_amplitude=16.0, float_speed=0.07,
+            ),
+            # 4. Low Tunnel Guard: hovers right before the crouch tunnel at head height
+            Ghost(
+                x=1680.0, y=DEFAULT_FLOOR_Y - 38.0,
+                patrol_min_x=1640.0, patrol_max_x=1740.0,
+                speed=-1.2, float_amplitude=4.0, float_speed=0.08,
+            ),
+            # 5. Slow wide-reach counter-clockwise laser ghost (laser_length = 115px, counter-clockwise)
+            Ghost(
+                x=2300.0, y=DEFAULT_FLOOR_Y - 86.0,
+                patrol_min_x=2220.0, patrol_max_x=2440.0,
+                speed=1.6, float_amplitude=10.0, float_speed=0.10,
+                has_laser=True, laser_length=115.0, laser_rotation_speed=-0.028, laser_initial_angle=1.57,
+            ),
+            # 6. Ultra-fast erratic twitcher (speed = -3.2!)
+            Ghost(
+                x=2680.0, y=DEFAULT_FLOOR_Y - 80.0,
+                patrol_min_x=2600.0, patrol_max_x=2780.0,
+                speed=-3.2, float_amplitude=12.0, float_speed=0.20,
+            ),
+            # 7. Final Grand Sentinel guarding Khuê Văn Các with continuous laser
+            Ghost(
+                x=3100.0, y=DEFAULT_FLOOR_Y - 88.0,
+                patrol_min_x=3020.0, patrol_max_x=3240.0,
+                speed=1.8, float_amplitude=11.0, float_speed=0.09,
+                has_laser=True, laser_length=100.0, laser_rotation_speed=0.04, laser_initial_angle=3.14,
+            ),
+        ],
+        items=[
+            WarmthItem(x=249.0, y=DEFAULT_FLOOR_Y - 74.0),    # On low tombstone 1
+            WarmthItem(x=620.0, y=DEFAULT_FLOOR_Y - 110.0),   # High above monolith 2
+            WarmthItem(x=1310.0, y=DEFAULT_FLOOR_Y - 122.0),  # High above volcanic perch
+            WarmthItem(x=1790.0, y=DEFAULT_FLOOR_Y - 14.0),   # Inside the low crouch tunnel!
+            WarmthItem(x=2240.0, y=DEFAULT_FLOOR_Y - 28.0),   # Under wide laser ghost
+            WarmthItem(x=2600.0, y=DEFAULT_FLOOR_Y - 130.0),  # Top of colossal obelisk
+            WarmthItem(x=3050.0, y=DEFAULT_FLOOR_Y - 28.0),   # Courtyard before sanctuary
+        ],
+        goal=GoalFlag(x=3350.0, y=DEFAULT_FLOOR_Y - 88.0),
+        floor_y=DEFAULT_FLOOR_Y,
+        max_steps=2400,
+    )
+
 
 LEVEL_BUILDERS: Dict[int, Callable[[], LevelConfig]] = {
     1: _build_level_1,
@@ -235,6 +333,7 @@ LEVEL_BUILDERS: Dict[int, Callable[[], LevelConfig]] = {
     4: _build_level_4,
     5: _build_level_5,
     6: _build_level_6,
+    7: _build_level_7,
 }
 
 
