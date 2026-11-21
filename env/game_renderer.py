@@ -32,12 +32,48 @@ class GameRenderer:
     COLOR_GHOST_EYE = (20, 25, 45)
     COLOR_ITEM_GLOW = (255, 195, 65)
     COLOR_ITEM_CORE = (255, 245, 180)
-    COLOR_PLAYER_JACKET = (65, 145, 230)
-    COLOR_PLAYER_HEAD = (245, 210, 180)
-    COLOR_HOUSE_WALL = (185, 135, 90)
-    COLOR_HOUSE_ROOF = (145, 50, 50)
-    COLOR_HOUSE_DOOR = (100, 65, 40)
-    COLOR_HOUSE_WINDOW = (255, 230, 115)
+
+    # Hoá Character palette (Áo Ngũ Thân May Kép Đệm Bông & Khăn Đóng & Lồng Đèn)
+    COLOR_PLAYER_ROBE = (45, 172, 240)         # Vibrant cyan-blue robe
+    COLOR_PLAYER_ROBE_SHADOW = (22, 115, 188)   # Shaded robe folds
+    COLOR_PLAYER_ROBE_LIGHT = (95, 215, 255)    # Quilted diamond highlights
+    COLOR_PLAYER_KHAN = (32, 140, 205)          # Matching cyan-blue turban (Khăn Đóng)
+    COLOR_PLAYER_KHAN_FOLD = (18, 95, 155)      # Turban pleat shadows
+    COLOR_PLAYER_KHAN_LIGHT = (90, 205, 255)    # Turban pleat highlights
+    COLOR_PLAYER_HAIR = (22, 22, 28)            # Black hair tuft / sideburn
+    COLOR_PLAYER_HEAD = (248, 205, 172)         # Peachy skin tone
+    COLOR_PLAYER_COLLAR = (255, 255, 255)       # Traditional white inner collar rim
+    COLOR_PLAYER_PANTS = (242, 245, 250)        # White inner trousers
+    COLOR_PLAYER_SHOES = (22, 22, 28)           # Black cloth shoes
+    COLOR_PLAYER_SOLE = (225, 225, 225)         # White shoe sole line
+    COLOR_PLAYER_BUTTON = (255, 220, 110)       # Gold button clasps
+    COLOR_PLAYER_LANTERN_WOOD = (125, 75, 38)   # Bamboo lantern frame
+    COLOR_PLAYER_LANTERN_GLOW = (255, 215, 75)  # Warm amber lantern glow
+    COLOR_PLAYER_LANTERN_CORE = (255, 255, 220) # White-hot candle center
+    COLOR_PLAYER_LANTERN_TASSEL = (225, 45, 45) # Red silk lantern tassel
+    COLOR_PLAYER_JACKET = (45, 172, 240)        # Backwards-compatible alias
+
+    # Khuê Văn Các Destination Sanctuary Palette
+    COLOR_ROOF_TILE = (175, 72, 45)          # Weathered terracotta roof tile
+    COLOR_ROOF_SHADOW = (115, 42, 28)        # Dark roof eaves shadow
+    COLOR_ROOF_RIDGE = (195, 190, 180)       # Stone / mortar ridge ornament
+    COLOR_WOOD_RED = (195, 45, 35)           # Vermilion red painted wood
+    COLOR_WOOD_DARK = (125, 25, 20)          # Dark lacquer timber frame
+    COLOR_GOLD = (245, 205, 75)              # Gold board lettering & accents
+    COLOR_STONE_LIGHT = (225, 228, 232)      # White stone pillar with carved relief
+    COLOR_STONE_DARK = (165, 172, 180)       # Carved stone cloud shading
+    COLOR_STONE_BASE = (110, 118, 128)       # Greenish-grey stone plinth
+    COLOR_WINDOW_GLOW = (255, 220, 85)       # Radiant sunburst window core
+    COLOR_WINDOW_CORE = (255, 255, 230)      # White-hot inner window light
+    COLOR_FLAG_RED = (220, 35, 35)           # Festival flag vermilion
+    COLOR_FLAG_YELLOW = (255, 215, 50)       # Festival flag gold fringe
+    COLOR_FLAG_GREEN = (40, 160, 80)         # Festival flag jade trim
+
+    # Backwards-compatible aliases
+    COLOR_HOUSE_WALL = (195, 45, 35)
+    COLOR_HOUSE_ROOF = (175, 72, 45)
+    COLOR_HOUSE_DOOR = (110, 118, 128)
+    COLOR_HOUSE_WINDOW = (255, 220, 85)
 
     # Decorative stars in the night sky (canvas-space coordinates)
     STARS = [
@@ -71,8 +107,8 @@ class GameRenderer:
             # Displaying the game on the laptop's screen (can be scaled)
             self._screen = pygame.display.set_mode((self.screen_width, self.screen_height))
 
-            # Core internal logic canvas (800 x 400 pixels)
-            self._canvas = pygame.Surface((self.canvas_width, self.canvas_height))
+            # Core internal logic canvas (800 x 400 pixels, 24-bit RGB without alpha channel to prevent alpha clobbering)
+            self._canvas = pygame.Surface((self.canvas_width, self.canvas_height), depth=24)
 
             pygame.display.set_caption("Hoá's Midnight Escape")
             self._clock = pygame.time.Clock()
@@ -102,11 +138,18 @@ class GameRenderer:
 
         for item in env.items:
             if not item.is_collected:
-                self._draw_item(canvas, item, camera_x)
+                self._draw_item(canvas, item, camera_x, env.step_count)
 
-        self._draw_home(canvas, env.goal, camera_x)
+        self._draw_home(canvas, env.goal, camera_x, env.step_count)
 
-        self._draw_player(canvas, env.player, camera_x)
+        # Draw low-ground creeping fog over the cemetery grass
+        self._draw_ground_fog(canvas, camera_x, env.step_count, env.floor_y)
+
+        # Draw player
+        self._draw_player(canvas, env.player, camera_x, env.step_count)
+
+        # Draw dynamic ambient lantern light casting forward onto the graveyard
+        self._draw_lantern_light(canvas, env.player, camera_x, env.step_count)
 
         # Draw fixed top HUD (Level name, countdown timer, warmth counter)
         self._draw_hud(canvas, env)
@@ -142,9 +185,11 @@ class GameRenderer:
 
         sw, sh = self.screen_width, self.screen_height
 
-        # Semi-transparent dark overlay over the frozen frame
-        overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 160))
+        # Semi-transparent dark overlay over the frozen frame using surface alpha
+        # Note: Avoid pygame.SRCALPHA on display surfaces to prevent Porter-Duff zero-alpha blackouts on macOS/SDL2
+        overlay = pygame.Surface((sw, sh))
+        overlay.fill((0, 0, 0))
+        overlay.set_alpha(160)
         self._screen.blit(overlay, (0, 0))
 
         # Fonts for banner
@@ -221,7 +266,7 @@ class GameRenderer:
             self.show_overlay(
                 title="TIME OUT",
                 subtitle="The freezing midnight overcame Hoá...",
-                color=(255, 185, 70),  # Cold amber
+                color=(165, 230, 255),  # Glacial frost / icy cyan
                 duration_ms=3000,
             )
 
@@ -233,10 +278,19 @@ class GameRenderer:
     def _draw_background(self, canvas: pygame.Surface, env: "GameEnvironment", camera_x: float) -> None:
         canvas.fill(self.COLOR_SKY)
 
-        # Stars & full moon
-        for sx, sy in self.STARS:
-            pygame.draw.circle(canvas, self.COLOR_STAR, (sx, sy), 2)
-        pygame.draw.circle(canvas, self.COLOR_MOON, (self.canvas_width - 90, 65), 28)
+        # Twinkling night sky stars
+        for i, (sx, sy) in enumerate(self.STARS):
+            twinkle = int(math.sin(env.step_count * 0.12 + i * 1.7) * 35)
+            b = max(160, min(255, 220 + twinkle))
+            star_color = (max(0, b - 20), max(0, b - 10), b)
+            sz = 1 if i % 3 != 0 else 2
+            pygame.draw.circle(canvas, star_color, (sx, sy), sz)
+
+        # Full moon with soft atmospheric outer glow
+        moon_cx, moon_cy = self.canvas_width - 90, 65
+        pygame.draw.circle(canvas, (32, 38, 68), (moon_cx, moon_cy), 36)
+        pygame.draw.circle(canvas, (45, 52, 90), (moon_cx, moon_cy), 32)
+        pygame.draw.circle(canvas, self.COLOR_MOON, (moon_cx, moon_cy), 28)
 
         # Graveyard soil & dark grass trim
         pygame.draw.rect(
@@ -478,6 +532,13 @@ class GameRenderer:
         y, w, h = ghost.y, ghost.width, ghost.height
         radius = int(w / 2)
 
+        # Translucent ethereal trail behind ghost movement
+        trail_dir = -1.0 if ghost.speed >= 0 else 1.0
+        trail_surf = pygame.Surface((int(w), int(h)), pygame.SRCALPHA)
+        pygame.draw.circle(trail_surf, (215, 242, 255, 60), (int(radius), int(radius)), radius)
+        pygame.draw.rect(trail_surf, (215, 242, 255, 60), (0, radius, int(w), int(h - radius - 4)))
+        canvas.blit(trail_surf, (x + trail_dir * 4, y))
+
         # Ghost head dome + body
         pygame.draw.circle(canvas, self.COLOR_GHOST, (int(x + radius), int(y + radius)), radius)
         pygame.draw.rect(canvas, self.COLOR_GHOST, (x, y + radius, w, h - radius - 4))
@@ -489,48 +550,436 @@ class GameRenderer:
             wy = int(y + h - wave_r)
             pygame.draw.circle(canvas, self.COLOR_GHOST, (wx, wy), wave_r)
 
-        # Two dark hollow eyes
-        pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (int(x + w * 0.35), int(y + h * 0.4)), 3)
-        pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (int(x + w * 0.65), int(y + h * 0.4)), 3)
+        # Two dark hollow eyes with spooky icy specular glint
+        eye_y = int(y + h * 0.4)
+        e1_x = int(x + w * 0.35)
+        e2_x = int(x + w * 0.65)
+        pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (e1_x, eye_y), 3)
+        pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (e2_x, eye_y), 3)
+        pygame.draw.circle(canvas, (165, 230, 255), (e1_x, eye_y), 1)
+        pygame.draw.circle(canvas, (165, 230, 255), (e2_x, eye_y), 1)
 
-    def _draw_item(self, canvas: pygame.Surface, item: WarmthItem, camera_x: float) -> None:
+    def _draw_item(
+        self,
+        canvas: pygame.Surface,
+        item: WarmthItem,
+        camera_x: float,
+        step_count: int = 0,
+    ) -> None:
         cx = int(item.x - camera_x + item.width / 2)
-        cy = int(item.y + item.height / 2)
+        hover = math.sin(step_count * 0.15 + item.x * 0.05) * 2.5
+        cy = int(item.y + item.height / 2 + hover)
+        pulse = int(math.sin(step_count * 0.2 + item.x) * 2)
 
-        pygame.draw.circle(canvas, self.COLOR_ITEM_GLOW, (cx, cy), 9)
+        # Ambient golden glow aura
+        pygame.draw.circle(canvas, (180, 130, 30), (cx, cy), 13 + pulse, width=1)
+        pygame.draw.circle(canvas, self.COLOR_ITEM_GLOW, (cx, cy), 8 + pulse)
         pygame.draw.circle(canvas, self.COLOR_ITEM_CORE, (cx, cy), 4)
+        pygame.draw.circle(canvas, (255, 255, 255), (cx, cy), 2)
 
-    def _draw_home(self, canvas: pygame.Surface, goal: GoalFlag, camera_x: float) -> None:
+    def _draw_home(
+        self,
+        canvas: pygame.Surface,
+        goal: GoalFlag,
+        camera_x: float,
+        step_count: int = 0,
+    ) -> None:
+        """Renders the authentic Khuê Văn Các (Pavilion of the Constellation of Literature) destination.
+        
+        Faithfully reproduces the iconic Temple of Literature architecture:
+        - Carved white stone pillars and stepped stone courtyard with open passage
+        - Spilling sanctuary light through the central portal
+        - Upper vermilion red timber pavilion with decorative balustrade
+        - Horizontal lacquered board inscribed in gold: '奎文閣'
+        - Iconic circular sunburst window (Cửa Sổ Sao Khuê) with radiating wooden rays
+        - Double-tiered curved roofs (Mái Chồng Diêm) with terracotta tiles and rooftop ornaments
+        """
         x = goal.x - camera_x
         y, w, h = goal.y, goal.width, goal.height
-        roof_h = 28
+        cx = int(x + w / 2)
+        floor_y = int(y + h)
 
-        # House wall
-        pygame.draw.rect(canvas, self.COLOR_HOUSE_WALL, (x, y + roof_h, w, h - roof_h))
+        # ----------------------------------------------------
+        # 1. Lower Level: 4 Carved Stone Pillars & Open Archway
+        # ----------------------------------------------------
+        pillar_top = int(y + 44)
+        pillar_h = int(floor_y - pillar_top)
+        pillar_w = 14
+        portal_w = int(w - pillar_w * 2)
 
-        # Triangular roof
-        roof_pts = [(x - 6, y + roof_h), (x + w / 2, y), (x + w + 6, y + roof_h)]
-        pygame.draw.polygon(canvas, self.COLOR_HOUSE_ROOF, roof_pts)
+        # Stone courtyard steps in center passage (Bậc tam cấp)
+        pygame.draw.rect(canvas, (90, 95, 105), (x + 10, floor_y - 6, w - 20, 6))
+        pygame.draw.rect(canvas, (135, 142, 152), (x + 12, floor_y - 4, w - 24, 4))
+        pygame.draw.rect(canvas, (175, 182, 192), (x + 14, floor_y - 2, w - 28, 2))
 
-        # Front door
-        pygame.draw.rect(canvas, self.COLOR_HOUSE_DOOR, (x + 10, y + h - 30, 16, 30))
+        # Translucent warm light spilling through open portal from sanctuary
+        portal_glow = pygame.Surface((portal_w, pillar_h - 6), pygame.SRCALPHA)
+        portal_glow.fill((255, 215, 80, 32))
+        canvas.blit(portal_glow, (int(x + pillar_w), pillar_top + 6))
 
-        # Glowing warm yellow window
-        pygame.draw.rect(canvas, self.COLOR_HOUSE_WINDOW, (x + 34, y + roof_h + 14, 18, 18))
+        # Left & Right Carved White Stone Pillars (Chân tảng & Cột đá vuông chạm nổi)
+        for px in [x, x + w - pillar_w]:
+            # Pillar stone base plinth (Chân đế đá)
+            pygame.draw.rect(canvas, self.COLOR_STONE_BASE, (px - 1, floor_y - 8, pillar_w + 2, 8))
+            # White carved stone column shaft
+            pygame.draw.rect(canvas, self.COLOR_STONE_LIGHT, (px, pillar_top + 2, pillar_w, pillar_h - 10))
+            # Carved cloud / dragon relief motifs on pillar face
+            for ry in range(int(pillar_top + 8), int(floor_y - 12), 8):
+                pygame.draw.rect(canvas, self.COLOR_STONE_DARK, (px + 3, ry, pillar_w - 6, 2))
+                pygame.draw.rect(canvas, (245, 248, 250), (px + 4, ry - 1, pillar_w - 8, 1))
+            # Pillar capital trim
+            pygame.draw.rect(canvas, self.COLOR_STONE_BASE, (px - 1, pillar_top, pillar_w + 2, 4))
 
-    def _draw_player(self, canvas: pygame.Surface, player: Player, camera_x: float) -> None:
+        # Horizontal red crossbeam spanning above the pillars
+        pygame.draw.rect(canvas, self.COLOR_WOOD_DARK, (x - 2, pillar_top - 2, w + 4, 5))
+        pygame.draw.rect(canvas, self.COLOR_WOOD_RED, (x - 1, pillar_top - 1, w + 2, 3))
+
+        # ----------------------------------------------------
+        # 2. Middle Level: Red Wooden Pavilion & Balustrade
+        # ----------------------------------------------------
+        pav_top = int(y + 18)
+        pav_h = int(pillar_top - pav_top)
+        pav_w = 46
+        pav_x = int(cx - pav_w / 2)
+
+        # Vermilion timber walls
+        pygame.draw.rect(canvas, self.COLOR_WOOD_DARK, (pav_x - 1, pav_top, pav_w + 2, pav_h))
+        pygame.draw.rect(canvas, self.COLOR_WOOD_RED, (pav_x, pav_top + 1, pav_w, pav_h - 2))
+
+        # Red Balustrade (Lan can con tiện đỏ)
+        bal_y = int(pillar_top - 7)
+        pygame.draw.rect(canvas, self.COLOR_WOOD_DARK, (pav_x - 4, bal_y, pav_w + 8, 7))
+        pygame.draw.rect(canvas, self.COLOR_WOOD_RED, (pav_x - 3, bal_y + 1, pav_w + 6, 2))
+        for bx in range(pav_x - 2, pav_x + pav_w + 4, 4):
+            pygame.draw.rect(canvas, (235, 75, 60), (bx, bal_y + 3, 2, 3))
+        pygame.draw.rect(canvas, self.COLOR_WOOD_DARK, (pav_x - 4, bal_y + 6, pav_w + 8, 2))
+
+        # Gold Inscribed Horizontal Board "奎文閣" (Khuê Văn Các)
+        board_w = 24
+        board_x = int(cx - board_w / 2)
+        pygame.draw.rect(canvas, self.COLOR_WOOD_DARK, (board_x, pav_top + 2, board_w, 6))
+        pygame.draw.rect(canvas, (170, 30, 25), (board_x + 1, pav_top + 3, board_w - 2, 4))
+        # Golden characters "奎文閣"
+        pygame.draw.rect(canvas, self.COLOR_GOLD, (board_x + 3, pav_top + 4, 4, 2))
+        pygame.draw.rect(canvas, self.COLOR_GOLD, (board_x + 10, pav_top + 4, 4, 2))
+        pygame.draw.rect(canvas, self.COLOR_GOLD, (board_x + 17, pav_top + 4, 4, 2))
+
+        # ----------------------------------------------------
+        # 3. Centerpiece: The Iconic Circular Sunburst Window (Cửa Sổ Sao Khuê)
+        # ----------------------------------------------------
+        win_cx = cx
+        win_cy = int(pav_top + 15)
+        win_r = 9
+
+        # Ambient warm glow radiating from the window
+        pulse = int(math.sin(step_count * 0.15) * 2)
+        win_glow = pygame.Surface((36, 36), pygame.SRCALPHA)
+        pygame.draw.circle(win_glow, (255, 215, 80, 50), (18, 18), 16 + pulse)
+        canvas.blit(win_glow, (win_cx - 18, win_cy - 18))
+
+        # Outer round wooden frame
+        pygame.draw.circle(canvas, self.COLOR_WOOD_DARK, (win_cx, win_cy), win_r + 2)
+        pygame.draw.circle(canvas, self.COLOR_WOOD_RED, (win_cx, win_cy), win_r + 1)
+
+        # Glowing amber interior
+        pygame.draw.circle(canvas, self.COLOR_WINDOW_GLOW, (win_cx, win_cy), win_r - 1)
+        pygame.draw.circle(canvas, self.COLOR_WINDOW_CORE, (win_cx, win_cy), win_r - 4)
+
+        # 8 Radiating Wooden Sunburst Spokes (Nan gỗ sao Khuê)
+        spoke_len = win_r - 1
+        for angle_deg in range(0, 360, 45):
+            rad = math.radians(angle_deg)
+            sx = int(win_cx + math.cos(rad) * spoke_len)
+            sy = int(win_cy + math.sin(rad) * spoke_len)
+            pygame.draw.line(canvas, self.COLOR_WOOD_DARK, (win_cx, win_cy), (sx, sy), 1)
+
+        # Hanging lantern inside center of round window
+        pygame.draw.rect(canvas, self.COLOR_WOOD_DARK, (win_cx - 2, win_cy - 3, 4, 6), 1)
+        pygame.draw.circle(canvas, (255, 255, 255), (win_cx, win_cy), 1)
+
+        # ----------------------------------------------------
+        # 4. Double-Tiered Flared Curved Roofs (Mái Chồng Diêm)
+        # ----------------------------------------------------
+        # Lower Roof Tier (Mái dưới che hiên)
+        low_roof_y = pav_top + 1
+        low_pts = [
+            (cx - 38, low_roof_y + 3),   # Left upturned eave tip
+            (cx - 34, low_roof_y + 1),
+            (cx - 24, low_roof_y - 2),
+            (cx + 24, low_roof_y - 2),
+            (cx + 34, low_roof_y + 1),
+            (cx + 38, low_roof_y + 3),   # Right upturned eave tip
+            (cx + 32, low_roof_y + 5),
+            (cx - 32, low_roof_y + 5),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_ROOF_SHADOW, [(px, py + 1) for px, py in low_pts])
+        pygame.draw.polygon(canvas, self.COLOR_ROOF_TILE, low_pts)
+
+        # Upper Roof Tier (Mái trên chính)
+        up_top = int(y + 4)
+        up_pts = [
+            (cx - 32, up_top + 13),      # Left curved eave tip
+            (cx - 28, up_top + 11),
+            (cx - 20, up_top + 4),
+            (cx - 14, up_top + 1),       # Ridge left
+            (cx + 14, up_top + 1),       # Ridge right
+            (cx + 20, up_top + 4),
+            (cx + 28, up_top + 11),
+            (cx + 32, up_top + 13),      # Right curved eave tip
+            (cx + 26, up_top + 15),
+            (cx - 26, up_top + 15),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_ROOF_SHADOW, [(px, py + 1) for px, py in up_pts])
+        pygame.draw.polygon(canvas, self.COLOR_ROOF_TILE, up_pts)
+
+        # Roof tiles vertical ridge lines
+        for tx in range(cx - 18, cx + 20, 4):
+            pygame.draw.line(canvas, (140, 52, 32), (tx, up_top + 3), (int(tx * 1.15 - cx * 0.15), up_top + 13), 1)
+
+        # Ornamental Ridge & Pinnacle (Bình hồ lô & Kìm nóc)
+        pygame.draw.rect(canvas, self.COLOR_ROOF_RIDGE, (cx - 15, up_top, 30, 2))
+        pygame.draw.rect(canvas, self.COLOR_ROOF_RIDGE, (cx - 17, up_top - 3, 3, 4))
+        pygame.draw.rect(canvas, self.COLOR_ROOF_RIDGE, (cx + 14, up_top - 3, 3, 4))
+        pygame.draw.circle(canvas, self.COLOR_ROOF_RIDGE, (cx, up_top - 2), 3)
+        pygame.draw.circle(canvas, (255, 235, 140), (cx, up_top - 2), 1)
+
+    def _draw_ground_fog(
+        self,
+        canvas: pygame.Surface,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders low-ground creeping mist/fog drifting across the cemetery floor."""
+        fog_surf = pygame.Surface((self.canvas_width, 36), pygame.SRCALPHA)
+        for fx in range(-30, self.canvas_width + 40, 50):
+            drift = math.sin(step_count * 0.04 + fx * 0.015) * 4
+            alpha = int(24 + math.sin(step_count * 0.03 + fx * 0.02) * 12)
+            pygame.draw.ellipse(fog_surf, (150, 185, 230, alpha), (fx, int(8 + drift), 85, 20))
+        canvas.blit(fog_surf, (0, int(floor_y - 20)))
+
+    def _draw_lantern_light(
+        self,
+        canvas: pygame.Surface,
+        player: Player,
+        camera_x: float,
+        step_count: int,
+    ) -> None:
+        """Renders a compact circular warm light aura around Hoá's lantern."""
         x = player.x - camera_x
         y, w, h = player.y, player.width, player.height
+        cx = x + w / 2
+        f = 1 if player.facing_right else -1
 
-        # Winter jacket body
-        pygame.draw.rect(canvas, self.COLOR_PLAYER_JACKET, (x + 2, y + 12, w - 4, h - 12))
+        if player.is_crouching:
+            lant_cx = int(cx + 12 * f)
+            lant_cy = int(y + 10)
+        else:
+            is_running = abs(player.vx) > 0.5
+            sway = math.sin(step_count * 0.3) * 1.5 if is_running else 0
+            lant_cx = int(cx + 12 * f)
+            lant_cy = int(y + 19 + sway)
 
-        # Head
-        pygame.draw.circle(canvas, self.COLOR_PLAYER_HEAD, (int(x + w / 2), int(y + 8)), 8)
+        # Compact circular warm glow around the lantern
+        light_w, light_h = 48, 48
+        light_surf = pygame.Surface((light_w, light_h))
+        light_surf.fill((0, 0, 0))
+        center = (light_w // 2, light_h // 2)
 
-        # Eye facing movement direction
-        eye_x = int(x + w * 0.65) if player.facing_right else int(x + w * 0.35)
-        pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (eye_x, int(y + 7)), 2)
+        # Neat warm ambient glow circles
+        pygame.draw.circle(light_surf, (45, 32, 12), center, 20)
+        pygame.draw.circle(light_surf, (95, 70, 26), center, 14)
+        pygame.draw.circle(light_surf, (155, 120, 48), center, 8)
+
+        canvas.blit(
+            light_surf,
+            (lant_cx - light_w // 2, lant_cy - light_h // 2),
+            special_flags=pygame.BLEND_ADD,
+        )
+
+    def _draw_player(
+        self,
+        canvas: pygame.Surface,
+        player: Player,
+        camera_x: float,
+        step_count: int = 0,
+    ) -> None:
+        """Renders Hoá in traditional Vietnamese Áo Ngũ Thân May Kép Đệm Bông, matching Khăn Đóng & Lồng Đèn."""
+        x = player.x - camera_x
+        y, w, h = player.y, player.width, player.height
+        cx = x + w / 2
+        f = 1 if player.facing_right else -1
+
+        # ----------------------------------------------------
+        # 1. State: Crouch / Momentum Slide (Hitbox shrinks to h = 18px)
+        # ----------------------------------------------------
+        if player.is_crouching:
+            robe_y = y + 6
+            robe_h = 8
+            robe_x = cx - 9 if player.facing_right else cx - 7
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_ROBE, (robe_x, robe_y, 16, robe_h), border_radius=2)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_ROBE_LIGHT, (robe_x + 3, robe_y + 2), (robe_x + 13, robe_y + 2), 1)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_ROBE_SHADOW, (robe_x + 2, robe_y + 5), (robe_x + 14, robe_y + 5), 1)
+
+            # White trousers tucked low under robe
+            pants_x = robe_x - 3 * f
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_PANTS, (pants_x, y + h - 5, 8, 4), border_radius=1)
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_SHOES, (pants_x - 2 * f, y + h - 3, 6, 3))
+            pygame.draw.line(canvas, self.COLOR_PLAYER_SOLE, (pants_x - 2 * f, y + h - 1), (pants_x + 4 * f, y + h - 1), 1)
+
+            # Slide friction dust/frost particles when sliding fast
+            if abs(player.vx) > 0.5:
+                dust_x = pants_x - 4 * f
+                pygame.draw.rect(canvas, (185, 215, 235), (dust_x, y + h - 2, 2, 2))
+                pygame.draw.rect(canvas, (145, 180, 205), (dust_x - 3 * f, y + h - 4, 2, 2))
+
+            # Head lowered with hair & matching blue Khăn Đóng
+            head_x = cx + 2 * f
+            head_y = y + 4
+            # Dark hair contour behind
+            pygame.draw.circle(canvas, self.COLOR_PLAYER_HAIR, (int(head_x - 1 * f), int(head_y)), 5)
+            # Face skin
+            pygame.draw.circle(canvas, self.COLOR_PLAYER_HEAD, (int(head_x), int(head_y)), 4)
+            # Hair fringe
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_HAIR, (int(head_x - 1 * f), int(head_y - 4), 3, 2))
+
+            # Blue Khăn Đóng matching robe
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_KHAN, (int(head_x - 5), int(head_y - 5), 10, 4), border_radius=2)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_KHAN_FOLD, (int(head_x - 4), int(head_y - 3)), (int(head_x + 4), int(head_y - 3)), 1)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_KHAN_LIGHT, (int(head_x - 3), int(head_y - 4)), (int(head_x + 3), int(head_y - 4)), 1)
+
+            # Directional eye
+            eye_x = int(head_x + 2 * f)
+            pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (eye_x, int(head_y)), 1)
+
+            # Low Lantern held forward
+            lant_x = int(cx + 12 * f)
+            lant_y = int(y + 6)
+            pygame.draw.rect(canvas, (80, 65, 30), (lant_x - 4, lant_y - 1, 9, 11), 1)
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_LANTERN_WOOD, (lant_x - 3, lant_y, 7, 9), border_radius=1)
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_LANTERN_GLOW, (lant_x - 2, lant_y + 2, 5, 5))
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_LANTERN_CORE, (lant_x - 1, lant_y + 3, 3, 3))
+            # Red silk tassel hanging below
+            pygame.draw.line(canvas, self.COLOR_PLAYER_LANTERN_TASSEL, (lant_x, lant_y + 9), (lant_x, lant_y + 12), 1)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_LANTERN_WOOD, (lant_x, lant_y), (int(head_x + 3 * f), int(head_y + 4)), 1)
+
+        # ----------------------------------------------------
+        # 2. State: Standing / Running / Airborne (h = 32px)
+        # ----------------------------------------------------
+        else:
+            is_running = abs(player.vx) > 0.5
+            is_airborne = not player.is_grounded
+            leg_phase = math.sin(step_count * 0.45) if is_running else 0.0
+
+            # White Trousers & Black Shoes (Underneath Robe)
+            if is_airborne:
+                # Jump stance: tucked legs
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_PANTS, (cx - 5, y + 19, 4, 6))
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_PANTS, (cx + 1, y + 18, 4, 6))
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_SHOES, (cx - 6, y + 24, 5, 4))
+                pygame.draw.line(canvas, self.COLOR_PLAYER_SOLE, (cx - 6, y + 27), (cx - 1, y + 27), 1)
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_SHOES, (cx + 1, y + 23, 5, 4))
+                pygame.draw.line(canvas, self.COLOR_PLAYER_SOLE, (cx + 1, y + 26), (cx + 6, y + 26), 1)
+            elif is_running:
+                leg_offset = int(leg_phase * 4)
+                # Left leg
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_PANTS, (cx - 4 - leg_offset, y + 21, 4, 7))
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_SHOES, (cx - 5 - leg_offset, y + 27, 6, 4))
+                pygame.draw.line(canvas, self.COLOR_PLAYER_SOLE, (cx - 5 - leg_offset, y + 30), (cx + 1 - leg_offset, y + 30), 1)
+                # Right leg
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_PANTS, (cx + leg_offset, y + 21, 4, 7))
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_SHOES, (cx - 1 + leg_offset, y + 27, 6, 4))
+                pygame.draw.line(canvas, self.COLOR_PLAYER_SOLE, (cx - 1 + leg_offset, y + 30), (cx + 5 + leg_offset, y + 30), 1)
+            else:
+                # Standing still
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_PANTS, (cx - 5, y + 22, 4, 6))
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_PANTS, (cx + 1, y + 22, 4, 6))
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_SHOES, (cx - 6, y + 27, 5, 4))
+                pygame.draw.line(canvas, self.COLOR_PLAYER_SOLE, (cx - 6, y + 30), (cx - 1, y + 30), 1)
+                pygame.draw.rect(canvas, self.COLOR_PLAYER_SHOES, (cx + 1, y + 27, 5, 4))
+                pygame.draw.line(canvas, self.COLOR_PLAYER_SOLE, (cx + 1, y + 30), (cx + 6, y + 30), 1)
+
+            # Áo Ngũ Thân Đệm Bông (Quilted Padded Cyan-Blue Robe)
+            robe_top = y + 9
+            robe_bot = y + 23
+            flutter = int(abs(leg_phase) * 3) if is_running else (2 if is_airborne else 0)
+            robe_pts = [
+                (cx - 5, robe_top),
+                (cx + 5, robe_top),
+                (cx + 7, robe_bot),
+                (cx - 7 - flutter * f, robe_bot),
+            ] if player.facing_right else [
+                (cx - 5, robe_top),
+                (cx + 5, robe_top),
+                (cx + 7 + flutter, robe_bot),
+                (cx - 7, robe_bot),
+            ]
+            pygame.draw.polygon(canvas, self.COLOR_PLAYER_ROBE, robe_pts)
+
+            # Quilted diamond pattern stitches
+            pygame.draw.line(canvas, self.COLOR_PLAYER_ROBE_LIGHT, (cx - 3, robe_top + 3), (cx + 3, robe_top + 7), 1)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_ROBE_LIGHT, (cx - 4, robe_top + 8), (cx + 4, robe_top + 12), 1)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_ROBE_SHADOW, (cx + 3, robe_top + 3), (cx - 3, robe_top + 7), 1)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_ROBE_SHADOW, (cx + 4, robe_top + 8), (cx - 4, robe_top + 12), 1)
+
+            # Traditional white inner collar rim (Cổ lập lót trắng quý phái)
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_COLLAR, (cx - 3, robe_top - 1, 6, 2), border_radius=1)
+
+            # Diagonal collar seam (cổ ngũ thân cài chéo sang phải)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_ROBE_SHADOW, (cx - 2, robe_top + 1), (cx + 4 * f, robe_top + 4), 1)
+            # Gold button clasps (khuy cài áo)
+            pygame.draw.circle(canvas, self.COLOR_PLAYER_BUTTON, (int(cx + 3 * f), int(robe_top + 3)), 1)
+            pygame.draw.circle(canvas, self.COLOR_PLAYER_BUTTON, (int(cx + 4 * f), int(robe_top + 6)), 1)
+
+            # Head & Khăn Đóng (Matching Blue Turban + Hair)
+            head_cx = int(cx)
+            head_cy = int(y + 6)
+            # Hair silhouette behind
+            pygame.draw.circle(canvas, self.COLOR_PLAYER_HAIR, (head_cx - 1 * f, head_cy), 5)
+            # Face skin
+            pygame.draw.circle(canvas, self.COLOR_PLAYER_HEAD, (head_cx, head_cy), 5)
+
+            # Front hair sideburn tuft
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_HAIR, (head_cx - 3 * f, head_cy - 2, 2, 4))
+
+            # Khăn Đóng (Matching Cyan-Blue Turban!)
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_KHAN, (head_cx - 6, head_cy - 7, 12, 5), border_radius=2)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_KHAN_FOLD, (head_cx - 5, head_cy - 4), (head_cx + 5, head_cy - 4), 1)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_KHAN_LIGHT, (head_cx - 4, head_cy - 6), (head_cx + 4, head_cy - 6), 1)
+            # Turban búi tóc knot
+            knot_x = head_cx - 2 * f
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_KHAN, (knot_x - 2, head_cy - 9, 4, 3), border_radius=1)
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_KHAN_FOLD, (knot_x - 1, head_cy - 8, 2, 2))
+
+            # Expressive eye facing movement direction
+            eye_x = int(head_cx + 2 * f)
+            eye_y = int(head_cy - 1)
+            pygame.draw.rect(canvas, (245, 245, 250), (eye_x - 1, eye_y - 1, 3, 2))  # white sclera
+            pupil_x = eye_x if player.facing_right else eye_x - 1
+            pygame.draw.rect(canvas, self.COLOR_GHOST_EYE, (pupil_x, eye_y - 1, 2, 2))
+
+            # Lantern (Chiếc Lồng Đèn Soi Đường + Tua Rua Đỏ)
+            lant_cx = int(cx + 12 * f)
+            sway = math.sin(step_count * 0.3) * 1.5 if is_running else 0
+            lant_cy = int(y + 15 + sway)
+
+            # Lantern halo & frame
+            pygame.draw.rect(canvas, (80, 65, 30), (lant_cx - 6, lant_cy - 5, 12, 13), 1)
+            hand_x = int(cx + 6 * f)
+            hand_y = int(y + 13)
+            pygame.draw.circle(canvas, self.COLOR_PLAYER_HEAD, (hand_x, hand_y), 2)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_LANTERN_WOOD, (hand_x, hand_y), (lant_cx, lant_cy - 4), 1)
+
+            # Lantern body (hexagonal bamboo frame & glowing paper core)
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_LANTERN_WOOD, (lant_cx - 4, lant_cy - 4, 8, 11), border_radius=1)
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_LANTERN_GLOW, (lant_cx - 3, lant_cy - 2, 6, 7))
+            pygame.draw.rect(canvas, self.COLOR_PLAYER_LANTERN_CORE, (lant_cx - 1, lant_cy, 3, 4))
+            pygame.draw.line(canvas, self.COLOR_PLAYER_LANTERN_WOOD, (lant_cx, lant_cy - 3), (lant_cx, lant_cy + 5), 1)
+
+            # Red silk hanging tassel below lantern!
+            tassel_sway = int(sway * 1.2)
+            pygame.draw.line(canvas, self.COLOR_PLAYER_LANTERN_TASSEL, (lant_cx, lant_cy + 7), (lant_cx - tassel_sway, lant_cy + 11), 1)
+            pygame.draw.circle(canvas, self.COLOR_PLAYER_BUTTON, (lant_cx, lant_cy + 7), 1)
 
         # "Hoá" label above the player
         if self._font is not None:
