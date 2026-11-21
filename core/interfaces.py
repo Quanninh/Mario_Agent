@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Tuple
+from typing import Tuple
 from core.base_env import RawState, GameEvents
 
-# Type alias for the hashable discrete state representation:
-# Default 7-tuple: (is_grounded, vy_sign, obstacle_dist_bin, obstacle_height_bin, pit_dist_bin, ghost_dist_bin, ghost_alt_bin)
-DiscreteState = Tuple[int, ...]
+DiscreteState = Tuple[int, int, int, int, int, int, int]
 
 
 class BaseDiscretizer(ABC):
@@ -12,9 +10,6 @@ class BaseDiscretizer(ABC):
 
     @abstractmethod
     def discretize(self, raw_state: RawState) -> DiscreteState:
-        """
-        Converts continuous physical measurements into a compact hashable discrete state tuple.
-        """
         pass
 
 
@@ -30,9 +25,6 @@ class BaseRewardStrategy(ABC):
         events: GameEvents,
         done: bool,
     ) -> float:
-        """
-        Calculates the scalar reinforcement feedback signal r_{t+1}.
-        """
         pass
 
 
@@ -41,7 +33,6 @@ class BaseAgent(ABC):
 
     @abstractmethod
     def select_action(self, state: DiscreteState) -> int:
-        """Selects an action conforming to core.Action based on policy."""
         pass
 
     @abstractmethod
@@ -53,28 +44,20 @@ class BaseAgent(ABC):
         next_state: DiscreteState,
         done: bool,
     ) -> float:
-        """
-        Updates internal action-value estimates using experience tuple.
-        Returns the TD error delta.
-        """
         pass
 
     @abstractmethod
     def save(self, filepath: str) -> None:
-        """Serializes agent policy / Q-table to disk."""
         pass
 
     @abstractmethod
     def load(self, filepath: str) -> None:
-        """Restores agent policy / Q-table from disk."""
         pass
 
     @abstractmethod
     def decay_epsilon(self) -> float:
-        """Decays the exploration rate epsilon according to schedule."""
         pass
 
     @abstractmethod
     def set_mode(self, training: bool) -> None:
-        """Toggles between training mode (exploration active) and evaluation mode (pure greedy)."""
         pass
