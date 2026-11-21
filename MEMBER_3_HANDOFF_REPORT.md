@@ -59,11 +59,11 @@ Every `.json` checkpoint serialized by `TabularQAgent.save()` conforms to the fo
 }
 ```
 
-### 2.2 The 864-State 7-Tuple State Representation
+### 2.2 The 1,152-State 7-Tuple State Representation (Discretizer v3)
 The Q-table keys are comma-separated string encodings of the discrete 7-tuple:
 $$\mathcal{S} = \langle \text{is\_grounded}, \; V_{y\text{-sign}}, \; \text{Obstacle}_{\text{dist}}, \; \text{Obstacle}_{\text{height}}, \; \text{Pit}_{\text{dist}}, \; \text{Ghost}_{\text{dist}}, \; \text{Ghost}_{\text{alt}} \rangle$$
 
-$$\text{Total State Cardinality} = 2 \times 3 \times 4 \times 2 \times 3 \times 3 \times 2 = 864 \text{ states}$$
+$$\text{Total State Cardinality} = 2 \times 3 \times 4 \times 2 \times 3 \times 4 \times 2 = 1,152 \text{ states}$$
 
 | Dimension | Meaning | Cardinality | Bins & Exact Mathematical Boundaries |
 | :--- | :--- | :---: | :--- |
@@ -71,8 +71,8 @@ $$\text{Total State Cardinality} = 2 \times 3 \times 4 \times 2 \times 3 \times 
 | `vy_sign` | Vertical velocity | 3 | `1`: Ascending ($v_y < -0.1$ px/tick)<br>`0`: Flat/stationary ($-0.1 \le v_y \le 0.1$ px/tick)<br>`-1`: Falling ($v_y > 0.1$ px/tick) |
 | `obstacle_dist` | Tombstone ahead | 4 | `0`: NONE ($d < 0$, $d > 80$ px, or vertically cleared: $\text{feet} \le 320 - h + 2$ px)<br>`1`: FAR ($40 \le d \le 80$ px)<br>`2`: CLOSE ($15 \le d < 40$ px)<br>`3`: IMMEDIATE ($0 \le d < 15$ px) |
 | `obstacle_height`| Tombstone height | 2 | `0`: LOW / NONE ($h \le 50.0$ px or cleared)<br>`1`: HIGH ($h > 50.0$ px; calibrated for $56\text{--}68$ px obstacles) |
-| `pit_dist` | Grave pit ahead | 3 | `0`: NONE ($d < 0$ or $d > 80$ px)<br>`1`: FAR ($32 < d \le 80$ px, approach corridor)<br>`2`: IMMEDIATE ($0 \le d \le 32$ px, take-off window) |
-| `ghost_dist` | Ghost proximity | 3 | `0`: NONE ($d < 0$, $d > 80$ px, or vertically cleared above: $\text{feet} \le y_{\text{ghost}}$)<br>`1`: FAR ($35 < d \le 80$ px)<br>`2`: CLOSE ($0 \le d \le 35$ px, avoidance corridor) |
+| `pit_dist` | Grave pit ahead | 3 | `0`: NONE ($d < 0$ or $d > 100$ px)<br>`1`: FAR ($32 < d \le 100$ px, early warning approach corridor)<br>`2`: IMMEDIATE ($0 \le d \le 32$ px, take-off window) |
+| `ghost_dist` | Ghost proximity | 4 | `0`: NONE ($d < 0$ or $d > 80$ px)<br>`1`: FAR ($35 < d \le 80$ px)<br>`2`: CLOSE ($0 < d \le 35$ px, take-off window for low ghosts)<br>`3`: OVERLAP ($d == 0.0$ px, horizontally above/underneath; above-ghost blindness removed) |
 | `ghost_alt` | Ghost altitude | 2 | `0`: LOW / NONE ($y_{\text{ghost}} \ge 260$ px $\to$ jump over)<br>`1`: HIGH ($y_{\text{ghost}} < 260$ px $\to$ walk under while grounded) |
 
 ### 2.3 Action Values (5-Float Array)
@@ -83,16 +83,21 @@ Each state maps to a float array of length 5 corresponding to `core.Action`:
 - `Index 3`: `RIGHT`
 - `Index 4`: `RIGHT_JUMP`
 
-### 2.5 Best Checkpointing (3-Tuple Ranking & Stage Backups)
+### 2.5 Best Checkpointing & Training Hyperparameters
 - **Curriculum Global Best (`q_table_best.{json,pkl}`)**:
   Ranked strictly via the **3-tuple**:
   $$\text{Score} = (\text{num\_unlocked\_levels}, \; \overline{\text{win\_rate}}, \; \overline{\text{avg\_reward}})$$
   Where evaluation is conducted greedily across all unlocked levels up to the current stage ($\text{levels}[:\text{lvl\_idx} + 1]$). Higher level counts strictly dominate earlier stages, ensuring the global best model always represents the most capable multi-level policy rather than getting frozen on early levels.
 - **Per-Stage Best Backups (`q_table_lvl{N}_best.{json,pkl}`)**:
   Saved whenever the greedy evaluation score $(\text{win\_rate}, \text{avg\_reward})$ reaches a new high during or at completion of that specific level stage.
-- **Default Hyperparameters**:
+- **Production Hyperparameters (Order #5)**:
   - `episodes_per_level`: `2000` (server production default)
+  - `alpha_start`: `0.12`
+  - `alpha_min`: `0.02` (linear decay per stage down to $0.02$)
   - `epsilon_decay`: `0.997`
+  - `rewarm_epsilon`: `0.30` (Levels 2–3)
+  - `rewarm_epsilon_ghost`: `0.40` (Ghost Levels 4–5)
+  - `replay_ratio`: `0.35` (Option B background curriculum replay from earlier levels; executes in RAM without logging to keep `episode_history` exactly at 2,000 clean target rows per level)
   - `checkpoint_interval`: `400` episodes
 
 ---
@@ -110,7 +115,9 @@ The training board stores the full experimental telemetry in three top-level key
   "episodes_per_level": 2000,
   "levels": [1, 2, 3, 4, 5],
   "rewarm_epsilon": 0.3,
-  "state_space_max": 864,
+  "rewarm_epsilon_ghost": 0.4,
+  "replay_ratio": 0.35,
+  "state_space_max": 1152,
   "num_states_discovered": 412,
   "states_discovered_per_level": {
     "level_1": 21,
@@ -119,7 +126,9 @@ The training board stores the full experimental telemetry in three top-level key
     "level_4": 298,
     "level_5": 412
   },
-  "alpha": 0.1,
+  "alpha": 0.12,
+  "alpha_start": 0.12,
+  "alpha_min": 0.02,
   "gamma": 0.99,
   "epsilon_min": 0.01,
   "epsilon_decay": 0.997
@@ -229,6 +238,9 @@ A list of 14-field dictionary objects recording every single training episode:
     - `"pit_death"`: Player fell below screen bottom in an open grave pit.
     - `"timeout"`: Player exceeded `max_steps` without reaching the goal or dying.
 14. `rolling_win_rate_50`: Trailing win percentage over the last 50 episodes within the current level (reset per level so Episode 1 of a new level starts at 0.0% / fresh window).
+
+#### Option B Background Curriculum Replay Guarantee
+Background curriculum replay episodes (triggered with `replay_ratio = 0.35` during stages 3..5) execute in RAM to refresh Q-values from earlier stages without calling `agent.decay_epsilon()` and are strictly excluded from `episode_history` and `recent_wins`. This guarantees that `episode_history` and `training_metrics_*.csv` contain exactly `episodes_per_level` clean, target-level rows per level (e.g., exactly 10,000 rows for a 2,000-episode 5-level run), ensuring total schema stability for Member 4's data ingestion pipelines.
 
 ---
 

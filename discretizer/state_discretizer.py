@@ -13,13 +13,13 @@ class MarioStateDiscretizer(BaseDiscretizer):
         vy_bin:              3 values (-1: falling, 0: flat/stationary, 1: ascending)
         obs_dist_bin:        4 values (0: None >80px or cleared, 1: Far 40-80px, 2: Close 15-40px, 3: Immediate <15px)
         obs_height_bin:      2 values (0: Low <=50px or cleared, 1: High >50px)
-        pit_dist_bin:        3 values (0: None >80px or <0px, 1: Far 32-80px, 2: Immediate <=32px)
-        ghost_dist_bin:      3 values (0: None >80px or cleared, 1: Far 35-80px, 2: Close <=35px)
+        pit_dist_bin:        3 values (0: None >100px or <0px, 1: Far 32-100px, 2: Immediate <=32px)
+        ghost_dist_bin:      4 values (0: None >80px or <0px, 1: Far 35-80px, 2: Close 0<dist<=35px, 3: Overlap dist==0.0)
         ghost_alt_bin:       2 values (0: Low/None - jump over, 1: High - walk under)
 
     State Cardinality:
         - Baseline levels (1..3) without ghosts: 2 * 3 * 4 * 2 * 3 * 1 * 1 = 144 effective states.
-        - Ghost levels (4..5): 144 * 3 * 2 = 864 max states.
+        - Ghost levels (4..5): 144 * 4 * 2 = 1,152 max states.
     """
 
     def __init__(
@@ -73,16 +73,16 @@ class MarioStateDiscretizer(BaseDiscretizer):
             1 if (obs_dist_bin != 0 and raw_state.obstacle_height > self.high_obstacle_threshold) else 0
         )
 
-        # 5. Pit Proximity Bin (safe take-off zone <= 32px, approach zone 32..80px, none > 80px)
+        # 5. Pit Proximity Bin (safe take-off zone <= 32px, approach zone 32..100px, none > 100px)
         dist_pit = raw_state.dist_to_pit
-        if dist_pit < 0.0 or dist_pit > 80.0:
+        if dist_pit < 0.0 or dist_pit > 100.0:
             pit_dist_bin = 0  # NONE
         elif dist_pit > 32.0:
-            pit_dist_bin = 1  # FAR (approach zone)
+            pit_dist_bin = 1  # FAR (early warning approach zone 32..100px)
         else:
             pit_dist_bin = 2  # IMMEDIATE (safe take-off zone <= 32px)
 
-        # 6. Ghost Proximity Bin
+        # 6. Ghost Proximity Bin (4 bins: NONE, FAR, CLOSE, OVERLAP)
         dist_ghost = getattr(raw_state, "dist_to_ghost", -1.0)
         ghost_y = getattr(raw_state, "ghost_y", 0.0)
 
@@ -90,14 +90,10 @@ class MarioStateDiscretizer(BaseDiscretizer):
             ghost_dist_bin = 0  # NONE
         elif dist_ghost > 35.0:
             ghost_dist_bin = 1  # FAR
+        elif dist_ghost > 0.0:
+            ghost_dist_bin = 2  # CLOSE (safe jump take-off zone for low ghosts)
         else:
-            ghost_dist_bin = 2  # CLOSE
-
-        # Safe Vertical Clearance Check (Above-Only)
-        # If player's feet are at or above ghost Y, player is safely airborne above the ghost.
-        # Do NOT clear ghost_dist_bin when player is below a high ghost!
-        if ghost_dist_bin != 0 and ghost_y > 0.0 and player_feet_y <= ghost_y:
-            ghost_dist_bin = 0
+            ghost_dist_bin = 3  # OVERLAP (dist_ghost == 0.0, horizontally above/underneath)
 
         # 7. Ghost Altitude Bin (0: Low/None - jump over, 1: High - walk under)
         if ghost_dist_bin != 0 and ghost_y > 0.0 and ghost_y < (self.floor_y - self.ghost_high_threshold):

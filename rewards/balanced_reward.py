@@ -25,6 +25,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         stall_penalty: float = -0.5,
         timeout_penalty: float = -50.0,
         vision_range: float = 80.0,
+        high_ghost_y_threshold: float = 260.0,
     ):
         self.weight_progress = weight_progress
         self.weight_regress = weight_regress
@@ -38,6 +39,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         self.stall_penalty = stall_penalty
         self.timeout_penalty = timeout_penalty
         self.vision_range = vision_range
+        self.high_ghost_y_threshold = high_ghost_y_threshold
 
     def calculate_reward(
         self,
@@ -77,7 +79,8 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         reward += self.step_penalty
 
         # 8. Unnecessary Jump Penalty
-        # Fires ONLY when grounded, jumping, and no obstacle, pit, or ghost within vision_range
+        # Fires ONLY when grounded, jumping, and no obstacle, pit, or low ghost within vision_range
+        # High ghosts (ghost_y < self.high_ghost_y_threshold) do NOT exempt jumping (discourages jumping up into high ghosts)
         if prev_state.is_grounded and action in (Action.JUMP, Action.RIGHT_JUMP):
             obs_far = (
                 prev_state.dist_to_obstacle < 0.0
@@ -87,10 +90,13 @@ class BalancedRewardStrategy(BaseRewardStrategy):
                 prev_state.dist_to_pit < 0.0
                 or prev_state.dist_to_pit > self.vision_range
             )
-            ghost_dist = getattr(prev_state, "dist_to_ghost", -1.0)
-            ghost_far = ghost_dist < 0.0 or ghost_dist > self.vision_range
-
-            if obs_far and pit_far and ghost_far:
+            dist_ghost = getattr(prev_state, "dist_to_ghost", -1.0)
+            ghost_y = getattr(prev_state, "ghost_y", 0.0)
+            low_ghost_near = (
+                0.0 <= dist_ghost <= self.vision_range
+                and ghost_y >= self.high_ghost_y_threshold
+            )
+            if obs_far and pit_far and not low_ghost_near:
                 reward += self.unnecessary_jump_penalty
 
         # 9. Stall Penalty (standing still or backtracking without hitting an obstacle)

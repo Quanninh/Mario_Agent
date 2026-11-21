@@ -54,7 +54,7 @@ class ProgressTracker:
                     f"\r[{bar}] {pct_str} | Lvl {data['level_id']} ({lvl_ep}/{ep_per_lvl}) | "
                     f"Win50: {data['rolling_win_rate_50']:5.1f}% | "
                     f"R: {data['total_reward']:+7.1f} | eps: {data['epsilon']:.3f} | "
-                    f"States: {data['states_discovered']:3d}/864 | ETA: {eta_str}"
+                    f"States: {data['states_discovered']:4d}/1152 | ETA: {eta_str}"
                 )
                 sys.stdout.write(line)
                 if is_level_end:
@@ -69,7 +69,7 @@ class ProgressTracker:
                     f"Lvl {data['level_id']} ({lvl_ep:4d}/{ep_per_lvl:4d}) | "
                     f"Win50: {data['rolling_win_rate_50']:5.1f}% | "
                     f"R: {data['total_reward']:+7.1f} | eps: {data['epsilon']:.3f} | "
-                    f"States: {data['states_discovered']:3d}/864 | ETA: {eta_str}"
+                    f"States: {data['states_discovered']:4d}/1152 | ETA: {eta_str}"
                 )
                 sys.stdout.flush()
 
@@ -177,10 +177,28 @@ def parse_args() -> argparse.Namespace:
         help="Exploration re-warming epsilon when entering new level in curriculum (default: 0.30)",
     )
     parser.add_argument(
+        "--rewarm-epsilon-ghost",
+        type=float,
+        default=0.40,
+        help="Exploration re-warming epsilon when entering ghost levels >=4 in curriculum (default: 0.40)",
+    )
+    parser.add_argument(
+        "--replay-ratio",
+        type=float,
+        default=0.35,
+        help="Probability of interleaving background replay from earlier levels in curriculum (default: 0.35)",
+    )
+    parser.add_argument(
         "--alpha",
         type=float,
-        default=0.1,
-        help="Q-learning learning rate alpha (default: 0.1)",
+        default=0.12,
+        help="Starting Q-learning learning rate alpha (default: 0.12)",
+    )
+    parser.add_argument(
+        "--alpha-min",
+        type=float,
+        default=0.02,
+        help="Minimum Q-learning learning rate alpha after decay (default: 0.02)",
     )
     parser.add_argument(
         "--gamma",
@@ -307,6 +325,9 @@ def main() -> None:
                 reward_name=reward_name,
                 action_repeat=args.action_repeat,
                 rewarm_epsilon=args.rewarm_epsilon,
+                rewarm_epsilon_ghost=args.rewarm_epsilon_ghost,
+                alpha_min=args.alpha_min,
+                replay_ratio=args.replay_ratio,
                 eval_interval=eval_interval,
                 eval_episodes_periodic=eval_episodes_periodic,
                 final_eval_episodes=final_eval_episodes,

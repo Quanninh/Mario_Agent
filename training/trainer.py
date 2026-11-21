@@ -2,6 +2,7 @@ from collections import deque
 import csv
 import json
 from pathlib import Path
+import random
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import numpy as np
 
@@ -23,6 +24,9 @@ class Trainer:
         reward_name: str = "balanced",
         action_repeat: int = 1,
         rewarm_epsilon: float = 0.30,
+        rewarm_epsilon_ghost: float = 0.40,
+        alpha_min: float = 0.02,
+        replay_ratio: float = 0.35,
         eval_interval: int = 50,
         eval_episodes_periodic: int = 10,
         final_eval_episodes: int = 50,
@@ -37,6 +41,9 @@ class Trainer:
         self.reward_name = reward_name
         self.action_repeat = max(1, action_repeat)
         self.rewarm_epsilon = rewarm_epsilon
+        self.rewarm_epsilon_ghost = rewarm_epsilon_ghost
+        self.alpha_min = alpha_min
+        self.replay_ratio = replay_ratio
         self.eval_interval = eval_interval
         self.eval_episodes_periodic = eval_episodes_periodic
         self.final_eval_episodes = final_eval_episodes
@@ -46,7 +53,11 @@ class Trainer:
         self.outputs_dir = outputs_dir
 
     def _run_episode(
-        self, env: BaseEnvironment, agent: BaseAgent, training: bool = True
+        self,
+        env: BaseEnvironment,
+        agent: BaseAgent,
+        training: bool = True,
+        decay_eps: bool = True,
     ) -> Dict:
         """
         Executes one full episode headlessly.
@@ -102,7 +113,7 @@ class Trainer:
             total_reward += macro_reward
 
         # Exploration rate decay at episode completion
-        if training:
+        if training and decay_eps:
             agent.decay_epsilon()
 
         # Outcome categorization
@@ -249,8 +260,10 @@ class Trainer:
         # ----------------------------------------------------
         # CURRICULUM MODE: One shared agent trained across levels
         # ----------------------------------------------------
+        alpha_start = 0.12
         if mode == "curriculum":
             agent = agent_factory()
+            alpha_start = float(getattr(agent, "alpha", 0.12))
             # 3-tuple ranking: (len(unlocked_levels), avg_win_rate, avg_eval_reward)
             best_global_score = (0, -1.0, float("-inf"))
 
@@ -273,17 +286,43 @@ class Trainer:
                         z5_res = self.evaluate_agent(agent, 5, self.final_eval_episodes)
                         evaluation_summary["level_5_zero_shot"] = z5_res
 
-                    # Partial exploration re-warming
+                    # Stage-Aware exploration re-warming (0.40 for ghost levels >= 4, else 0.30)
+                    rewarm_target = (
+                        self.rewarm_epsilon_ghost if lvl >= 4 else self.rewarm_epsilon
+                    )
                     current_eps = getattr(agent, "epsilon", 0.0)
-                    new_eps = max(current_eps, self.rewarm_epsilon)
+                    new_eps = max(current_eps, rewarm_target)
                     setattr(agent, "epsilon", new_eps)
-                    print(f"[Trainer] Re-warmed exploration epsilon: {current_eps:.3f} -> {new_eps:.3f}")
+                    print(
+                        f"[Trainer] Re-warmed exploration epsilon: {current_eps:.3f} -> {new_eps:.3f} (target: {rewarm_target:.3f})"
+                    )
 
                 env = self.env_factory(lvl)
                 try:
                     for lvl_ep in range(1, episodes_per_level + 1):
                         global_episode += 1
-                        ep_res = self._run_episode(env, agent, training=True)
+
+                        # Linear learning-rate decay (alpha_start -> alpha_min) per stage
+                        if hasattr(agent, "alpha"):
+                            agent.alpha = self.alpha_min + (alpha_start - self.alpha_min) * (
+                                1.0 - (lvl_ep / max(1, episodes_per_level))
+                            )
+
+                        ep_res = self._run_episode(env, agent, training=True, decay_eps=True)
+
+                        # Option B Interleaved Background Replay (Curriculum Mode Only)
+                        if lvl_idx > 1 and self.replay_ratio > 0.0:
+                            if random.random() < self.replay_ratio:
+                                replay_candidates = levels[: lvl_idx - 1]
+                                if replay_candidates:
+                                    replay_lvl = random.choice(replay_candidates)
+                                    replay_env = self.env_factory(replay_lvl)
+                                    try:
+                                        self._run_episode(
+                                            replay_env, agent, training=True, decay_eps=False
+                                        )
+                                    finally:
+                                        replay_env.close()
 
                         recent_wins.append(1 if ep_res["won"] else 0)
                         rolling_win_rate = round(float(np.mean(recent_wins) * 100.0), 2)
@@ -403,6 +442,7 @@ class Trainer:
             for lvl_idx, lvl in enumerate(levels):
                 print(f"[Trainer] [Separate] Training Level {lvl} with fresh agent...")
                 agent = agent_factory()
+                alpha_start = float(getattr(agent, "alpha", 0.12))
                 recent_wins: deque = deque(maxlen=50)  # Reset per level
                 best_stage_score = (-1.0, float("-inf"))
 
@@ -410,7 +450,14 @@ class Trainer:
                 try:
                     for lvl_ep in range(1, episodes_per_level + 1):
                         global_episode += 1
-                        ep_res = self._run_episode(env, agent, training=True)
+
+                        # Linear learning-rate decay (alpha_start -> alpha_min) per stage
+                        if hasattr(agent, "alpha"):
+                            agent.alpha = self.alpha_min + (alpha_start - self.alpha_min) * (
+                                1.0 - (lvl_ep / max(1, episodes_per_level))
+                            )
+
+                        ep_res = self._run_episode(env, agent, training=True, decay_eps=True)
 
                         recent_wins.append(1 if ep_res["won"] else 0)
                         rolling_win_rate = round(float(np.mean(recent_wins) * 100.0), 2)
@@ -509,10 +556,14 @@ class Trainer:
                 "episodes_per_level": episodes_per_level,
                 "levels": levels,
                 "rewarm_epsilon": round(float(self.rewarm_epsilon), 4),
-                "state_space_max": 864,
+                "rewarm_epsilon_ghost": round(float(self.rewarm_epsilon_ghost), 4),
+                "replay_ratio": round(float(self.replay_ratio if mode == "curriculum" else 0.0), 4),
+                "state_space_max": 1152,
                 "num_states_discovered": total_states,
                 "states_discovered_per_level": states_discovered_per_level,
-                "alpha": round(float(getattr(agent, "alpha", 0.1)), 4) if agent else 0.1,
+                "alpha": round(float(alpha_start), 4),
+                "alpha_start": round(float(alpha_start), 4),
+                "alpha_min": round(float(self.alpha_min), 4),
                 "gamma": round(float(getattr(agent, "gamma", 0.99)), 4) if agent else 0.99,
                 "epsilon_min": round(float(getattr(agent, "epsilon_min", 0.01)), 6) if agent else 0.01,
                 "epsilon_decay": round(float(getattr(agent, "epsilon_decay", 0.995)), 6) if agent else 0.995,
