@@ -179,5 +179,56 @@ class TestGameEnvironment(unittest.TestCase):
         # Velocity should be WALK_SPEED * SLIDE_FRICTION (3.28)
         self.assertAlmostEqual(env.player.vx, env.WALK_SPEED * env.SLIDE_FRICTION, places=2)
 
+    def test_pit_fire_phases_and_bounding_box(self) -> None:
+        """Pits with fire follow dormant (0) -> warning (1) -> active flame (2) cycles."""
+        pit = Pit(x_start=100.0, x_end=170.0, has_fire=True, fire_offset=0)
+        floor_y = 320.0
+        canvas_h = 400.0
+
+        # Phase 0: Safe/Off (ticks 0..64)
+        self.assertEqual(pit.get_fire_phase(0), 0)
+        self.assertEqual(pit.get_fire_phase(64), 0)
+        self.assertIsNone(pit.get_flame_rect(0, floor_y, canvas_h))
+
+        # Phase 1: Warning embers (ticks 65..79)
+        self.assertEqual(pit.get_fire_phase(65), 1)
+        self.assertEqual(pit.get_fire_phase(79), 1)
+        self.assertIsNone(pit.get_flame_rect(65, floor_y, canvas_h))
+
+        # Phase 2: Active lethal flame (ticks 80..99)
+        self.assertEqual(pit.get_fire_phase(80), 2)
+        self.assertEqual(pit.get_fire_phase(99), 2)
+        expected_rect = (100.0, floor_y - pit.FIRE_HEIGHT, 70.0, canvas_h - (floor_y - pit.FIRE_HEIGHT))
+        self.assertEqual(pit.get_flame_rect(80, floor_y, canvas_h), expected_rect)
+
+        # Cycle wraps back to 0 at tick 100
+        self.assertEqual(pit.get_fire_phase(100), 0)
+
+    def test_pit_fire_lethal_collision(self) -> None:
+        """Jumping or walking into active fire pillar triggers hit_fire and ends episode."""
+        pit = Pit(x_start=50.0, x_end=120.0, has_fire=True, fire_offset=0)
+        env = GameEnvironment(obstacles=[], pits=[pit], ghosts=[], items=[])
+        env.reset()
+
+        # Fast-forward to flame active phase (tick 80)
+        env.step_count = 79
+        state, events, done = env.step(Action.RIGHT)
+
+        self.assertTrue(events.hit_fire)
+        self.assertTrue(done)
+        self.assertFalse(env.player.is_alive)
+        self.assertEqual(state.pit_fire_state, 2)
+
+    def test_pit_fire_safe_crossing_during_dormant_phase(self) -> None:
+        """Moving over a pit during dormant or warning phase does NOT trigger hit_fire."""
+        pit = Pit(x_start=55.0, x_end=90.0, has_fire=True, fire_offset=0)
+        env = GameEnvironment(obstacles=[], pits=[pit], ghosts=[], items=[])
+        env.reset()
+
+        # Step count is at tick 1 (dormant phase 0)
+        state, events, done = env.step(Action.RIGHT)
+        self.assertFalse(events.hit_fire)
+        self.assertEqual(state.pit_fire_state, 0)
+
 if __name__ == "__main__":
     unittest.main()

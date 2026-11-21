@@ -85,7 +85,7 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 #### Tier 3 — New Gameplay & Dynamic Hazard Mechanics *(Active Focus)*
 - [x] **9. Mid-air Double Jump & Ledge Recovery (`can_double_jump`)**: Allow Hoá to execute a second jump while airborne (`not is_grounded`), allowing recovery from miscalculated pit leaps and dodging high hovering ghosts. Also grants 1 recovery jump if walking off a ledge into the air. Reuses existing `Action.JUMP` and `Action.RIGHT_JUMP` without expanding the action space, while exposing a binary `can_double_jump: bool` flag in `RawState` for the RL agent.
 - [x] **10. Player Crouch & Momentum Slide (`Action.CROUCH`)**: Lowers Hoá's hitbox height from $32\text{px} \to 18\text{px}$ (`S` / `Down` key) to duck under hovering ghosts. Implements physical ducking in place when stationary and momentum-based sliding when running ($v_{x, t} = v_{x, t-1} \cdot 0.82$), keeping feet anchored to the ground *(expands `Action.NUM_ACTIONS` from 5 to 6)*.
-- [ ] **11. Fire Erupting from Grave Pits**: Periodic flame jets shooting upward out of selected pits on a cycle (`idle -> warning glow -> active lethal flame -> cooldown`), with pit-fire phase exposed in `RawState` so the AI can time its jumps.
+- [x] **11. Fire Erupting from Grave Pits**: Periodic flame jets shooting upward out of selected pits on a cycle (`idle -> warning glow -> active lethal flame -> cooldown`), with pit-fire phase exposed in `RawState` so the AI can time its jumps. Hitbox spans the full pit width and depth from ground flame height down to canvas bottom: `(pit.x_start, floor_y - FIRE_HEIGHT, pit.x_end - pit.x_start, canvas_height - (floor_y - FIRE_HEIGHT))`.
 - [ ] **12. Ghosts Shooting Rotating Eye-Laser Beams**: Opt-in per ghost (`has_laser=True`) — fires a lethal laser beam from the ghost's eyes that **rotates continuously in a circle (`0..2π`) while the ghost patrols** (using `(eye_x + L*cos(θ), eye_y + L*sin(θ))`, pure-Python line-segment vs. player AABB collision for headless speed, and nearest-laser angle/danger flag in `RawState`).
 - [ ] **13. Rising & Charging Skeleton Ambush from Tombs**: Special mausoleum tombs that trigger when Hoá approaches (proximity $< 180\text{px}$): a skeletal warrior bursts upward from the grave, leaps forward, and sprints aggressively toward the player (`dx = player.x - skeleton.x`), demanding quick reaction timing or a high double jump to evade. Requires a new `Skeleton` entity with ground physics, pursuit logic, and nearest skeleton proximity in `RawState`.
 
@@ -124,6 +124,15 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
   - Implemented physical crouch logic: ducks in place when still ($v_x = 0$), momentum-slides with friction when running ($v_{x, t} = v_{x, t-1} \cdot 0.82$), and smoothly anchors feet to the floor during transitions.
   - Mapped `S` / `Down Arrow` in `play_human.py` for crouch/slide control.
   - Added `test_crouch_and_momentum_slide` in `tests/test_env.py`, bringing the automated test suite to 10/10 passing tests in `0.043s`.
+- **Step 12**: Implemented Periodic Fire Erupting from Grave Pits:
+  - Added flame timing attributes and helpers on `Pit` in `env/entities.py`: `has_fire`, `fire_offset`, `FIRE_CYCLE = 100`, `FIRE_WARN_START = 65`, `FIRE_ACTIVE_START = 80`, `FIRE_HEIGHT = 40.0`, `get_fire_phase()`, and `get_flame_rect()`.
+  - Hitbox spans full pit width and depth: `(pit.x_start, floor_y - FIRE_HEIGHT, pit.x_end - pit.x_start, canvas_height - (floor_y - FIRE_HEIGHT))`.
+  - Added `hit_fire: bool = False` to `GameEvents` in `core/base_env.py`.
+  - Added `pit_fire_state: int` (0: safe, 1: warning, 2: active) in `RawState` for agent observation.
+  - Implemented multi-layered flame rendering in `env/game_env.py`: glowing amber embers during warning phase, crimson pillar + bright incandescent core + pointed tip during active phase.
+  - Added death event handling and `"INCINERATED! Burned by the grave's inferno!"` overlay banner in `play_human.py`.
+  - Configured flame pits in `env/map_levels.py`: Level 4 Pit 2, Level 5 Pit 1 & 2 (with staggered 50-tick offset for alternating eruption).
+  - Added 3 unit tests (`test_pit_fire_phases_and_bounding_box`, `test_pit_fire_lethal_collision`, `test_pit_fire_safe_crossing_during_dormant_phase`), bringing automated test suite to 13/13 passing tests in `0.041s`.
 
 ---
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 import math
 
 @dataclass
@@ -69,12 +69,42 @@ class Pit:
     """Represents an open grave pit between x_start and x_end."""
     x_start: float
     x_end: float
+    has_fire: bool = False      # True if this pit shoots periodic flame jets
+    fire_offset: int = 0        # Tick offset for staggered timing with other pits
+
+    # Flame timing constants
+    FIRE_CYCLE: float = 100.0
+    FIRE_WARN_START: float = 65.0
+    FIRE_ACTIVE_START: float = 80.0
+    FIRE_HEIGHT: float = 40.0
 
     def contains(self, x: float, width: float) -> bool:
         """Checks if an entity is over the pit (meaning no floor beneath it)."""
         # Fully or mostly stepped into the pit
         center_x = x + (width / 2.0)
         return self.x_start < center_x < self.x_end
+
+    def get_fire_phase(self, step_count: int) -> int:
+        """Returns 0: Safe/Off, 1: Warning embers, 2: Active lethal flame."""
+        if not self.has_fire:
+            return 0
+        phase = (step_count + self.fire_offset) % int(self.FIRE_CYCLE)
+        if phase < self.FIRE_WARN_START:
+            return 0
+        elif phase < self.FIRE_ACTIVE_START:
+            return 1
+        return 2
+
+    def get_flame_rect(self, step_count: int, floor_y: float, canvas_height: float = 400.0) -> Optional[Tuple[float, float, float, float]]:
+        """Returns (x, y, w, h) bounding box of active flame spanning pit depth, or None if safe."""
+        if self.get_fire_phase(step_count) == 2:
+            return (
+                self.x_start,
+                floor_y - self.FIRE_HEIGHT,
+                self.x_end - self.x_start,
+                canvas_height - (floor_y - self.FIRE_HEIGHT),
+            )
+        return None
 
 @dataclass
 class Ghost:

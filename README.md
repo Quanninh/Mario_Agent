@@ -73,7 +73,7 @@ python play_human.py
 | `Esc` | Quit Application |
 
 ### Automated Headless Tests
-Run the 10 automated unit tests verifying deterministic resets, ghost/pit collision physics, item pickups, double jump & ledge recovery, momentum crouch/slide mechanics, and win triggers:
+Run the 13 automated unit tests verifying deterministic resets, ghost/pit collision physics, item pickups, double jump & ledge recovery, momentum crouch/slide mechanics, and grave pit flame hazards:
 ```bash
 python3 -m unittest discover tests
 ```
@@ -99,7 +99,7 @@ Future enhancements categorized from immediate visual polish to advanced dynamic
 ### Tier 3 — Dynamic Gameplay & Hazard Mechanics *(Active Focus)*
 - [x] **Mid-air Double Jump & Ledge Recovery (`can_double_jump`)**: Enables Hoá to execute a second jump while airborne to recover from missed pit jumps or leap over high ghosts. Also grants 1 recovery jump if stepping off an edge without jumping. Reuses `Action.JUMP` / `Action.RIGHT_JUMP` without expanding the action space; exposes `can_double_jump: bool` in `RawState`.
 - [x] **Player Crouch & Momentum Slide (`Action.CROUCH`)**: Lowers Hoá's hitbox height from $32\text{px} \to 18\text{px}$ to duck under hovering ghosts. Ducks in place when stationary and performs a friction-decelerated slide ($v_{x, t} = v_{x, t-1} \cdot 0.82$) when running. Expands action space to 6 (`Action.CROUCH = 5`, `NUM_ACTIONS = 6`).
-- [ ] **Pit Flame Hazards**: Periodic flame jets erupting from grave pits on timed cycles.
+- [x] **Pit Flame Hazards (`events.hit_fire`, `pit_fire_state`)**: Periodic flame jets erupting from grave pits on timed cycles (`dormant -> warning embers -> active lethal flame -> cooldown`). Full-pit bounding box `(pit.x_start, floor_y - FIRE_HEIGHT, pit.x_end - pit.x_start, canvas_height - (floor_y - FIRE_HEIGHT))` engulfs the entire pit and reaches $40\text{px}$ above floor level. Configured in Level 4 & Level 5 with alternating phase offsets.
 - [ ] **Rotating Ghost Eye-Lasers**: Ghosts firing lethal rotating laser beams while patrolling.
 - [ ] **Rising & Charging Skeleton Ambush**: Special mausoleum tombs that trigger when Hoá approaches (proximity $< 180\text{px}$): a skeleton bursts upward from the grave, leaps forward, and sprints aggressively toward the player (`dx = player.x - skeleton.x`), requiring rapid jump evasion.
 

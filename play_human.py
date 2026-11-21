@@ -158,6 +158,14 @@ def main() -> None:
                     color=(110, 245, 150),  # Radiant emerald green
                     duration_ms=5000,
                 )
+            elif events.hit_fire:
+                show_overlay(
+                    env,
+                    title="INCINERATED!",
+                    subtitle="Burned by the grave's inferno!",
+                    color=(255, 95, 30),  # Intense fiery orange
+                    duration_ms=3000,
+                )
             elif events.hit_ghost:
                 show_overlay(
                     env,

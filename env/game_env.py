@@ -16,6 +16,11 @@ class GameEnvironment(BaseEnvironment):
     STANDING_HEIGHT: float = 32.0
     CROUCH_HEIGHT: float = 18.0
 
+    # Flame jet constants
+    COLOR_FIRE_WARN = (230, 90, 25)    # Warning amber/orange ember glow
+    COLOR_FIRE_OUTER = (255, 60, 20)   # Blazing crimson-orange outer flame
+    COLOR_FIRE_CORE = (255, 220, 80)   # Yellow incandescent flame core
+
     # Midnight Graveyard color palette 
     COLOR_SKY = (15, 20, 45)
     COLOR_MOON = (245, 240, 200)
@@ -215,24 +220,38 @@ class GameEnvironment(BaseEnvironment):
         events.dx = self.player.x - old_x
         done = False
 
-        # Check hit ghost death
-        if any(self._rects_overlap(self.player.rect, g.rect) for g in self.ghosts):
+        # Check death and termination conditions (clean if / elif chain)
+        hit_ghost = any(self._rects_overlap(self.player.rect, g.rect) for g in self.ghosts)
+        hit_fire = any(
+            self._rects_overlap(self.player.rect, flame_rect)
+            for pit in self.pits
+            if (flame_rect := pit.get_flame_rect(self.step_count, self.floor_y, self.canvas_height)) is not None
+        )
+
+        # Death by hitting ghost
+        if hit_ghost:
             self.player.is_alive = False
             events.hit_ghost = True
             done = True
 
-        # Check pit death
+        # Death by hitting fire
+        elif hit_fire:
+            self.player.is_alive = False
+            events.hit_fire = True
+            done = True
+
+        # Pit death
         elif self.player.y > self.canvas_height:
             self.player.is_alive = False
             events.fell_in_pit = True
             done = True
 
-        # Check goal flag reached
+        # Goal reached
         elif self.goal.is_reached(self.player):
             events.reached_goal = True
             done = True
 
-        # Check episode timeout
+        # Timeout
         elif self.step_count >= self.max_steps:
             done = True
 
@@ -323,7 +342,7 @@ class GameEnvironment(BaseEnvironment):
         )
         pygame.draw.rect(canvas, self.COLOR_GRASS, (0, self.floor_y, self.canvas_width, 6))
 
-        # Carve out open grave pits
+        # Carve out open grave pits and render flame hazards
         for pit in self.pits:
             pit_x = pit.x_start - camera_x
             pit_w = pit.x_end - pit.x_start
@@ -332,6 +351,28 @@ class GameEnvironment(BaseEnvironment):
                 self.COLOR_SKY,
                 (pit_x, self.floor_y, pit_w, self.canvas_height - self.floor_y),
             )
+
+            if pit.has_fire:
+                phase = pit.get_fire_phase(self.step_count)
+                if phase == 1:
+                    # Warning phase: glowing amber embers at the pit bottom
+                    pygame.draw.rect(
+                        canvas,
+                        self.COLOR_FIRE_WARN,
+                        (pit_x + 4, self.floor_y + 12, pit_w - 8, 14),
+                    )
+                elif phase == 2:
+                    # Active phase: blazing flame pillar with peaked tip!
+                    flame_y = self.floor_y - pit.FIRE_HEIGHT
+                    flame_h = self.canvas_height - (self.floor_y - pit.FIRE_HEIGHT)
+                    # Outer crimson flame
+                    pygame.draw.rect(canvas, self.COLOR_FIRE_OUTER, (pit_x, flame_y, pit_w, flame_h))
+                    # Inner bright yellow core
+                    pygame.draw.rect(canvas, self.COLOR_FIRE_CORE, (pit_x + 4, flame_y + 8, pit_w - 8, flame_h - 8))
+                    # Pointed flame tip on top
+                    cx = pit_x + pit_w / 2
+                    tip_pts = [(cx - 8, flame_y + 4), (cx, flame_y - 8), (cx + 8, flame_y + 4)]
+                    pygame.draw.polygon(canvas, self.COLOR_FIRE_CORE, tip_pts)
 
     def _draw_tombstone(self, canvas: pygame.Surface, obs: Obstacle, camera_x: float) -> None:
         x = obs.x - camera_x
@@ -506,8 +547,10 @@ class GameEnvironment(BaseEnvironment):
         if upcoming_pits:
             nearest_pit = min(upcoming_pits, key=lambda p: p.x_start)
             dist_to_pit = max(0.0, nearest_pit.x_start - self.player.right)
+            pit_fire_state = nearest_pit.get_fire_phase(self.step_count)
         else:
             dist_to_pit = -1.0
+            pit_fire_state = 0
 
         # Nearest upcoming ghost
         upcoming_ghosts = [g for g in self.ghosts if g.right > self.player.x]
@@ -541,6 +584,7 @@ class GameEnvironment(BaseEnvironment):
             dist_to_obstacle=dist_to_obstacle,
             obstacle_height=obstacle_height,
             dist_to_pit=dist_to_pit,
+            pit_fire_state=pit_fire_state,
             dist_to_ghost=dist_to_ghost,
             ghost_y=ghost_y,
             dist_to_item=dist_to_item,
@@ -557,7 +601,3 @@ class GameEnvironment(BaseEnvironment):
         x2, y2, w2, h2 = r2
 
         return (x1 < x2 + w2) and (x1 + w1 > x2) and (y1 < y2 + h2) and (y1 + h1 > y2)
-    
-        
-
-        

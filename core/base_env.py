@@ -29,6 +29,7 @@ class RawState:
     dist_to_obstacle: float  # Distance to nearest tombstone ahead (-1 if none)
     obstacle_height: float   # Height of the nearest tombstone ahead
     dist_to_pit: float       # Distance to nearest grave pit ahead (-1 if none)
+    pit_fire_state: int      # 0: Safe/Off, 1: Warning embers, 2: Lethal flame
     dist_to_ghost: float     # Distance to nearest hovering ghost ahead (-1 if none)
     ghost_y: float           # Y-position of that ghost (0 if none; low vs high)
     dist_to_item: float      # Distance to nearest warmth item ahead (-1 if none)
@@ -44,6 +45,7 @@ class GameEvents:
     fell_in_pit: bool = False     # True if Hoá fell into a grave pit [DIE]
     hit_obstacle: bool = False    # True if Hoá bumped into a tombstone side
     hit_ghost: bool = False       # True if Hoá touched a floating ghost [DIE]
+    hit_fire: bool = False        # True if Hoá touched an active flame jet [DIE]
     collected_item: bool = False  # True if Hoá collected a warmth item [BONUS]
 
 class BaseEnvironment(ABC):

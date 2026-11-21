@@ -89,7 +89,7 @@ def _build_level_4() -> LevelConfig:
         ],
         pits=[
             Pit(x_start=360.0, x_end=430.0),  # 70px wide
-            Pit(x_start=760.0, x_end=830.0),  # 70px wide
+            Pit(x_start=760.0, x_end=830.0, has_fire=True, fire_offset=0),  # 70px wide with fire
         ],
         ghosts=[
             # Ghost 1 (low -> jump OVER): default speed=1.5, float_amplitude=8.0, float_speed=0.08
@@ -119,8 +119,8 @@ def _build_level_5() -> LevelConfig:
             Obstacle(x=1320.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0, style="buddhist"),
         ],
         pits=[
-            Pit(x_start=460.0, x_end=535.0),  # 75px wide
-            Pit(x_start=840.0, x_end=915.0),  # 75px wide
+            Pit(x_start=460.0, x_end=535.0, has_fire=True, fire_offset=0),   # 75px wide (erupts on ticks 80..99)
+            Pit(x_start=840.0, x_end=915.0, has_fire=True, fire_offset=50),  # 75px wide (alternates: erupts on ticks 30..49)
         ],
         ghosts=[
             # 1. Slow eerie drifter (low -> jump OVER)
