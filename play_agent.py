@@ -17,11 +17,28 @@ ACTION_NAMES = {
 }
 
 
-def resolve_checkpoint_path(reward: str, variant: str, explicit_path: Optional[str] = None) -> Path:
-    """Finds the checkpoint file path based on reward and variant with graceful fallbacks."""
+def resolve_checkpoint_path(
+    mode: str,
+    reward: str,
+    variant: str,
+    level: int = 1,
+    explicit_path: Optional[str] = None,
+) -> Path:
+    """Finds the checkpoint file path based on mode, reward, variant, and level with graceful fallbacks."""
     if explicit_path is not None:
         return Path(explicit_path)
 
+    if mode == "separate":
+        # 1. Prefer checkpoints/separate_<reward>/q_table_lvl<N>_<variant>.json
+        p_sep = Path("checkpoints") / f"separate_{reward}" / f"q_table_lvl{level}_{variant}.json"
+        if p_sep.exists():
+            return p_sep
+        p_sep_pkl = Path("checkpoints") / f"separate_{reward}" / f"q_table_lvl{level}_{variant}.pkl"
+        if p_sep_pkl.exists():
+            return p_sep_pkl
+        return p_sep
+
+    # Curriculum mode:
     # 1. Prefer curriculum_<reward>/q_table_<variant>.json
     p1 = Path("checkpoints") / f"curriculum_{reward}" / f"q_table_{variant}.json"
     if p1.exists():
@@ -44,12 +61,19 @@ def resolve_checkpoint_path(reward: str, variant: str, explicit_path: Optional[s
     return p1
 
 
-def load_agent_policy(agent: TabularQAgent, reward: str, variant: str, explicit_path: Optional[str] = None) -> Path:
+def load_agent_policy(
+    agent: TabularQAgent,
+    mode: str,
+    reward: str,
+    variant: str,
+    level: int = 1,
+    explicit_path: Optional[str] = None,
+) -> Path:
     """Loads checkpoint into agent policy, reporting state count."""
-    cp_path = resolve_checkpoint_path(reward, variant, explicit_path)
+    cp_path = resolve_checkpoint_path(mode, reward, variant, level, explicit_path)
     if cp_path.exists():
         agent.load(str(cp_path))
-        print(f"[AI Player] Loaded {reward.upper()} [{variant.upper()}] from {cp_path} ({len(agent.q_table)} states).")
+        print(f"[AI Player] Loaded {mode.upper()} {reward.upper()} [{variant.upper()}] from {cp_path} ({len(agent.q_table)} states).")
     else:
         print(f"[AI Player] Note: Checkpoint '{cp_path}' not found. Policy is uninitialized.")
     agent.set_mode(training=False)
@@ -58,6 +82,13 @@ def load_agent_policy(agent: TabularQAgent, reward: str, variant: str, explicit_
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="60 FPS Visual Playback Demo for Hoá's Midnight Escape")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="curriculum",
+        choices=["curriculum", "separate"],
+        help="Training mode checkpoint to load: 'curriculum' or 'separate' (default: 'curriculum')",
+    )
     parser.add_argument(
         "--level",
         type=int,
@@ -91,6 +122,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
+    current_mode = args.mode
     current_level = args.level
     current_reward = args.reward
     current_variant = args.variant
@@ -98,7 +130,7 @@ def main() -> None:
     discretizer = MarioStateDiscretizer()
     agent = TabularQAgent()
 
-    load_agent_policy(agent, current_reward, current_variant, args.checkpoint)
+    load_agent_policy(agent, current_mode, current_reward, current_variant, current_level, args.checkpoint)
 
     env = create_env(current_level)
     cfg = get_level(current_level)
@@ -106,6 +138,7 @@ def main() -> None:
 
     print("\n" + "=" * 70)
     print(f"[AI Player] Playing Level {current_level}: {cfg.name}")
+    print(f"[AI Player] Mode: {current_mode.upper()} | Reward: {current_reward.upper()} | Variant: {current_variant.upper()}")
     print("Controls:")
     print("  [1 / 2 / 3 / 4 / 5] Switch Level live")
     print("  [F1 / F2 / F3]      Swap Q-Table: Balanced (F1), Sparse (F2), Dense (F3)")
@@ -159,6 +192,8 @@ def main() -> None:
             cfg = get_level(current_level)
             items_total = len(getattr(env, "items", []))
             print(f"\n[AI Player] Switched to Level {current_level}: {cfg.name}")
+            if current_mode == "separate" and args.checkpoint is None:
+                load_agent_policy(agent, current_mode, current_reward, current_variant, current_level)
             raw_state = env.reset()
             discrete_state = discretizer.discretize(raw_state)
             steps = 0
@@ -179,7 +214,7 @@ def main() -> None:
 
         if new_reward is not None and new_reward != current_reward:
             current_reward = new_reward
-            load_agent_policy(agent, current_reward, current_variant)
+            load_agent_policy(agent, current_mode, current_reward, current_variant, current_level, args.checkpoint)
             raw_state = env.reset()
             discrete_state = discretizer.discretize(raw_state)
             steps = 0
@@ -192,7 +227,7 @@ def main() -> None:
         # Variant toggle (T)
         if just_pressed(pygame.K_t):
             current_variant = "final" if current_variant == "best" else "best"
-            load_agent_policy(agent, current_reward, current_variant)
+            load_agent_policy(agent, current_mode, current_reward, current_variant, current_level, args.checkpoint)
             raw_state = env.reset()
             discrete_state = discretizer.discretize(raw_state)
             steps = 0
@@ -207,7 +242,7 @@ def main() -> None:
             paused = not paused
             caption = (
                 f"Hoá's Midnight Escape | Lvl {current_level} | "
-                f"{current_reward.upper()} [{current_variant.upper()}] | "
+                f"{current_mode.upper()}-{current_reward.upper()} [{current_variant.upper()}] | "
                 f"Step: {steps} | Items: {items_collected}/{items_total} | "
                 f"Act: {action_name}{' | [PAUSED]' if paused else ''}"
             )
@@ -246,10 +281,11 @@ def main() -> None:
         # Update caption with telemetry
         caption = (
             f"Hoá's Midnight Escape | Lvl {current_level} | "
-            f"{current_reward.upper()} [{current_variant.upper()}] | "
+            f"{current_mode.upper()}-{current_reward.upper()} [{current_variant.upper()}] | "
             f"Step: {steps} | Items: {items_collected}/{items_total} | "
             f"Act: {action_name}"
         )
+        pygame.display.set_caption(caption)
         pygame.display.set_caption(caption)
 
         next_raw_state, events, done = env.step(action)
