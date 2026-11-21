@@ -118,3 +118,7 @@ class MarioStateDiscretizer(BaseDiscretizer):
             ghost_alt_bin,
         )
 
+
+# Backward-compatible alias
+PlayerStateDiscretizer = MarioStateDiscretizer
+

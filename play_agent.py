@@ -92,4 +92,4 @@ def play_autonomous(checkpoint_path: str = "checkpoints/q_table_best.json", leve
 
 
 if __name__ == "__main__":
-    play_autonomous(checkpoint_path="checkpoints/q_table_best.json", level_id=1)
+    play_autonomous(checkpoint_path="checkpoints/hybrid_q_sarsa.pkl", level_id=1)
