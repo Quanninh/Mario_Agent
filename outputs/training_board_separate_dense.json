@@ -15,13 +15,13 @@
     "rewarm_epsilon_ghost": 0.4,
     "replay_ratio": 0.0,
     "state_space_max": 1152,
-    "num_states_discovered": 50,
+    "num_states_discovered": 43,
     "states_discovered_per_level": {
       "level_1": 21,
       "level_2": 24,
-      "level_3": 9,
-      "level_4": 50,
-      "level_5": 27
+      "level_3": 12,
+      "level_4": 43,
+      "level_5": 37
     },
     "alpha": 0.12,
     "alpha_start": 0.12,
@@ -59,17 +59,17 @@
       "untrained_win_rate": 0.0,
       "trained_win_rate": 0.0,
       "untrained_avg_reward": 256.15,
-      "trained_avg_reward": 665.17,
+      "trained_avg_reward": 387.6,
       "avg_completion_steps": -1.0,
-      "avg_items_collected": 1.67
+      "avg_items_collected": 1.0
     },
     "level_5": {
       "untrained_win_rate": 0.0,
       "trained_win_rate": 0.0,
       "untrained_avg_reward": 254.75,
-      "trained_avg_reward": 360.4,
+      "trained_avg_reward": 385.5,
       "avg_completion_steps": -1.0,
-      "avg_items_collected": 0.0
+      "avg_items_collected": 1.0
     }
   },
   "episode_history": [
