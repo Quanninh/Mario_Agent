@@ -139,7 +139,12 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
   - Removed display dimensions (`screen_width`, `screen_height`) from `GameEnvironment`, preserving only physical world logic dimensions (`canvas_width = 800`, `canvas_height = 400`, `floor_y = 320.0`).
   - Added `show_overlay()` and `show_game_over(env, events)` to `GameRenderer`, centralizing all banner presentation, drop-shadow typography, and event-pump pauses.
   - Refactored `play_human.py` into a lightweight controller loop by replacing manual surface drawing with a one-line call to `env.show_game_over(events)`.
-  - Exported `GameRenderer` in `env/__init__.py`. All 13 headless unit tests pass cleanly in `0.039s`.
+  - Exported `GameRenderer` in `env/__init__.py`. All 14 headless unit tests pass cleanly in `0.040s`.
+- **Step 14**: Redesigned Pit Fire Aesthetics to 5-Layer Pixel-Art Spires & Scaled Fire Height:
+  - Redesigned pit flame graphics in `env/game_renderer.py` to match pixel-art sprite aesthetics: rectangular 5-layer column below floor level (dark maroon border, scarlet red, radiant orange, golden yellow, white-hot center core) with dynamic multi-spire jagged eruption above floor level, sinusoidal flicker, and floating ember sparks.
+  - Increased lethal flame height `FIRE_HEIGHT` from `40.0px` to `65.0px` on `Pit` in `env/entities.py`, scaling both physical AABB collision hitbox and visual spires proportionally (~$2\times$ Hoá's standing height).
+  - Added grounded magma bed at the bottom of the pit trench (near `canvas_height`) with bubbling ember sparks rising toward ground level during the warning phase (`_draw_pit_warning`).
+  - All 14 automated unit tests passing cleanly in `0.038s`.
 
 ---
 

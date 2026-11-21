@@ -76,7 +76,7 @@ class Pit:
     FIRE_CYCLE: float = 100.0
     FIRE_WARN_START: float = 65.0
     FIRE_ACTIVE_START: float = 80.0
-    FIRE_HEIGHT: float = 40.0
+    FIRE_HEIGHT: float = 65.0
 
     def contains(self, x: float, width: float) -> bool:
         """Checks if an entity is over the pit (meaning no floor beneath it)."""

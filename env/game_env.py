@@ -14,7 +14,7 @@ class GameEnvironment(BaseEnvironment):
     GRAVITY: float = 0.8
     WALK_SPEED: float = 4.0
     JUMP_FORCE: float = -13.0
-    DOUBLE_JUMP_RATIO: float = 0.88
+    DOUBLE_JUMP_RATIO: float = 0.75
     SLIDE_FRICTION: float = 0.90
     STANDING_HEIGHT: float = 32.0
     CROUCH_HEIGHT: float = 18.0

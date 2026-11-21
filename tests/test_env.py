@@ -1,7 +1,7 @@
 import random
 import unittest
 
-from core import Action
+from core import Action, GameEvents
 from env import GameEnvironment, Ghost, GoalFlag, LEVEL_BUILDERS, Pit, WarmthItem, create_env
 
 class TestGameEnvironment(unittest.TestCase):
@@ -20,6 +20,7 @@ class TestGameEnvironment(unittest.TestCase):
                     state = env.reset()
             # Verify Pygame window was NEVER opened during headless stepping
             self.assertIsNone(env._renderer)
+            self.assertFalse(env.is_running)
 
     def test_reset_restores_player_ghosts_and_items(self) -> None:
         """reset() must restore Hoá, all ghosts, and all collected warmth items."""
@@ -229,6 +230,14 @@ class TestGameEnvironment(unittest.TestCase):
         state, events, done = env.step(Action.RIGHT)
         self.assertFalse(events.hit_fire)
         self.assertEqual(state.pit_fire_state, 0)
+
+    def test_show_game_over_headless_safe(self) -> None:
+        """Calling show_game_over() headlessly must be safe and never crash."""
+        env = GameEnvironment()
+        events = GameEvents(reached_goal=True)
+        # Should gracefully do nothing because _renderer is None
+        env.show_game_over(events)
+        self.assertFalse(env.is_running)
 
 if __name__ == "__main__":
     unittest.main()

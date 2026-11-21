@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, List, Optional, Tuple
+import math
 import pygame
 
 from .entities import Ghost, GoalFlag, Obstacle, Pit, Player, WarmthItem
@@ -10,10 +11,14 @@ if TYPE_CHECKING:
 class GameRenderer:
     """Handles all Pygame window management, camera scrolling, and 2D rendering."""
 
-    # Flame jet constants
-    COLOR_FIRE_WARN = (230, 90, 25)    # Warning amber/orange ember glow
-    COLOR_FIRE_OUTER = (255, 60, 20)   # Blazing crimson-orange outer flame
-    COLOR_FIRE_CORE = (255, 220, 80)   # Yellow incandescent flame core
+    # Flame jet constants (5-layer pixel-art palette matching reference design)
+    COLOR_FIRE_WARN = (230, 90, 25)        # Warning amber/orange ember glow
+    COLOR_FLAME_BORDER = (120, 15, 20)     # Dark maroon flame border
+    COLOR_FLAME_RED = (225, 40, 25)        # Vivid blazing scarlet red
+    COLOR_FLAME_ORANGE = (245, 125, 20)    # Warm radiant orange
+    COLOR_FLAME_YELLOW = (255, 215, 30)    # Electric golden yellow
+    COLOR_FLAME_WHITE = (255, 255, 255)    # White-hot incandescent core
+    COLOR_FLAME_EMBER = (255, 180, 50)     # Floating ember sparks
 
     # Midnight Graveyard color palette 
     COLOR_SKY = (15, 20, 45)
@@ -254,27 +259,168 @@ class GameRenderer:
             if pit.has_fire:
                 phase = pit.get_fire_phase(env.step_count)
                 if phase == 1:
-                    # Warning phase: glowing amber embers at the pit bottom
-                    pygame.draw.rect(
-                        canvas,
-                        self.COLOR_FIRE_WARN,
-                        (pit_x + 4, env.floor_y + 12, pit_w - 8, 14),
-                    )
+                    # Warning phase: glowing pulsing embers at pit bottom
+                    self._draw_pit_warning(canvas, pit_x, pit_w, env.floor_y, env.step_count)
                 elif phase == 2:
-                    # Active phase: blazing flame pillar with peaked tip!
-                    flame_y = env.floor_y - pit.FIRE_HEIGHT
-                    flame_h = self.canvas_height - (env.floor_y - pit.FIRE_HEIGHT)
+                    # Active phase: blazing multi-spire pixel-art flame eruption!
+                    self._draw_pit_flame(canvas, pit, pit_x, pit_w, env.floor_y, env.step_count)
 
-                    # Outer crimson flame
-                    pygame.draw.rect(canvas, self.COLOR_FIRE_OUTER, (pit_x, flame_y, pit_w, flame_h))
+    def _draw_pit_warning(
+        self,
+        canvas: pygame.Surface,
+        pit_x: float,
+        pit_w: float,
+        floor_y: float,
+        step_count: int,
+    ) -> None:
+        """Draws glowing, pulsing embers at the very bed of the pit (near canvas_height)."""
+        pit_bottom = self.canvas_height
+        pulse = abs(int(math.sin(step_count * 0.35) * 5))
+        ember_h = 16 + pulse
+        ember_y = pit_bottom - ember_h
 
-                    # Inner bright yellow core
-                    pygame.draw.rect(canvas, self.COLOR_FIRE_CORE, (pit_x + 4, flame_y + 8, pit_w - 8, flame_h - 8))
+        # Glowing magma bed at the bottom of the pit trench
+        pygame.draw.rect(canvas, self.COLOR_FLAME_BORDER, (pit_x + 2, ember_y - 2, pit_w - 4, ember_h + 2))
+        pygame.draw.rect(canvas, self.COLOR_FIRE_WARN, (pit_x + 4, ember_y, pit_w - 8, ember_h))
+        pygame.draw.rect(canvas, self.COLOR_FLAME_ORANGE, (pit_x + 10, ember_y + 3, pit_w - 20, max(4, ember_h - 3)))
+        pygame.draw.rect(canvas, self.COLOR_FLAME_YELLOW, (pit_x + 18, ember_y + 6, pit_w - 36, max(2, ember_h - 6)))
+        pygame.draw.rect(canvas, self.COLOR_FLAME_WHITE, (pit_x + 26, ember_y + 10, pit_w - 52, max(2, ember_h - 10)))
 
-                    # Pointed flame tip on top
-                    cx = pit_x + pit_w / 2
-                    tip_pts = [(cx - 8, flame_y + 4), (cx, flame_y - 8), (cx + 8, flame_y + 4)]
-                    pygame.draw.polygon(canvas, self.COLOR_FIRE_CORE, tip_pts)
+        # Rising warning ember sparks bubbling up from the pit depths towards ground level
+        pit_depth = self.canvas_height - floor_y
+        for i, (pct_x, speed, shift) in enumerate([(0.22, 1.8, 0), (0.45, 2.3, 14), (0.65, 1.6, 28), (0.82, 2.0, 42)]):
+            progress = (step_count * speed * 2 + shift) % (pit_depth - 10)
+            sy = pit_bottom - 12 - progress
+            sx = pit_x + pit_w * pct_x + math.sin(step_count * 0.2 + i * 2) * 3
+            if sy > floor_y:
+                sz = 3 if i % 2 == 0 else 2
+                pygame.draw.rect(canvas, self.COLOR_FLAME_EMBER, (sx, sy, sz, sz))
+                pygame.draw.rect(canvas, self.COLOR_FLAME_YELLOW, (sx + 1, sy + 1, max(1, sz - 1), max(1, sz - 1)))
+
+    def _draw_pit_flame(
+        self,
+        canvas: pygame.Surface,
+        pit: Pit,
+        pit_x: float,
+        pit_w: float,
+        floor_y: float,
+        step_count: int,
+    ) -> None:
+        """Draws multi-tiered pixel-art flame eruption matching reference design."""
+        h = pit.FIRE_HEIGHT
+        top_y = floor_y - h
+        bot_y = self.canvas_height
+        cx = pit_x + pit_w / 2.0
+
+        # Subtle dynamic flicker
+        f1 = int(math.sin(step_count * 0.4) * 3)
+        f2 = int(math.cos(step_count * 0.5) * 3)
+
+        # ----------------------------------------------------
+        # 1. Inside the pit (Rectangular inferno shaft)
+        # ----------------------------------------------------
+        pit_depth = bot_y - floor_y
+        pygame.draw.rect(canvas, self.COLOR_FLAME_BORDER, (pit_x, floor_y, pit_w, pit_depth))
+        pygame.draw.rect(canvas, self.COLOR_FLAME_RED, (pit_x + 3, floor_y, pit_w - 6, pit_depth))
+        pygame.draw.rect(canvas, self.COLOR_FLAME_ORANGE, (pit_x + 8, floor_y, pit_w - 16, pit_depth))
+        pygame.draw.rect(canvas, self.COLOR_FLAME_YELLOW, (pit_x + 15, floor_y, pit_w - 30, pit_depth))
+        pygame.draw.rect(canvas, self.COLOR_FLAME_WHITE, (pit_x + 24, floor_y + 10, pit_w - 48, pit_depth - 10))
+
+        # ----------------------------------------------------
+        # 2. Above the ground (Multi-spire flame burst)
+        # ----------------------------------------------------
+        # Layer 1: Dark Maroon Silhouette (4 jagged spires)
+        dark_pts = [
+            (pit_x, floor_y + 1),
+            (pit_x + 2, floor_y - h * 0.22),
+            (pit_x + 6, floor_y - h * 0.45),
+            (pit_x + pit_w * 0.18, top_y + h * 0.36 + f2),
+            (pit_x + pit_w * 0.28, top_y + h * 0.52),
+            (pit_x + pit_w * 0.38, top_y + h * 0.14 + f1),
+            (pit_x + pit_w * 0.46, top_y + h * 0.36),
+            (cx + 2, top_y + f2),
+            (pit_x + pit_w * 0.62, top_y + h * 0.32),
+            (pit_x + pit_w * 0.74, top_y + h * 0.18 - f1),
+            (pit_x + pit_w * 0.84, top_y + h * 0.50),
+            (pit_x + pit_w - 8, top_y + h * 0.40 - f2),
+            (pit_x + pit_w - 4, floor_y - h * 0.25),
+            (pit_x + pit_w, floor_y + 1),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_FLAME_BORDER, dark_pts)
+
+        # Layer 2: Vivid Scarlet Red
+        red_pts = [
+            (pit_x + 2, floor_y + 1),
+            (pit_x + 4, floor_y - h * 0.20),
+            (pit_x + 8, floor_y - h * 0.42),
+            (pit_x + pit_w * 0.20, top_y + h * 0.40 + f2),
+            (pit_x + pit_w * 0.29, top_y + h * 0.55),
+            (pit_x + pit_w * 0.38, top_y + h * 0.18 + f1),
+            (pit_x + pit_w * 0.46, top_y + h * 0.39),
+            (cx + 2, top_y + h * 0.05 + f2),
+            (pit_x + pit_w * 0.62, top_y + h * 0.35),
+            (pit_x + pit_w * 0.73, top_y + h * 0.22 - f1),
+            (pit_x + pit_w * 0.83, top_y + h * 0.53),
+            (pit_x + pit_w - 10, top_y + h * 0.44 - f2),
+            (pit_x + pit_w - 5, floor_y - h * 0.22),
+            (pit_x + pit_w - 2, floor_y + 1),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_FLAME_RED, red_pts)
+
+        # Layer 3: Warm Radiant Orange
+        orange_pts = [
+            (pit_x + 6, floor_y + 1),
+            (pit_x + 10, floor_y - h * 0.20),
+            (pit_x + pit_w * 0.26, top_y + h * 0.52 + f1),
+            (pit_x + pit_w * 0.36, top_y + h * 0.64),
+            (pit_x + pit_w * 0.44, top_y + h * 0.32 + f2),
+            (cx + 4, top_y + h * 0.22 + f1),
+            (pit_x + pit_w * 0.58, top_y + h * 0.48),
+            (pit_x + pit_w * 0.68, top_y + h * 0.38 - f2),
+            (pit_x + pit_w * 0.78, top_y + h * 0.60),
+            (pit_x + pit_w - 12, floor_y - h * 0.20),
+            (pit_x + pit_w - 6, floor_y + 1),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_FLAME_ORANGE, orange_pts)
+
+        # Layer 4: Electric Golden Yellow
+        yellow_pts = [
+            (pit_x + 12, floor_y + 1),
+            (pit_x + 16, floor_y - h * 0.22),
+            (pit_x + pit_w * 0.34, top_y + h * 0.58 + f2),
+            (pit_x + pit_w * 0.42, top_y + h * 0.48),
+            (cx + 1, top_y + h * 0.38 + f1),
+            (pit_x + pit_w * 0.58, top_y + h * 0.60),
+            (pit_x + pit_w * 0.66, top_y + h * 0.52 - f2),
+            (pit_x + pit_w - 16, floor_y - h * 0.22),
+            (pit_x + pit_w - 12, floor_y + 1),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_FLAME_YELLOW, yellow_pts)
+
+        # Layer 5: White-Hot Center Core
+        white_pts = [
+            (cx - 7, floor_y + 1),
+            (cx - 7, floor_y - h * 0.18),
+            (cx - 4, floor_y - h * 0.30),
+            (cx - 2, top_y + h * 0.52 + f1),
+            (cx + 1, top_y + h * 0.45 + f2),
+            (cx + 3, top_y + h * 0.55),
+            (cx + 5, floor_y - h * 0.28),
+            (cx + 7, floor_y - h * 0.16),
+            (cx + 7, floor_y + 1),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_FLAME_WHITE, white_pts)
+
+        # Layer 6: Rising Pixel Ember Sparks
+        ember_offsets = [
+            (cx - 8, top_y - 8 + (step_count * 2) % 14, 3),
+            (cx + 6, top_y - 4 + ((step_count * 3) % 16), 2),
+            (pit_x + pit_w * 0.22, top_y + h * 0.15 + ((step_count * 2 + 5) % 12), 3),
+            (pit_x + pit_w * 0.76, top_y + h * 0.18 + ((step_count * 2 + 8) % 14), 2),
+        ]
+        for ex, ey, es in ember_offsets:
+            pygame.draw.rect(canvas, self.COLOR_FLAME_EMBER, (ex, ey, es, es))
+            pygame.draw.rect(canvas, self.COLOR_FLAME_YELLOW, (ex + 1, ey + 1, max(1, es - 1), max(1, es - 1)))
 
     def _draw_tombstone(self, canvas: pygame.Surface, obs: Obstacle, camera_x: float) -> None:
         x = obs.x - camera_x
