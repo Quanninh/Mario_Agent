@@ -163,27 +163,6 @@ class HybridQSARSAAgent(BaseAgent):
         self.q_table[state][action] = current_q + self.alpha * td_error
         return float(td_error)
 
-    def update_hybrid(
-        self,
-        state: DiscreteState,
-        action: int,
-        reward: float,
-        next_state: DiscreteState,
-        next_action: int,
-        done: bool,
-    ) -> float:
-        """
-        Explicit update method adhering to the blueprint in .agent/HYBRID_SARSA_Q_LEARNING.md.
-        """
-        return self.update(
-            state=state,
-            action=action,
-            reward=reward,
-            next_state=next_state,
-            done=done,
-            next_action=next_action,
-        )
-
     def decay_epsilon(self) -> float:
         """Decays epsilon monotonically down to epsilon_min."""
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
