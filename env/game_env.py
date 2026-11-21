@@ -198,6 +198,11 @@ class GameEnvironment(BaseEnvironment):
             for pit in self.pits
             if (flame_rect := pit.get_flame_rect(self.step_count, self.floor_y, self.canvas_height)) is not None
         )
+        hit_laser = any(
+            self._segment_intersects_rect(g.get_laser_segment(self.step_count), self.player.rect)
+            for g in self.ghosts
+            if g.has_laser
+        )
 
         # Death by hitting ghost
         if hit_ghost:
@@ -209,6 +214,12 @@ class GameEnvironment(BaseEnvironment):
         elif hit_fire:
             self.player.is_alive = False
             events.hit_fire = True
+            done = True
+
+        # Death by hitting laser of the ghost
+        elif hit_laser:
+            self.player.is_alive = False
+            events.hit_laser = True
             done = True
 
         # Pit death
@@ -282,6 +293,30 @@ class GameEnvironment(BaseEnvironment):
             dist_to_ghost = -1.0
             ghost_y = 0.0
 
+        # Nearest upcoming rotating laser hazard
+        dist_to_laser = -1.0
+        for g in self.ghosts:
+            if not g.has_laser:
+                continue
+            seg = g.get_laser_segment(self.step_count)
+            if seg is None:
+                continue
+
+            (sx, sy), (ex, ey) = seg
+            laser_min_x = min(sx, ex)
+            laser_max_x = max(sx, ex)
+            laser_min_y = min(sy, ey)
+            laser_max_y = max(sy, ey)
+
+            # Check dynamic 2D threat relative to Hoá's actual current position (standing, jumping, or sliding)
+            laser_overlaps_player_y = (laser_max_y >= self.player.y) and (laser_min_y <= self.player.bottom)
+            laser_is_ahead_or_overlapping = laser_max_x > self.player.x
+            
+            if laser_overlaps_player_y and laser_is_ahead_or_overlapping:
+                dist = max(0.0, laser_min_x - self.player.right)
+                if dist_to_laser < 0 or dist < dist_to_laser:
+                    dist_to_laser = dist
+
         # Nearest upcoming uncollected warmth item
         upcoming_items = [it for it in self.items if not it.is_collected and it.right > self.player.x]
         if upcoming_items:
@@ -307,6 +342,7 @@ class GameEnvironment(BaseEnvironment):
             pit_fire_state=pit_fire_state,
             dist_to_ghost=dist_to_ghost,
             ghost_y=ghost_y,
+            dist_to_laser=dist_to_laser,
             dist_to_item=dist_to_item,
             dist_to_goal=dist_to_goal,
         )
@@ -321,3 +357,39 @@ class GameEnvironment(BaseEnvironment):
         x2, y2, w2, h2 = r2
 
         return (x1 < x2 + w2) and (x1 + w1 > x2) and (y1 < y2 + h2) and (y1 + h1 > y2)
+
+    @staticmethod
+    def _segment_intersects_rect(
+        seg: Optional[Tuple[Tuple[float, float], Tuple[float, float]]],
+        rect: Tuple[float, float, float, float],
+    ) -> bool:
+        """Checks if a 2D line segment intersects an AABB rectangle."""
+        if seg is None:
+            return False
+        (x1, y1), (x2, y2) = seg
+        rx, ry, rw, rh = rect
+        r_right, r_bottom = rx + rw, ry + rh
+
+        # Fast bounding box check 
+        if max(x1, x2) < rx or min(x1, x2) > r_right or max(y1, y2) < ry or min(y1, y2) > r_bottom:
+            return False
+
+        # Check if either endpoint lies inside the rectangle
+        if (rx <= x1 <= r_right and ry <= y1 <= r_bottom) or (rx <= x2 <= r_right and ry <= y2 <= r_bottom):
+            return True
+
+        # Check intersection against the 4 bounding box edges
+        def ccw(A, B, C):
+            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+        
+        def intersect(A, B, C, D):
+            return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
+        p1, p2 = (x1, y1), (x2, y2)
+
+        return (
+            intersect(p1, p2, (rx, ry), (r_right, ry)) or
+            intersect(p1, p2, (r_right, ry), (r_right, r_bottom)) or
+            intersect(p1, p2, (rx, r_bottom), (r_right, r_bottom)) or
+            intersect(p1, p2, (rx, ry), (rx, r_bottom))
+        )

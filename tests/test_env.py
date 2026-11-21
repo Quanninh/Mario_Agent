@@ -239,5 +239,24 @@ class TestGameEnvironment(unittest.TestCase):
         env.show_game_over(events)
         self.assertFalse(env.is_running)
 
+    def test_ghost_laser_lethal_collision(self) -> None:
+        """Walking or jumping into a ghost's rotating laser beam must trigger hit_laser and end episode."""
+        env = create_env(level_id=5)
+        env.reset()
+        laser_ghost = next(g for g in env.ghosts if g.has_laser)
+
+        seg = laser_ghost.get_laser_segment(env.step_count)
+        self.assertIsNotNone(seg)
+        (sx, sy), (ex, ey) = seg
+
+        # Place Hoá directly along the midpoint of the laser beam
+        env.player.x = (sx + ex) / 2.0 - env.player.width / 2.0
+        env.player.y = (sy + ey) / 2.0 - env.player.height / 2.0
+
+        state, events, done = env.step(Action.STAY)
+        self.assertTrue(events.hit_laser)
+        self.assertFalse(env.player.is_alive)
+        self.assertTrue(done)
+
 if __name__ == "__main__":
     unittest.main()

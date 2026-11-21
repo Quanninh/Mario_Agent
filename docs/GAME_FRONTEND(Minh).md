@@ -214,3 +214,24 @@ Separates stage definitions from `GameEnvironment` (Open/Closed Principle) with 
 
 ### 5.7 `play_human.py` — Interactive Playable Entry Point
 Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Down`) stepping `GameEnvironment` at 60 FPS with live level switching (`1–5`), freeze-safe resets (`R`), automatic victory/death overlays (`env.show_game_over(events)`), and exit (`Esc`).
+
+### 5.8 Traditional Vietnamese Pixel Art & Visual Polish (Phase 3 — Complete)
+- **Authentic Khuê Văn Các Destination**:
+  - Replaced generic Western house with Hanoi's iconic Temple of Literature pavilion (*Khuê Văn Các*).
+  - Four carved white stone pillars with cloud/dragon relief carvings and stone plinths (*chân tảng đá*).
+  - Open central archway with three-tier stone courtyard steps (*bậc tam cấp*) and warm amber sanctuary light spilling through.
+  - Upper vermilion wooden pavilion (*gác gỗ sơn son thếp vàng*) with turned balustrade (*lan can con tiện đỏ*).
+  - Lacquered horizontal board inscribed in gold: "奎文閣".
+  - Iconic circular sunburst window (*Cửa Sổ Sao Khuê*) with radiating wooden spokes and glowing amber core.
+  - Double-tiered flared curved roofs (*mái chồng diêm 2 tầng 8 mái*) with weathered terracotta tiles, ornamental ridge, cloud dragons (*kìm nóc*), and central gourd symbol (*bình hồ lô*).
+- **Hoá Traditional Attire Redesign**:
+  - **Áo Ngũ Thân May Kép Đệm Bông**: Quilted cyan-blue long robe with diamond stitching, white inner collar rim (*cổ lập lót trắng*), diagonal closure, and gold clasps.
+  - **Khăn Đóng**: Matching cyan-blue pleated turban with hair silhouette and rear knot (*búi tóc*).
+  - **Bamboo Lantern & Silk Tassel**: Handheld bamboo lantern with warm interior glow and dynamic swinging red silk tassel.
+  - **Lower Garments**: Traditional white inner trousers and black cloth shoes with white sole lines.
+- **Atmospheric Enhancements & macOS/SDL2 Alpha Bugfix**:
+  - **Creeping Ground Mist**: Low-altitude drifting fog across the cemetery lawn (`_draw_ground_fog`).
+  - **Ghost Speed Fix**: Corrected attribute reference to `ghost.speed` in `_draw_ghost` to eliminate Level 4/5 runtime crashes.
+  - **Porter-Duff Zero-Alpha Blackout Fix**: Fixed black bar artifacts on macOS display surfaces by initializing internal canvas as 24-bit RGB (`depth=24`) and switching `show_overlay()` to standard surface-level alpha (`set_alpha(160)`).
+  - **Compact Lantern Ambient Glow**: Scaled lantern light radius down to a focused 48x48 ambient aura around Hoá.
+  - **Icy Cyan Timeout Banner**: Shifted timeout game-over text to glacial frost cyan `(165, 230, 255)`.

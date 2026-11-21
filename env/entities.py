@@ -119,11 +119,32 @@ class Ghost:
     float_amplitude: float = 8.0   # Max vertical distance (pixels) the ghost bobs up and down
     float_speed: float = 0.08      # Speed of the sinusoidal floating wave (radians per tick)
 
+    # --- Continuous 360° Rotating Laser ---
+    has_laser: bool = False             # Whether this ghost emits a rotating laser
+    laser_length: float = 90.0          # Beam reach in pixels
+    laser_rotation_speed: float = 0.04  # Rotation speed in rad/tick (positive = clockwise)
+    laser_initial_angle: float = 0.0    # Starting angle offset in radians
+
     def __post_init__(self) -> None:
         self._start_x = self.x
         self._base_y = self.y
         self._start_speed = self.speed
         self._phase = 0.0
+
+    def get_laser_segment(self, step_count: int) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
+        """Returns ((start_x, start_y), (end_x, end_y)) of the continuous 360-degree rotating laser beam."""
+        if not self.has_laser:
+            return None
+        
+        # Originates from the center of the ghost's eyes
+        eye_cx = self.x + self.width / 2.0
+        eye_cy = self.y + self.height * 0.4
+
+        # Continuously rotates 360 degrees based on step count
+        angle = (self.laser_initial_angle + step_count * self.laser_rotation_speed) % (2.0 * math.pi)
+        end_x = eye_cx + math.cos(angle) * self.laser_length
+        end_y = eye_cy + math.sin(angle) * self.laser_length
+        return ((eye_cx, eye_cy), (end_x, end_y))
 
     def update(self) -> None:
         """Patrol horizontally and hover up and down smoothly."""

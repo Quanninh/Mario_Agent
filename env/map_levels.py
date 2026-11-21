@@ -140,6 +140,7 @@ def _build_level_5() -> LevelConfig:
                 x=1120.0, y=DEFAULT_FLOOR_Y - 86.0,
                 patrol_min_x=1060.0, patrol_max_x=1285.0,
                 speed=1.7, float_amplitude=13.0, float_speed=0.10,
+                has_laser=True, laser_length=95.0, laser_rotation_speed=0.04,
             ),
             # 4. Brisk final guardian before Hoá's house (low -> jump OVER)
             Ghost(
@@ -159,6 +160,73 @@ def _build_level_5() -> LevelConfig:
         max_steps=1000,
     )
 
+def _build_level_6() -> LevelConfig:
+    """Level 6 (The Nightmare Catacombs): Extreme gauntlet with crossfire lasers, cascading flame pits, and twitchy ghosts."""
+    return LevelConfig(
+        name="Level 6: Nightmare Catacombs",
+        obstacles=[
+            # Tight stone pillars and narrow landing islands between pits
+            Obstacle(x=220.0, y=DEFAULT_FLOOR_Y - 52.0, width=32.0, height=52.0, style="cross"),
+            Obstacle(x=620.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0, style="buddhist"),
+            Obstacle(x=980.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="cross"),       # Island between Pit 2 & 3
+            Obstacle(x=1420.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0, style="buddhist"),
+            Obstacle(x=1850.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0, style="cross"),
+        ],
+        pits=[
+            # Pit 1: Hellmouth with active flame
+            Pit(x_start=400.0, x_end=480.0, has_fire=True, fire_offset=0),
+            # Pit 2 & 3: Cascading alternating fire trap with narrow island at x=980
+            Pit(x_start=880.0, x_end=960.0, has_fire=True, fire_offset=25),
+            Pit(x_start=1020.0, x_end=1100.0, has_fire=True, fire_offset=65),
+            # Pit 4: Final wide pit gap
+            Pit(x_start=1620.0, x_end=1710.0, has_fire=True, fire_offset=45),
+        ],
+        ghosts=[
+            # 1. Low ceiling guard patrolling directly over Pit 1
+            Ghost(
+                x=390.0, y=DEFAULT_FLOOR_Y - 42.0,
+                patrol_min_x=360.0, patrol_max_x=510.0,
+                speed=1.4, float_amplitude=6.0, float_speed=0.08,
+            ),
+            # 2. Fast twitching speed demon
+            Ghost(
+                x=750.0, y=DEFAULT_FLOOR_Y - 80.0,
+                patrol_min_x=680.0, patrol_max_x=840.0,
+                speed=-3.0, float_amplitude=8.0, float_speed=0.18,
+            ),
+            # 3 & 4: Dual Counter-Rotating "Laser Scissors" (Crossfire)
+            Ghost(
+                x=1200.0, y=DEFAULT_FLOOR_Y - 88.0,
+                patrol_min_x=1150.0, patrol_max_x=1360.0,
+                speed=1.5, float_amplitude=10.0, float_speed=0.09,
+                has_laser=True, laser_length=95.0, laser_rotation_speed=0.045, laser_initial_angle=0.0,
+            ),
+            Ghost(
+                x=1320.0, y=DEFAULT_FLOOR_Y - 88.0,
+                patrol_min_x=1220.0, patrol_max_x=1400.0,
+                speed=-1.5, float_amplitude=10.0, float_speed=0.09,
+                has_laser=True, laser_length=95.0, laser_rotation_speed=-0.045, laser_initial_angle=3.14,
+            ),
+            # 5. Final long-range sweeper guarding Khuê Văn Các
+            Ghost(
+                x=1800.0, y=DEFAULT_FLOOR_Y - 85.0,
+                patrol_min_x=1740.0, patrol_max_x=1960.0,
+                speed=1.8, float_amplitude=12.0, float_speed=0.11,
+                has_laser=True, laser_length=110.0, laser_rotation_speed=0.035,
+            ),
+        ],
+        items=[
+            WarmthItem(x=229.0, y=DEFAULT_FLOOR_Y - 90.0),   # Perched high on tombstone 1
+            WarmthItem(x=440.0, y=DEFAULT_FLOOR_Y - 85.0),   # Mid-air above Hellmouth pit
+            WarmthItem(x=990.0, y=DEFAULT_FLOOR_Y - 86.0),   # On narrow island between fire pits
+            WarmthItem(x=1260.0, y=DEFAULT_FLOOR_Y - 28.0),  # Under the laser scissors
+            WarmthItem(x=1750.0, y=DEFAULT_FLOOR_Y - 28.0),  # Before final sanctuary
+        ],
+        goal=GoalFlag(x=2050.0, y=DEFAULT_FLOOR_Y - 88.0),
+        floor_y=DEFAULT_FLOOR_Y,
+        max_steps=1400,
+    )
+
 
 LEVEL_BUILDERS: Dict[int, Callable[[], LevelConfig]] = {
     1: _build_level_1,
@@ -166,6 +234,7 @@ LEVEL_BUILDERS: Dict[int, Callable[[], LevelConfig]] = {
     3: _build_level_3,
     4: _build_level_4,
     5: _build_level_5,
+    6: _build_level_6,
 }
 
 

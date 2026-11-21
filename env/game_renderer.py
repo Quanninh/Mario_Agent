@@ -75,6 +75,11 @@ class GameRenderer:
     COLOR_HOUSE_DOOR = (110, 118, 128)
     COLOR_HOUSE_WINDOW = (255, 220, 85)
 
+    # Laser colors
+    COLOR_LASER_CORE = (255, 255, 255)       # White-hot inner core
+    COLOR_LASER_BEAM = (255, 30, 90)         # Blazing scarlet/magenta laser beam
+    COLOR_LASER_GLOW = (255, 80, 160)        # Ethereal outer glow aura
+
     # Decorative stars in the night sky (canvas-space coordinates)
     STARS = [
         (70, 75), (150, 90), (230, 35), (320, 75), (410, 40),
@@ -134,7 +139,7 @@ class GameRenderer:
             self._draw_tombstone(canvas, obs, camera_x)
 
         for ghost in env.ghosts:
-            self._draw_ghost(canvas, ghost, camera_x)
+            self._draw_ghost(canvas, ghost, camera_x, env.step_count)
 
         for item in env.items:
             if not item.is_collected:
@@ -253,6 +258,13 @@ class GameRenderer:
                 title="GAME OVER",
                 subtitle="Caught by a spectral ghost!",
                 color=(255, 80, 80),   # Crimson red
+                duration_ms=3000,
+            )
+        elif events.hit_laser:
+            self.show_overlay(
+                title="VAPORIZED!",
+                subtitle="Sliced by a rotating ghost eye-laser!",
+                color=(255, 60, 120),  # Blazing laser magenta
                 duration_ms=3000,
             )
         elif events.fell_in_pit:
@@ -527,7 +539,7 @@ class GameRenderer:
             pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx, cy + s), (cx + s, cy + s), 2)  # Bottom arm -> right
             pygame.draw.line(canvas, self.COLOR_TOMBSTONE_DETAIL, (cx + s, cy), (cx + s, cy - s), 2)  # Right arm -> up
 
-    def _draw_ghost(self, canvas: pygame.Surface, ghost: Ghost, camera_x: float) -> None:
+    def _draw_ghost(self, canvas: pygame.Surface, ghost: Ghost, camera_x: float, step_count: int = 0) -> None:
         x = ghost.x - camera_x
         y, w, h = ghost.y, ghost.width, ghost.height
         radius = int(w / 2)
@@ -558,6 +570,26 @@ class GameRenderer:
         pygame.draw.circle(canvas, self.COLOR_GHOST_EYE, (e2_x, eye_y), 3)
         pygame.draw.circle(canvas, (165, 230, 255), (e1_x, eye_y), 1)
         pygame.draw.circle(canvas, (165, 230, 255), (e2_x, eye_y), 1)
+
+        # Draw 360-degree rotating eye-laser beam
+        if ghost.has_laser:
+            seg = ghost.get_laser_segment(step_count)
+            if seg is not None:
+                (sx, sy), (ex, ey) = seg
+                p1 = (sx - camera_x, sy)
+                p2 = (ex - camera_x, ey)
+                # 3-layer beam: outer glow (5px), main beam (3px), white core (1px)
+                pygame.draw.line(canvas, self.COLOR_LASER_GLOW, p1, p2, 5)
+                pygame.draw.line(canvas, self.COLOR_LASER_BEAM, p1, p2, 3)
+                pygame.draw.line(canvas, self.COLOR_LASER_CORE, p1, p2, 1)
+                # Eye sockets flash with laser energy
+                pygame.draw.circle(canvas, self.COLOR_LASER_BEAM, (e1_x, eye_y), 4)
+                pygame.draw.circle(canvas, self.COLOR_LASER_CORE, (e1_x, eye_y), 2)
+                pygame.draw.circle(canvas, self.COLOR_LASER_BEAM, (e2_x, eye_y), 4)
+                pygame.draw.circle(canvas, self.COLOR_LASER_CORE, (e2_x, eye_y), 2)
+                # Bright contact spark at beam tip
+                pygame.draw.circle(canvas, self.COLOR_LASER_CORE, (int(p2[0]), int(p2[1])), 4)
+                pygame.draw.circle(canvas, self.COLOR_LASER_BEAM, (int(p2[0]), int(p2[1])), 7, 1)
 
     def _draw_item(
         self,
