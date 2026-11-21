@@ -1,1 +1,20 @@
 .agent
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+
+# macOS & IDE files
+.DS_Store
+.vscode/
+.idea/
+
+# Optional: uncomment if training logs become too large for Git
+# logs/
+
+specs/

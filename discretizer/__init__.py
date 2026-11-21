@@ -1,3 +1,3 @@
-from .state_discretizer import MarioStateDiscretizer
+from .state_discretizer import MarioStateDiscretizer, PlayerStateDiscretizer
 
-__all__ = ["MarioStateDiscretizer"]
+__all__ = ["MarioStateDiscretizer", "PlayerStateDiscretizer"]

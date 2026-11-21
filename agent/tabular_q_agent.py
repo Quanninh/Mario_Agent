@@ -167,3 +167,7 @@ class TabularQAgent(BaseAgent):
                 setattr(self, attr, data[attr])
 
         print(f"[Agent] Loaded Q-table ({len(self.q_table)} states) from {filepath}")
+
+    # Aliases for backward compatibility
+    load_q_table = load
+    save_q_table = save
