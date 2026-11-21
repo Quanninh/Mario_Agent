@@ -6,7 +6,8 @@ from core.interfaces import BaseDiscretizer, DiscreteState
 class MarioStateDiscretizer(BaseDiscretizer):
     """
     Transforms continuous RawState into a compact hashable discrete state tuple:
-        (is_grounded, vy_sign, obstacle_dist_bin, obstacle_height_bin, pit_dist_bin, ghost_dist_bin, ghost_alt_bin)
+        (is_grounded, vy_sign, obstacle_dist_bin, obstacle_height_bin, pit_dist_bin,
+         ghost_dist_bin, ghost_alt_bin, ghost_approaching)
 
     Cardinality:
         is_grounded:          2 values (0: airborne, 1: on ground)
@@ -16,10 +17,11 @@ class MarioStateDiscretizer(BaseDiscretizer):
         pit_dist_bin:         3 values (0: None >80px, 1: Far 32-80px, 2: Immediate <=32px)
         ghost_dist_bin:       3 values (0: None >80px or cleared, 1: Far 35-80px, 2: Close <=35px)
         ghost_alt_bin:        2 values (0: Low/None - jump over, 1: High - walk under)
+        ghost_approaching:    2 values (0: Retreating/None/Stationary, 1: Approaching)
 
     State Cardinality:
-        - Baseline levels without ghosts: 2 * 3 * 4 * 2 * 3 * 1 * 1 = 144 effective states.
-        - Ghost levels: 144 * 3 * 2 = 864 max states.
+        - Baseline levels without ghosts: 2 * 3 * 4 * 2 * 3 * 1 * 1 * 1 = 144 effective states.
+        - Ghost levels: 144 * 3 * 2 * 2 = 1,728 max states (reachable ~1,296 states).
     """
 
     def __init__(
@@ -87,6 +89,7 @@ class MarioStateDiscretizer(BaseDiscretizer):
         # 6. Ghost Proximity Bin (Level 4 & 5 hazards)
         dist_ghost = getattr(raw_state, "dist_to_ghost", -1.0)
         ghost_y = getattr(raw_state, "ghost_y", 0.0)
+        ghost_vx = getattr(raw_state, "ghost_vx", 0.0)
 
         if dist_ghost < 0.0 or dist_ghost > 80.0:
             ghost_dist_bin = 0  # NONE
@@ -108,6 +111,9 @@ class MarioStateDiscretizer(BaseDiscretizer):
         else:
             ghost_alt_bin = 0
 
+        # 8. Ghost Approaching Bin (Solution 1: Relative Velocity Discretization)
+        ghost_approaching = 1 if (ghost_dist_bin != 0 and ghost_vx < -0.01) else 0
+
         return (
             grounded_bin,
             vy_bin,
@@ -116,5 +122,9 @@ class MarioStateDiscretizer(BaseDiscretizer):
             pit_dist_bin,
             ghost_dist_bin,
             ghost_alt_bin,
+            ghost_approaching,
         )
 
+
+# Backward compatibility alias
+PlayerStateDiscretizer = MarioStateDiscretizer

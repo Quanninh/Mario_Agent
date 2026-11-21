@@ -371,9 +371,11 @@ class GameEnvironment(BaseEnvironment):
             nearest_ghost = min(upcoming_ghosts, key=lambda g: g.x)
             dist_to_ghost = max(0.0, nearest_ghost.x - self.player.right)
             ghost_y = nearest_ghost.y
+            ghost_vx = float(nearest_ghost.speed)
         else:
             dist_to_ghost = -1.0
             ghost_y = 0.0
+            ghost_vx = 0.0
 
         # Nearest upcoming uncollected warmth item
         upcoming_items = [it for it in self.items if not it.is_collected and it.right > self.player.x]
@@ -396,6 +398,7 @@ class GameEnvironment(BaseEnvironment):
             dist_to_pit=dist_to_pit,
             dist_to_ghost=dist_to_ghost,
             ghost_y=ghost_y,
+            ghost_vx=ghost_vx,
             dist_to_item=dist_to_item,
             dist_to_goal=dist_to_goal,
         )

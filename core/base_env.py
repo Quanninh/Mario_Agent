@@ -26,8 +26,9 @@ class RawState:
     dist_to_pit: float       # Distance to nearest grave pit ahead (-1 if none)
     dist_to_ghost: float     # Distance to nearest hovering ghost ahead (-1 if none)
     ghost_y: float           # Y-position of that ghost (0 if none; low vs high)
-    dist_to_item: float      # Distance to nearest warmth item ahead (-1 if none)
-    dist_to_goal: float      # Distance remaining to Hoá's home
+    ghost_vx: float = 0.0    # Horizontal velocity of nearest upcoming ghost (0.0 if none)
+    dist_to_item: float = -1.0  # Distance to nearest warmth item ahead (-1 if none)
+    dist_to_goal: float = 0.0   # Distance remaining to Hoá's home
 
 @dataclass
 class GameEvents:

@@ -3,7 +3,7 @@ from typing import Any, Dict, Tuple
 from core.base_env import RawState, GameEvents
 
 # Type alias for the hashable discrete state representation:
-# Default 7-tuple: (is_grounded, vy_sign, obstacle_dist_bin, obstacle_height_bin, pit_dist_bin, ghost_dist_bin, ghost_alt_bin)
+# Default 8-tuple: (is_grounded, vy_sign, obstacle_dist_bin, obstacle_height_bin, pit_dist_bin, ghost_dist_bin, ghost_alt_bin, ghost_approaching)
 DiscreteState = Tuple[int, ...]
 
 

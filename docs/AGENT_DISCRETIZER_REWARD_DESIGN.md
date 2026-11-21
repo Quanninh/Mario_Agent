@@ -16,7 +16,7 @@ This document details the mathematical formulations, system logic, and architect
 To satisfy **SOLID architecture**, each subsystem is decoupled via explicit abstract interfaces in `core/interfaces.py`. This ensures that changes to game physics (Member 1) or training harnesses (Member 3) do not propagate bugs into the agent or discretizer.
 
 ### 1.1 `DiscreteState` (Type Alias)
-* **Definition**: `Tuple[int, int, int, int, int]`
+* **Definition**: `Tuple[int, int, int, int, int, int, int, int]`
 * **Purpose**: Represents the quantized, hashable state vector indexing the agent's $Q$-table.
 
 ### 1.2 `BaseDiscretizer` (Abstract Base Class)
@@ -50,10 +50,10 @@ Directly indexing a lookup table with floating-point values leads to an infinite
 
 Furthermore, using **absolute global coordinates** ($x_{\text{world}}$) destroys level-to-level generalization. The `MarioStateDiscretizer` discards absolute coordinates in favor of **relative hazard proximity features**.
 
-### 2.2 Feature Representation (The 7-Tuple)
-Every continuous `RawState` is projected into a compact, discrete 7-tuple:
+### 2.2 Feature Representation (The 8-Tuple)
+Every continuous `RawState` is projected into a compact, discrete 8-tuple:
 
-$$\mathcal{S} = \langle \text{is\_grounded}, \; V_{y\text{-sign}}, \; \text{Obstacle}_{\text{dist}}, \; \text{Obstacle}_{\text{height}}, \; \text{Pit}_{\text{dist}}, \; \text{Ghost}_{\text{dist}}, \; \text{Ghost}_{\text{alt}} \rangle$$
+$$\mathcal{S} = \langle \text{is\_grounded}, \; V_{y\text{-sign}}, \; \text{Obstacle}_{\text{dist}}, \; \text{Obstacle}_{\text{height}}, \; \text{Pit}_{\text{dist}}, \; \text{Ghost}_{\text{dist}}, \; \text{Ghost}_{\text{alt}}, \; \mathbf{\text{Ghost}_{\text{approaching}}} \rangle$$
 
 | Feature | Type / Range | Partition Logic & Thresholds | Physical & Navigational Meaning |
 | :--- | :--- | :--- | :--- |
@@ -64,13 +64,14 @@ $$\mathcal{S} = \langle \text{is\_grounded}, \; V_{y\text{-sign}}, \; \text{Obst
 | **`pit_dist`** | `0, 1, 2` | `0`: `NONE` ($> 80\text{ px}$ or $< 0\text{ px}$ / no pit)<br>`1`: `FAR` ($32\text{--}80\text{ px}$, approach zone)<br>`2`: `IMMEDIATE` ($\le 32\text{ px}$, safe take-off zone) | Calibrated for $65\text{--}75\text{ px}$ wide grave pits to ensure Hoá initiates jumps within the safe take-off window without falling short. |
 | **`ghost_dist`** | `0, 1, 2` | `0`: `NONE` ($> 80\text{ px}$, $< 0\text{ px}$, or vertically cleared)<br>`1`: `FAR` ($35\text{--}80\text{ px}$)<br>`2`: `CLOSE` ($\le 35\text{ px}$, avoidance zone) | Provides sensory perception of floating ghosts in Levels 4 & 5, resolving lethal ghost collision aliasing. |
 | **`ghost_alt`** | `0` or `1` | `0`: `LOW / NONE` ($y_{\text{ghost}} \ge \text{floor\_y} - 60\text{px}$)<br>`1`: `HIGH` ($y_{\text{ghost}} < \text{floor\_y} - 60\text{px}$) | Distinguishes whether Hoá must jump over a low ghost (`0`) or stay grounded and walk under a high ghost (`1`). |
+| **`ghost_approaching`** | `0` or `1` | `1`: Approaching ($v_{\text{ghost}} < -0.01$ and $\text{ghost\_dist} \ne 0$)<br>`0`: Retreating / None / Flat ($v_{\text{ghost}} \ge -0.01$ or $\text{ghost\_dist} == 0$) | Solves the **non-stationary ghost POMDP failure mode**. Distinguishes oncoming hazards (closing speed $4.0\text{ px/tick}$) from retreating hazards. |
 
 
 ### 2.3 State Space Cardinality Calculation
 
-$$|\mathcal{S}| = 2 \times 3 \times 4 \times 2 \times 3 \times 3 \times 2 = 864 \text{ maximum discrete states}$$
+$$|\mathcal{S}| = 2 \times 3 \times 4 \times 2 \times 3 \times 3 \times 2 \times 2 = 1{,}728 \text{ maximum discrete states}$$
 
-* **Level Invariance**: In Levels 1–3 where ghosts do not appear, `ghost_dist` and `ghost_alt` collapse to `(0, 0)`, operating at exactly $144$ effective states. In Levels 4–5 with patrolling ghosts, the state space expands up to 864 states, which converges rapidly under tabular Q-learning while remaining fully Markovian.
+* **Level Invariance**: In Levels 1–3 where ghosts do not appear, `ghost_dist`, `ghost_alt`, and `ghost_approaching` collapse to `(0, 0, 0)`, operating at exactly $144$ effective states. In Levels 4–5 with patrolling ghosts, the state space expands up to 1,728 maximum states (~1,296 reachable), which converges rapidly under tabular Q-learning while remaining fully Markovian.
 
 ---
 
@@ -98,7 +99,7 @@ flowchart TD
 
 #### Mathematical Formulation
 
-$$r_{t+1} = r_{\text{progress}}(\Delta x) + r_{\text{goal}} \cdot \mathbb{I}_{\text{reached\_goal}} + r_{\text{pit}} \cdot \mathbb{I}_{\text{fell\_in\_pit}} + r_{\text{ghost}} \cdot \mathbb{I}_{\text{hit\_ghost}} + r_{\text{obstacle}} \cdot \mathbb{I}_{\text{hit\_obstacle}} + r_{\text{item}} \cdot \mathbb{I}_{\text{collected\_item}} + r_{\text{step}}$$
+$$r_{t+1} = r_{\text{progress}}(\Delta x) + r_{\text{goal}} \cdot \mathbb{I}_{\text{reached\_goal}} + r_{\text{pit}} \cdot \mathbb{I}_{\text{fell\_in\_pit}} + r_{\text{ghost}} \cdot \mathbb{I}_{\text{hit\_ghost}} + r_{\text{obstacle}} \cdot \mathbb{I}_{\text{hit\_obstacle}} + r_{\text{item}} \cdot \mathbb{I}_{\text{collected\_item}} + r_{\text{step}} + r_{\text{wait\_bonus}}$$
 
 #### Key Architectural Features:
 1. **Asymmetric Horizontal Progress ($r_{\text{progress}}$)**:
@@ -114,8 +115,10 @@ $$r_{t+1} = r_{\text{progress}}(\Delta x) + r_{\text{goal}} \cdot \mathbb{I}_{\t
    Provides an explicit positive incentive upon collecting warmth items along the journey.
 6. **Obstacle Collision Penalty ($r_{\text{obstacle}} = -3.0$)**:
    Teaches the agent that running into the side of a tombstone delays forward progress compared to clearing it via a jump.
-7. **Living Cost ($r_{\text{step}} = -0.1$)**:
-   Applies a minor penalty every tick, deterring hesitation, standing still (`Action.STAY`), or excessive stalling.
+7. **Living Cost ($r_{\text{step}} = -0.02$)**:
+   Calibrated mild living cost satisfying the patience condition ($\sum_{k=0}^4 0.99^k (-0.02) \approx -0.10 \gg -75.0$), eliminating impatience bias and allowing tactical hesitation (`Action.STAY`).
+8. **Safe-Zone Waiting Incentive ($r_{\text{wait\_bonus}} = +0.05$)**:
+   Active safety barrier shaping that completely offsets living cost and reinforces patience when `Action.STAY` is executed while an oncoming hazard is approaching in the FAR proximity zone ($35\text{--}80\text{px}$, $v_{\text{ghost}} < -0.01$).
 
 ---
 
