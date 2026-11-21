@@ -133,6 +133,13 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
   - Added death event handling and `"INCINERATED! Burned by the grave's inferno!"` overlay banner in `play_human.py`.
   - Configured flame pits in `env/map_levels.py`: Level 4 Pit 2, Level 5 Pit 1 & 2 (with staggered 50-tick offset for alternating eruption).
   - Added 3 unit tests (`test_pit_fire_phases_and_bounding_box`, `test_pit_fire_lethal_collision`, `test_pit_fire_safe_crossing_during_dormant_phase`), bringing automated test suite to 13/13 passing tests in `0.041s`.
+- **Step 13**: Decoupled UI Rendering from Physics Simulation Engine (Single Responsibility Principle Refactor):
+  - Extracted all Pygame rendering, display scaling, camera offset, color palettes, and drawing methods into a dedicated `GameRenderer` class in `env/game_renderer.py`.
+  - Refactored `GameEnvironment` in `env/game_env.py` to be a pure physics simulation engine and MDP contract, completely eliminating Pygame surface and font dependencies.
+  - Removed display dimensions (`screen_width`, `screen_height`) from `GameEnvironment`, preserving only physical world logic dimensions (`canvas_width = 800`, `canvas_height = 400`, `floor_y = 320.0`).
+  - Added `show_overlay()` and `show_game_over(env, events)` to `GameRenderer`, centralizing all banner presentation, drop-shadow typography, and event-pump pauses.
+  - Refactored `play_human.py` into a lightweight controller loop by replacing manual surface drawing with a one-line call to `env.show_game_over(events)`.
+  - Exported `GameRenderer` in `env/__init__.py`. All 13 headless unit tests pass cleanly in `0.039s`.
 
 ---
 
@@ -158,17 +165,33 @@ Holds lightweight data models and hitbox geometry with zero rendering or RL coup
 - **`WarmthItem`**: Collectible warmth item (`x`, `y`, `14x14`, `is_collected=False`) with `reset()` and `rect`/`right`/`bottom`.
 - **`GoalFlag`**: Hoá's warm home (`x`, `y`, `64x88`) with `is_reached(player)` win detection.
 
-### 5.3 `env/game_env.py` — 2D Physics Engine & Graveyard Renderer
-Concrete `GameEnvironment(BaseEnvironment)` driving physics, collisions, dynamic hazards, state extraction, and midnight graveyard Pygame rendering.
+### 5.3 `env/game_env.py` — 2D Physics Engine & Simulation Contract
+Concrete `GameEnvironment(BaseEnvironment)` driving physics kinematics, axis-separated AABB collisions, dynamic hazards, state extraction, and headless execution. Free of all Pygame surface drawing code.
 
-- **Physics Constants & Resolution**: `GRAVITY = 0.8`, `WALK_SPEED = 4.0`, `JUMP_FORCE = -13.0`, `DOUBLE_JUMP_RATIO = 0.88`, `SLIDE_FRICTION = 0.82`, `STANDING_HEIGHT = 32.0`, `CROUCH_HEIGHT = 18.0`. Logic runs on `canvas_width=800, canvas_height=400` with `floor_y=320.0`, scaled to `screen_width=1400, screen_height=700` display.
+- **Physics Constants & World Bounds**: `GRAVITY = 0.8`, `WALK_SPEED = 4.0`, `JUMP_FORCE = -13.0`, `DOUBLE_JUMP_RATIO = 0.88`, `SLIDE_FRICTION = 0.82`, `STANDING_HEIGHT = 32.0`, `CROUCH_HEIGHT = 18.0`. Physical logic runs on `canvas_width=800, canvas_height=400` with `floor_y=320.0`.
 - **Lifecycle Methods**:
   - `reset() -> RawState`: Restores Hoá, all ghosts, all warmth items, and `step_count = 0`.
-  - `step(action) -> (RawState, GameEvents, bool)`: Runs axis-separated X/Y AABB collisions, pit-fall guard (`old_bottom <= floor_y`), updates ghosts, checks warmth pickups, checks termination (`hit_ghost`, `fell_in_pit`, `reached_goal`, `max_steps`), and returns state + events.
-  - `render()` / `close()`: Lazy-initializes Pygame (`"Hoá's Midnight Escape"`), renders to internal canvas, draws fixed 3-line HUD (`_draw_hud`), floating name tag (`_draw_player`), and scales to the display window.
-- **Helpers**: `_get_raw_state()` (nearest upcoming tombstone, pit, ghost + Y, uncollected item, and home), `_rects_overlap()`, and `_draw_hud()` (level name, remaining step countdown, warmth counter).
+  - `step(action) -> (RawState, GameEvents, bool)`: Runs axis-separated X/Y AABB collisions, pit-fall guard (`old_bottom <= floor_y`), updates ghosts, checks warmth pickups, checks clean termination (`hit_ghost`, `hit_fire`, `fell_in_pit`, `reached_goal`, `max_steps`), and returns state + events.
+  - `render()` / `close()`: Lazily instantiates `GameRenderer` on demand and delegates drawing. Stepping headlessly leaves renderer as `None` for zero overhead.
+  - `show_game_over(events)`: Delegates end-screen banner display to the active renderer.
+- **Helpers**: `_get_raw_state()` (nearest upcoming tombstone, pit + fire phase, ghost + Y, uncollected item, and home) and `_rects_overlap()`.
 
-### 5.4 `env/map_levels.py` — 5-Level Curriculum Registry
+### 5.4 `env/game_renderer.py` — Pygame Graphical View & Presentation
+Dedicated `GameRenderer` class encapsulating all visual elements, display scaling, and user feedback:
+
+- **Display Management**: Maps internal `800x400` logic canvas to `1400x700` window display with 60 FPS clock synchronization.
+- **Midnight Graveyard Aesthetics**: Moon, decorative stars, layered soil/grass, and complete color palette.
+- **Layered Entity Drawing**:
+  - `_draw_background()`: Sky, moon, stars, soil, grass, grave pits, and multi-layered flame jets (embers in warning phase, crimson pillar + core + peaked tip in active phase).
+  - `_draw_tombstone()`: Latin crosses (`"cross"`) and arched Buddhist sauwastikas (`"buddhist"` / `卍`).
+  - `_draw_ghost()`: Spectral body, wavy tails, and hollow eyes.
+  - `_draw_item()`: Glowing warmth stamina pickups.
+  - `_draw_home()`: Sanctuary home with warm yellow window.
+  - `_draw_player()`: Directional winter jacket, head, and floating `"Hoá"` nametag with contrast drop shadow.
+  - `_draw_hud()`: Level name, remaining steps countdown, and warmth item counter.
+- **Interactive UI Banners**: `show_overlay()` (semi-transparent alpha overlay with key-press skipping) and `show_game_over()` (automatic title, subtitle, and color selection based on outcome).
+
+### 5.5 `env/map_levels.py` — 5-Level Curriculum Registry
 Separates stage definitions from `GameEnvironment` (Open/Closed Principle) with `DEFAULT_FLOOR_Y = 320.0`.
 
 - **`LevelConfig` *(dataclass)***: Bundles `name`, `obstacles`, `pits`, `goal`, `ghosts`, `items`, `floor_y`, `max_steps`.
@@ -176,13 +199,13 @@ Separates stage definitions from `GameEnvironment` (Open/Closed Principle) with 
   - `1 -> _build_level_1` (*Quiet Graveyard*): 2 tombstones, no pits/ghosts/items (`max_steps=800`).
   - `2 -> _build_level_2` (*Open Graves Pits*): 3 tombstones + 2 pits (`max_steps=1000`).
   - `3 -> _build_level_3` (*Cold Trail*): Shifted tombstones/pits + 3 warmth items (`max_steps=1000`).
-  - `4 -> _build_level_4` (*Whispering Graves*): 3 tombstones + 2 pits + 3 items + 2 uniform ghosts (`max_steps=1000`).
-  - `5 -> _build_level_5` (*Midnight Escape*): 4 tombstones + 2 pits + 4 items + 4 diverse ghosts (`max_steps=1000`).
+  - `4 -> _build_level_4` (*Whispering Graves*): 3 tombstones + 2 pits (Pit 2 has flame jet) + 3 items + 2 uniform ghosts (`max_steps=1000`).
+  - `5 -> _build_level_5` (*Midnight Escape*): 4 tombstones + 2 alternating flame pits + 4 items + 4 diverse ghosts (`max_steps=1000`).
 - **Public Factories**: `get_level(level_id)` and `create_env(level_id)`.
 
-### 5.5 Package Entry Exports (`core/__init__.py`, `env/__init__.py`)
+### 5.6 Package Entry Exports (`core/__init__.py`, `env/__init__.py`)
 - **`core/__init__.py`**: Exports `Action`, `RawState`, `GameEvents`, `BaseEnvironment`.
-- **`env/__init__.py`**: Exports `Player`, `Obstacle`, `Pit`, `Ghost`, `WarmthItem`, `GoalFlag`, `GameEnvironment`, `LevelConfig`, `LEVEL_BUILDERS`, `get_level`, `create_env`.
+- **`env/__init__.py`**: Exports `Player`, `Obstacle`, `Pit`, `Ghost`, `WarmthItem`, `GoalFlag`, `GameEnvironment`, `GameRenderer`, `LevelConfig`, `LEVEL_BUILDERS`, `get_level`, `create_env`.
 
-### 5.6 `play_human.py` — Interactive Playable Entry Point
-Standalone keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`) stepping `GameEnvironment` at 60 FPS with live switching across Levels `1–5`, freeze-safe manual resets (`R`), event logs, and exit (`Esc`).
+### 5.7 `play_human.py` — Interactive Playable Entry Point
+Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Down`) stepping `GameEnvironment` at 60 FPS with live level switching (`1–5`), freeze-safe resets (`R`), automatic victory/death overlays (`env.show_game_over(events)`), and exit (`Esc`).

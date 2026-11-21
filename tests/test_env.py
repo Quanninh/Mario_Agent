@@ -19,7 +19,7 @@ class TestGameEnvironment(unittest.TestCase):
                 if done:
                     state = env.reset()
             # Verify Pygame window was NEVER opened during headless stepping
-            self.assertIsNone(env._screen)
+            self.assertIsNone(env._renderer)
 
     def test_reset_restores_player_ghosts_and_items(self) -> None:
         """reset() must restore Hoá, all ghosts, and all collected warmth items."""

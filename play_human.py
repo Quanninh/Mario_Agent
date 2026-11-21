@@ -16,53 +16,6 @@ def load_level(level_id: int):
     )
     return env, state
 
-def show_overlay(env, title: str, subtitle: str, color=(255, 255, 255), duration_ms: int = 1400) -> None:
-    """Render a semi-transparent dark banner overlay and pause briefly before reset."""
-    if env._screen is None:
-        return
-
-    sw, sh = env.screen_width, env.screen_height
-
-    # Semi-transparent dark overlay over the frozen frame
-    overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 160))
-    env._screen.blit(overlay, (0, 0))
-
-    pygame.font.init()
-    title_font = pygame.font.SysFont("Arial", 44, bold=True)
-    sub_font = pygame.font.SysFont("Arial", 18, bold=True)
-
-    # Title with drop shadow
-    t_surf = title_font.render(title, True, color)
-    t_rect = t_surf.get_rect(center=(sw // 2, sh // 2 - 22))
-    t_shadow = title_font.render(title, True, (10, 10, 10))
-    env._screen.blit(t_shadow, (t_rect.x + 2, t_rect.y + 2))
-    env._screen.blit(t_surf, t_rect)
-
-    # Subtitle with drop shadow
-    s_surf = sub_font.render(subtitle, True, (230, 235, 245))
-    s_rect = s_surf.get_rect(center=(sw // 2, sh // 2 + 26))
-    s_shadow = sub_font.render(subtitle, True, (10, 10, 10))
-    env._screen.blit(s_shadow, (s_rect.x + 1, s_rect.y + 1))
-    env._screen.blit(s_surf, s_rect)
-
-    pygame.display.flip()
-
-    # Event-pumping pause so window never freezes during the overlay
-    start_time = pygame.time.get_ticks()
-    while pygame.time.get_ticks() - start_time < duration_ms:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                env.close()
-                return
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    env.close()
-                    return
-                elif event.key in (pygame.K_r, pygame.K_SPACE, pygame.K_RETURN):
-                    return
-        pygame.time.delay(20)
-
 
 def main() -> None:
     current_level = 1
@@ -88,7 +41,7 @@ def main() -> None:
 
     while True:
         # Stop cleanly if window was closed inside env.render()
-        if env._screen is None:
+        if not env.is_running:
             break
 
         keys = pygame.key.get_pressed()
@@ -147,49 +100,7 @@ def main() -> None:
             print(f"Warmth item collected at x={state.player_x:.1f}!")
 
         if done:
-            if events.reached_goal:
-                collected = sum(1 for item in env.items if item.is_collected)
-                total = len(env.items)
-                warmth_info = f" • Warmth: {collected}/{total}" if total > 0 else ""
-                show_overlay(
-                    env,
-                    title="HOME SAFE!",
-                    subtitle=f"Cleared {env.level_name} in {env.step_count} steps!{warmth_info}",
-                    color=(110, 245, 150),  # Radiant emerald green
-                    duration_ms=5000,
-                )
-            elif events.hit_fire:
-                show_overlay(
-                    env,
-                    title="INCINERATED!",
-                    subtitle="Burned by the grave's inferno!",
-                    color=(255, 95, 30),  # Intense fiery orange
-                    duration_ms=3000,
-                )
-            elif events.hit_ghost:
-                show_overlay(
-                    env,
-                    title="GAME OVER",
-                    subtitle="Caught by a spectral ghost!",
-                    color=(255, 80, 80),   # Crimson red
-                    duration_ms=3000,
-                )
-            elif events.fell_in_pit:
-                show_overlay(
-                    env,
-                    title="GAME OVER",
-                    subtitle="Fell into an open grave pit!",
-                    color=(255, 80, 80),
-                    duration_ms=3000,
-                )
-            else:
-                show_overlay(
-                    env,
-                    title="TIME OUT",
-                    subtitle="The freezing midnight overcame Hoá...",
-                    color=(255, 185, 70),  # Cold amber
-                    duration_ms=3000,
-                )
+            env.show_game_over(events)
             state = env.reset()
 
     env.close()

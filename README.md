@@ -21,7 +21,8 @@ Mario_Agent/
 │   └── __init__.py
 ├── env/                    # [Physics & Graphics] 2D platformer implementation
 │   ├── entities.py         # Player, Obstacle, Pit, Ghost, WarmthItem, GoalFlag
-│   ├── game_env.py         # GameEnvironment (AABB collisions, headless mode, Pygame HUD)
+│   ├── game_env.py         # GameEnvironment (Physics simulation, AABB collisions, headless mode)
+│   ├── game_renderer.py    # GameRenderer (Pygame graphics, camera tracking, HUD, overlay banners)
 │   ├── map_levels.py       # 5 progressive curriculum stages (LevelConfig & registry)
 │   └── __init__.py
 ├── agent/                  # [RL Agent] Tabular Q-Learning implementation
@@ -33,8 +34,9 @@ Mario_Agent/
 
 ### Key Architectural Highlights:
 - **Dependency Inversion**: Higher-level learning modules (Q-Agent, Trainer, Reward Strategies) depend solely on abstract interfaces in `core/base_env.py`, never on Pygame or concrete entity classes.
-- **Headless-First Design**: Rendering is strictly decoupled and lazily initialized. Stepping headlessly bypasses all graphical overhead, ensuring blazingly fast training throughput.
-- **Canvas Scaling**: Internal physics and relative vision sensors operate on a clean `800x400` logical canvas, scaled smoothly to higher-resolution display viewports (e.g., `1400x700`) without altering physics equations or Q-table cardinality.
+- **Single Responsibility (Physics vs. Rendering)**: `GameEnvironment` is strictly dedicated to physics kinematics, AABB collisions, crouch slides, double jumps, and local sensor extraction. All Pygame display logic, camera tracking, and overlay banners are encapsulated in `GameRenderer`.
+- **Headless-First Design**: Stepping headlessly never initializes Pygame or loads graphical surfaces, ensuring blazingly fast training throughput (>100,000 steps/sec).
+- **Canvas Scaling**: Internal physics and relative vision sensors operate on a clean `800x400` logical canvas, scaled smoothly to higher-resolution display viewports (`1400x700`) without altering physics equations or Q-table cardinality.
 
 ---
 
