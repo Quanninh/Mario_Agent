@@ -277,3 +277,7 @@ class HybridQSARSAAgent(BaseAgent):
     # Aliases for backward compatibility and uniform API with TabularQAgent
     load_q_table = load
     save_q_table = save
+
+
+# Convenience alias
+HybridAgent = HybridQSARSAAgent
