@@ -12,6 +12,9 @@ class GameEnvironment(BaseEnvironment):
     WALK_SPEED: float = 4.0
     JUMP_FORCE: float = -13.0
     DOUBLE_JUMP_RATIO: float = 0.88
+    SLIDE_FRICTION: float = 0.90
+    STANDING_HEIGHT: float = 32.0
+    CROUCH_HEIGHT: float = 18.0
 
     # Midnight Graveyard color palette 
     COLOR_SKY = (15, 20, 45)
@@ -106,31 +109,52 @@ class GameEnvironment(BaseEnvironment):
         was_grounded = self.player.is_grounded
         events = GameEvents()
 
-        # --------------------------------------
-        # Horizontal Movement & X-Axis Collision
-        # --------------------------------------
-        vx = 0.0
-        if action in (Action.RIGHT, Action.RIGHT_JUMP):
-            vx = self.WALK_SPEED
-            self.player.facing_right = True
-        elif action == Action.LEFT:
-            vx = -self.WALK_SPEED
-            self.player.facing_right = False
+        # --------------------------------------------------------
+        # Horizontal Movement, Crouch, Slide, and X-Axis Collision
+        # --------------------------------------------------------
+        if action == Action.CROUCH and self.player.is_grounded:
+            if not self.player.is_crouching:
+                # Transition standing -> crouching: lower head, keep feet on ground
+                self.player.is_crouching = True
+                self.player.y += (self.STANDING_HEIGHT - self.CROUCH_HEIGHT)
+                self.player.height = self.CROUCH_HEIGHT
+            self.player.vx *= self.SLIDE_FRICTION
+            if abs(self.player.vx) < 0.3:
+                self.player.vx = 0.0
+        else:
+            if self.player.is_crouching:
+                # Transition crouching -> standing: raise head back up
+                self.player.is_crouching = False
+                self.player.y -= (self.STANDING_HEIGHT - self.CROUCH_HEIGHT)
+                self.player.height = self.STANDING_HEIGHT
 
-        self.player.x += vx
+            # Update velocity for standard walking / jumping
+            if action in (Action.RIGHT, Action.RIGHT_JUMP):
+                self.player.vx = self.WALK_SPEED
+                self.player.facing_right = True
+            elif action == Action.LEFT:
+                self.player.vx = -self.WALK_SPEED
+                self.player.facing_right = False
+            elif action in (Action.STAY, Action.JUMP):
+                self.player.vx = 0.0
+
+        self.player.x += self.player.vx
 
         # Prevent walking off the left screen boundary
         if self.player.x < 0.0:
             self.player.x = 0.0
+            self.player.vx = 0.0
 
         # Resolve side collisions with obstacles
         for obs in self.obstacles:
             if self._rects_overlap(self.player.rect, obs.rect):
                 events.hit_obstacle = True
-                if vx > 0:  # Moving right -> snap to left edge of obstacle
+                if self.player.vx > 0:  # Moving right -> snap to left edge of obstacle
                     self.player.x = obs.x - self.player.width
-                elif vx < 0:  # Moving left -> snap to right edge of obstacle
+                    self.player.vx = 0.0
+                elif self.player.vx < 0:  # Moving left -> snap to right edge of obstacle
                     self.player.x = obs.right
+                    self.player.vx = 0.0
 
         # -----------------------------------------------------
         # Vertical Movement (Jump + Gravity) & Y-Axis Collision
@@ -509,9 +533,11 @@ class GameEnvironment(BaseEnvironment):
         return RawState(
             player_x=self.player.x,
             player_y=self.player.y,
+            velocity_x =self.player.vx,
             velocity_y=self.player.vy,
             is_grounded=self.player.is_grounded,
             can_double_jump=self.player.can_double_jump,
+            is_crouching=self.player.is_crouching,
             dist_to_obstacle=dist_to_obstacle,
             obstacle_height=obstacle_height,
             dist_to_pit=dist_to_pit,

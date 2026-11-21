@@ -9,17 +9,21 @@ class Action:
     JUMP = 2
     RIGHT = 3
     RIGHT_JUMP = 4
+    CROUCH = 5
 
-    NUM_ACTIONS = 5
+    NUM_ACTIONS = 6
 
 @dataclass
 class RawState:
     """Continuous physical state of the game world."""
+    # Player Kinematics & Posture
     player_x: float          # Hoá's current horizontal position
     player_y: float          # Hoá's current vertical position
+    velocity_x: float        # Current horizontal velocity (momentum / slide)
     velocity_y: float        # Current vertical velocity (gravity / jump)
     is_grounded: bool        # True if standing on ground or tombstone
-    
+    can_double_jump: bool    # True ONLY when in mid-air with second jump available
+    is_crouching: bool       # True when Hoá is ducking or sliding with low hitbox
 
     # Proximity features (what Hoá "sees" ahead)
     dist_to_obstacle: float  # Distance to nearest tombstone ahead (-1 if none)
@@ -30,7 +34,6 @@ class RawState:
     dist_to_item: float      # Distance to nearest warmth item ahead (-1 if none)
     dist_to_goal: float      # Distance remaining to Hoá's home
 
-    can_double_jump: bool = False    # True ONLY when in mid-air with second jump available
     
 
 @dataclass

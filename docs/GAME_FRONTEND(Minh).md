@@ -84,7 +84,7 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 
 #### Tier 3 — New Gameplay & Dynamic Hazard Mechanics *(Active Focus)*
 - [x] **9. Mid-air Double Jump & Ledge Recovery (`can_double_jump`)**: Allow Hoá to execute a second jump while airborne (`not is_grounded`), allowing recovery from miscalculated pit leaps and dodging high hovering ghosts. Also grants 1 recovery jump if walking off a ledge into the air. Reuses existing `Action.JUMP` and `Action.RIGHT_JUMP` without expanding the action space, while exposing a binary `can_double_jump: bool` flag in `RawState` for the RL agent.
-- [ ] **10. Player Crouch / Duck (`Action.CROUCH`)**: Add crouch action (`S` / `Down` key) that lowers Hoá's hitbox height (e.g., `32 -> 18` px) to duck under mid-height ghosts or laser beams *(expands `Action.NUM_ACTIONS` from 5 to 6)*.
+- [x] **10. Player Crouch & Momentum Slide (`Action.CROUCH`)**: Lowers Hoá's hitbox height from $32\text{px} \to 18\text{px}$ (`S` / `Down` key) to duck under hovering ghosts. Implements physical ducking in place when stationary and momentum-based sliding when running ($v_{x, t} = v_{x, t-1} \cdot 0.82$), keeping feet anchored to the ground *(expands `Action.NUM_ACTIONS` from 5 to 6)*.
 - [ ] **11. Fire Erupting from Grave Pits**: Periodic flame jets shooting upward out of selected pits on a cycle (`idle -> warning glow -> active lethal flame -> cooldown`), with pit-fire phase exposed in `RawState` so the AI can time its jumps.
 - [ ] **12. Ghosts Shooting Rotating Eye-Laser Beams**: Opt-in per ghost (`has_laser=True`) — fires a lethal laser beam from the ghost's eyes that **rotates continuously in a circle (`0..2π`) while the ghost patrols** (using `(eye_x + L*cos(θ), eye_y + L*sin(θ))`, pure-Python line-segment vs. player AABB collision for headless speed, and nearest-laser angle/danger flag in `RawState`).
 - [ ] **13. Rising & Charging Skeleton Ambush from Tombs**: Special mausoleum tombs that trigger when Hoá approaches (proximity $< 180\text{px}$): a skeletal warrior bursts upward from the grave, leaps forward, and sprints aggressively toward the player (`dx = player.x - skeleton.x`), demanding quick reaction timing or a high double jump to evade. Requires a new `Skeleton` entity with ground physics, pursuit logic, and nearest skeleton proximity in `RawState`.
@@ -116,6 +116,14 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
   - Added `DOUBLE_JUMP_RATIO = 0.88` to `GameEnvironment` in `env/game_env.py`. Enabled double jump on initial jump and granted 1 recovery jump on stepping off ledges (`was_grounded and not is_grounded`). Reset to `False` upon landing on obstacles or the ground.
   - Implemented tap-only air jump input detection in `play_human.py`.
   - Expanded test suite in `tests/test_env.py` from 6 to 9 tests (`test_double_jump_and_recovery`, `test_ledge_slip_recovery_over_pit`, `test_pit_death_after_double_jump`), all passing cleanly in `0.026s`.
+- **Step 11**: Implemented Momentum-Based Crouch & Slide Mechanics:
+  - Expanded `Action` space to 6 (`Action.CROUCH = 5`, `NUM_ACTIONS = 6`).
+  - Reorganized `RawState` into 2 clean logical groups (Kinematics & Proximity) without dataclass argument ordering issues, adding `velocity_x: float` and `is_crouching: bool`.
+  - Added `vx: float = 0.0` and `is_crouching: bool = False` to `Player` in `env/entities.py`.
+  - Added physics constants in `env/game_env.py`: `SLIDE_FRICTION = 0.90`, `STANDING_HEIGHT = 32.0`, `CROUCH_HEIGHT = 18.0`.
+  - Implemented physical crouch logic: ducks in place when still ($v_x = 0$), momentum-slides with friction when running ($v_{x, t} = v_{x, t-1} \cdot 0.82$), and smoothly anchors feet to the floor during transitions.
+  - Mapped `S` / `Down Arrow` in `play_human.py` for crouch/slide control.
+  - Added `test_crouch_and_momentum_slide` in `tests/test_env.py`, bringing the automated test suite to 10/10 passing tests in `0.043s`.
 
 ---
 
@@ -124,9 +132,9 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 ### 5.1 `core/base_env.py` — Environment Contract & Abstractions
 Defines the shared interface and data structures decoupling the physics engine from the RL agent, discretizer, and reward modules (Dependency Inversion Principle).
 
-- **`Action`**: Discrete action constants (`STAY=0`, `LEFT=1`, `JUMP=2`, `RIGHT=3`, `RIGHT_JUMP=4`, `NUM_ACTIONS=5`).
+- **`Action`**: Discrete action constants (`STAY=0`, `LEFT=1`, `JUMP=2`, `RIGHT=3`, `RIGHT_JUMP=4`, `CROUCH=5`, `NUM_ACTIONS=6`).
 - **`RawState` *(dataclass)***: Continuous physical snapshot passed to Member 2's discretizer:
-  - Player kinematics: `player_x`, `player_y`, `velocity_y`, `is_grounded`, `can_double_jump` (binary recovery/air-jump flag).
+  - Player kinematics: `player_x`, `player_y`, `velocity_x`, `velocity_y`, `is_grounded`, `can_double_jump`, `is_crouching`.
   - Local vision ahead: `dist_to_obstacle`, `obstacle_height`, `dist_to_pit`, `dist_to_ghost`, `ghost_y`, `dist_to_item`, `dist_to_goal`.
 - **`GameEvents` *(dataclass)***: Per-step outcome flags passed to Member 3's reward strategy (`dx`, `reached_goal`, `fell_in_pit`, `hit_obstacle`, `hit_ghost`, `collected_item`).
 - **`BaseEnvironment(ABC)`**: Abstract contract enforcing `reset()`, `step(action)`, `render()`, and `close()`.
@@ -134,7 +142,7 @@ Defines the shared interface and data structures decoupling the physics engine f
 ### 5.2 `env/entities.py` — Physical Game Objects
 Holds lightweight data models and hitbox geometry with zero rendering or RL coupling (Single Responsibility Principle).
 
-- **`Player`**: Hoá's entity (`x`, `y`, hitbox `24x32`, `vy`, `is_grounded`, `can_double_jump`, `is_alive`, `facing_right`) with `reset(start_x, start_y)` and bounding-box properties (`rect`, `right`, `bottom`).
+- **`Player`**: Hoá's entity (`x`, `y`, hitbox `24x32`, `vx`, `vy`, `is_grounded`, `can_double_jump`, `is_crouching`, `is_alive`, `facing_right`) with `reset(start_x, start_y)` and bounding-box properties (`rect`, `right`, `bottom`).
 - **`Obstacle`**: Tall tombstone (`x`, `y`, default `32x48`) with `rect`, `right`, `bottom`.
 - **`Pit`**: Bottomless open grave (`x_start`, `x_end`) with `contains(x, width)` center-of-mass check.
 - **`Ghost`**: Hovering ghost (`x`, `y`, `patrol_min_x`, `patrol_max_x`, `speed=1.5`, `width=24`, `height=28`, `float_amplitude=8.0`, `float_speed=0.08`) with wrapped sinusoidal wave (`% 2*pi`), `update()`, `reset()`, and `rect`/`right`/`bottom`.
@@ -144,7 +152,7 @@ Holds lightweight data models and hitbox geometry with zero rendering or RL coup
 ### 5.3 `env/game_env.py` — 2D Physics Engine & Graveyard Renderer
 Concrete `GameEnvironment(BaseEnvironment)` driving physics, collisions, dynamic hazards, state extraction, and midnight graveyard Pygame rendering.
 
-- **Physics Constants & Resolution**: `GRAVITY = 0.8`, `WALK_SPEED = 4.0`, `JUMP_FORCE = -13.0`, `DOUBLE_JUMP_RATIO = 0.88` (air jump force $\approx -11.44$). Logic runs on `canvas_width=800, canvas_height=400` with `floor_y=320.0`, scaled to `screen_width=1400, screen_height=700` display.
+- **Physics Constants & Resolution**: `GRAVITY = 0.8`, `WALK_SPEED = 4.0`, `JUMP_FORCE = -13.0`, `DOUBLE_JUMP_RATIO = 0.88`, `SLIDE_FRICTION = 0.82`, `STANDING_HEIGHT = 32.0`, `CROUCH_HEIGHT = 18.0`. Logic runs on `canvas_width=800, canvas_height=400` with `floor_y=320.0`, scaled to `screen_width=1400, screen_height=700` display.
 - **Lifecycle Methods**:
   - `reset() -> RawState`: Restores Hoá, all ghosts, all warmth items, and `step_count = 0`.
   - `step(action) -> (RawState, GameEvents, bool)`: Runs axis-separated X/Y AABB collisions, pit-fall guard (`old_bottom <= floor_y`), updates ghosts, checks warmth pickups, checks termination (`hit_ghost`, `fell_in_pit`, `reached_goal`, `max_steps`), and returns state + events.

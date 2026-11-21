@@ -67,12 +67,13 @@ python play_human.py
 | `A` / `Left Arrow` | Walk Left |
 | `D` / `Right Arrow` | Walk Right |
 | `Space` / `W` / `Up Arrow` | Jump (also skips Game Over/Win overlay) |
+| `S` / `Down Arrow` | Crouch & Momentum Slide (Ducks under ghosts, height $32 \to 18\text{px}$) |
 | `1` – `5` | Instant Curriculum Level Switch |
 | `R` / `Enter` | Reset Level / Skip Game Over or Win Overlay |
 | `Esc` | Quit Application |
 
 ### Automated Headless Tests
-Run the 9 automated unit tests verifying deterministic resets, ghost/pit collision physics, item pickups, double jump & ledge recovery mechanics, and win triggers:
+Run the 10 automated unit tests verifying deterministic resets, ghost/pit collision physics, item pickups, double jump & ledge recovery, momentum crouch/slide mechanics, and win triggers:
 ```bash
 python3 -m unittest discover tests
 ```
@@ -97,7 +98,7 @@ Future enhancements categorized from immediate visual polish to advanced dynamic
 
 ### Tier 3 — Dynamic Gameplay & Hazard Mechanics *(Active Focus)*
 - [x] **Mid-air Double Jump & Ledge Recovery (`can_double_jump`)**: Enables Hoá to execute a second jump while airborne to recover from missed pit jumps or leap over high ghosts. Also grants 1 recovery jump if stepping off an edge without jumping. Reuses `Action.JUMP` / `Action.RIGHT_JUMP` without expanding the action space; exposes `can_double_jump: bool` in `RawState`.
-- [ ] **Player Crouch / Duck (`Action.CROUCH`)**: Lowers Hoá's hitbox (`32 -> 18` px) to duck under hovering ghosts or traps.
+- [x] **Player Crouch & Momentum Slide (`Action.CROUCH`)**: Lowers Hoá's hitbox height from $32\text{px} \to 18\text{px}$ to duck under hovering ghosts. Ducks in place when stationary and performs a friction-decelerated slide ($v_{x, t} = v_{x, t-1} \cdot 0.82$) when running. Expands action space to 6 (`Action.CROUCH = 5`, `NUM_ACTIONS = 6`).
 - [ ] **Pit Flame Hazards**: Periodic flame jets erupting from grave pits on timed cycles.
 - [ ] **Rotating Ghost Eye-Lasers**: Ghosts firing lethal rotating laser beams while patrolling.
 - [ ] **Rising & Charging Skeleton Ambush**: Special mausoleum tombs that trigger when Hoá approaches (proximity $< 180\text{px}$): a skeleton bursts upward from the grave, leaps forward, and sprints aggressively toward the player (`dx = player.x - skeleton.x`), requiring rapid jump evasion.

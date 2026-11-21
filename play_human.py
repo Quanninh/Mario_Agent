@@ -115,6 +115,7 @@ def main() -> None:
         moving_right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
         moving_left = keys[pygame.K_LEFT] or keys[pygame.K_a]
         jump_key_down = keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]
+        crouching = keys[pygame.K_DOWN] or keys[pygame.K_s]
 
         # Grounded: holding jump triggers initial jump.
         # Airborne: requires a fresh tap to trigger mid-air double jump.
@@ -125,7 +126,9 @@ def main() -> None:
 
         jump_key_pressed = jump_key_down
 
-        if moving_right and jumping:
+        if crouching and env.player.is_grounded:
+            action = Action.CROUCH
+        elif moving_right and jumping:
             action = Action.RIGHT_JUMP
         elif moving_right:
             action = Action.RIGHT

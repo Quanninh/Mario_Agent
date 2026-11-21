@@ -9,9 +9,11 @@ class Player:
     y: float                        # Vertical coordinates on the 2D grid
     width: float = 24.0             # Hitbox (24 pixels) used for collision detection 
     height: float = 32.0            # Hitbox (32 pixels) used for collision detection 
+    vx: float = 0.0                 # Horizontal Velocity: for momentum sliding
     vy: float = 0.0                 # Vertical Velocity: handle airborne physics
     is_grounded: bool = True        # True only when Mario is resting on solid ground or a platform
     can_double_jump: bool = False   # False on ground; becomes True only while airborne
+    is_crouching: bool = False
     is_alive: bool = True           # Set to False if Mario falls into a pit or hits a lethal hazard
     facing_right: bool = True       # Direction Hoá is facing (for rendering eyes)
 
@@ -19,7 +21,10 @@ class Player:
         """Reset Hoá to starting position."""
         self.x = start_x
         self.y = start_y
+        self.vx = 0.0
         self.vy = 0.0
+        self.height = 32.0
+        self.is_crouching = False
         self.is_grounded = True
         self.can_double_jump = False
         self.is_alive = True

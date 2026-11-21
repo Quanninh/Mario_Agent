@@ -155,5 +155,29 @@ class TestGameEnvironment(unittest.TestCase):
         self.assertFalse(env.player.is_alive)
         self.assertFalse(env.player.can_double_jump)
 
+    def test_crouch_and_momentum_slide(self) -> None:
+        """Crouching shrinks hitbox height to 18px and moving momentum slides with friction."""
+        env = GameEnvironment(obstacles=[], pits=[], ghosts=[], items=[])
+        env.reset()
+
+        # 1. Standing still: crouching drops height to 18px and stays still (vx=0)
+        state, _, _ = env.step(Action.CROUCH)
+        self.assertTrue(state.is_crouching)
+        self.assertEqual(env.player.height, 18.0)
+        self.assertEqual(env.player.vx, 0.0)
+
+        # 2. Release crouch: height returns to 32px
+        state, _, _ = env.step(Action.STAY)
+        self.assertFalse(state.is_crouching)
+        self.assertEqual(env.player.height, 32.0)
+
+        # 3. Running right then crouch: slides with decaying momentum
+        env.step(Action.RIGHT)
+        self.assertEqual(env.player.vx, env.WALK_SPEED)
+        state, _, _ = env.step(Action.CROUCH)
+        self.assertTrue(state.is_crouching)
+        # Velocity should be WALK_SPEED * SLIDE_FRICTION (3.28)
+        self.assertAlmostEqual(env.player.vx, env.WALK_SPEED * env.SLIDE_FRICTION, places=2)
+
 if __name__ == "__main__":
     unittest.main()
