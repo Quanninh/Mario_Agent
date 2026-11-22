@@ -35,11 +35,14 @@ def main() -> None:
         pygame.K_3: 3,
         pygame.K_4: 4,
         pygame.K_5: 5,
+        pygame.K_6: 6,
     }
+
+    jump_key_pressed = False
 
     while True:
         # Stop cleanly if window was closed inside env.render()
-        if env._screen is None:
+        if not env.is_running:
             break
 
         keys = pygame.key.get_pressed()
@@ -65,9 +68,21 @@ def main() -> None:
         # Map keyboard input -> Discrete Action ID
         moving_right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
         moving_left = keys[pygame.K_LEFT] or keys[pygame.K_a]
-        jumping = keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]
+        jump_key_down = keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]
+        crouching = keys[pygame.K_DOWN] or keys[pygame.K_s]
 
-        if moving_right and jumping:
+        # Grounded: holding jump triggers initial jump.
+        # Airborne: requires a fresh tap to trigger mid-air double jump.
+        if env.player.is_grounded:
+            jumping = jump_key_down
+        else:
+            jumping = jump_key_down and not jump_key_pressed
+
+        jump_key_pressed = jump_key_down
+
+        if crouching and env.player.is_grounded:
+            action = Action.CROUCH
+        elif moving_right and jumping:
             action = Action.RIGHT_JUMP
         elif moving_right:
             action = Action.RIGHT
@@ -86,14 +101,7 @@ def main() -> None:
             print(f"Warmth item collected at x={state.player_x:.1f}!")
 
         if done:
-            if events.reached_goal:
-                print(f"Hoá made it home! Cleared Level {current_level} in {env.step_count} steps!")
-            elif events.hit_ghost:
-                print(f"Caught by a ghost at x={state.player_x:.1f}!")
-            elif events.fell_in_pit:
-                print(f"Fell into a grave pit at x={state.player_x:.1f}!")
-            else:
-                print("Timeout!")
+            env.show_game_over(events)
             state = env.reset()
 
     env.close()
