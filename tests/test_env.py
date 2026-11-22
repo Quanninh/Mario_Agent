@@ -2,7 +2,7 @@ import random
 import unittest
 
 from core import Action, GameEvents
-from env import GameEnvironment, Ghost, GoalFlag, LEVEL_BUILDERS, Pit, WarmthItem, create_env
+from env import GameEnvironment, Ghost, LaserGhost, GoalFlag, LEVEL_BUILDERS, Pit, WarmthItem, create_env
 
 class TestGameEnvironment(unittest.TestCase):
     """Automated headless tests for Hoá's Midnight Escape environment."""
@@ -242,10 +242,10 @@ class TestGameEnvironment(unittest.TestCase):
 
     def test_ghost_laser_lethal_collision(self) -> None:
         """Walking or jumping into a ghost's rotating laser beam must trigger hit_laser and end episode."""
-        level_id = next(lvl for lvl, builder in LEVEL_BUILDERS.items() if any(g.has_laser for g in builder().ghosts))
+        level_id = next(lvl for lvl, builder in LEVEL_BUILDERS.items() if any(isinstance(g, LaserGhost) for g in builder().ghosts))
         env = create_env(level_id=level_id)
         env.reset()
-        laser_ghost = next(g for g in env.ghosts if g.has_laser)
+        laser_ghost = next(g for g in env.ghosts if isinstance(g, LaserGhost))
 
         seg = laser_ghost.get_laser_segment(env.step_count)
         self.assertIsNotNone(seg)
