@@ -203,9 +203,9 @@ Separates stage definitions from `GameEnvironment` (Open/Closed Principle) with 
 - **`LEVEL_BUILDERS`** (`1` to `5`):
   - `1 -> _build_level_1` (*Quiet Graveyard*): 2 tombstones, no pits/ghosts/items (`max_steps=800`).
   - `2 -> _build_level_2` (*Open Graves Pits*): 3 tombstones + 2 pits (`max_steps=1000`).
-  - `3 -> _build_level_3` (*Cold Trail*): Shifted tombstones/pits + 3 warmth items (`max_steps=1000`).
-  - `4 -> _build_level_4` (*Whispering Graves*): 3 tombstones + 2 pits (Pit 2 has flame jet) + 3 items + 2 uniform ghosts (`max_steps=1000`).
-  - `5 -> _build_level_5` (*Midnight Escape*): 4 tombstones + 2 alternating flame pits + 4 items + 4 diverse ghosts (`max_steps=1000`).
+  - `3 -> _build_level_3` (*Whispering Graves*): 3 tombstones + 2 pits (including 1 hellfire pit) + 2 uniform ghosts (jump-over & walk-under) + 3 warmth items (`max_steps=1000`).
+  - `4 -> _build_level_4` (*Nightmare Catacombs*): 5 tombstones + 4 hellfire pits + 5 diverse ghosts (including dual counter-rotating laser scissors) + 5 warmth items (`max_steps=1400`).
+  - `5 -> _build_level_5` (*The Eternal Abyss*): Variable flame heights, multi-speed laser ghosts, varied tombs, and mandatory crouch tunnels (`max_steps=2400`).
 - **Public Factories**: `get_level(level_id)` and `create_env(level_id)`.
 
 ### 5.6 Package Entry Exports (`core/__init__.py`, `env/__init__.py`)
@@ -229,7 +229,14 @@ Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Dow
   - **Khăn Đóng**: Matching cyan-blue pleated turban with hair silhouette and rear knot (*búi tóc*).
   - **Bamboo Lantern & Silk Tassel**: Handheld bamboo lantern with warm interior glow and dynamic swinging red silk tassel.
   - **Lower Garments**: Traditional white inner trousers and black cloth shoes with white sole lines.
-- **Atmospheric Enhancements & macOS/SDL2 Alpha Bugfix**:
+- **Atmospheric Enhancements & Background Overhaul**:
+  - **16-Bit Dithered Twilight Sky**: 4x4 Bayer matrix ordered dithering transitioning between 7 twilight purple gradient bands with shimmering sparkle stars.
+  - **Crimson Blood Moon**: Multi-ring cosmic aura, ancient gnarled branches, fractured rim bite, and central sacred Om (ॐ) glyph.
+  - **Luminous Vân Mây Ruyi**: Traditional Vietnamese scroll clouds with cascading stepped lobes, trailing serpentine ribbon tails, and deep plum border.
+  - **Redesigned Authentic Tombstones**:
+    - **Mộ Công Giáo (`style="cross"`)**: Polished black granite cross (>60% of height) with 3D specular bevels, standing on an upright inscribed stele with gold frame/motifs and stepped granite base with a central green grass turf.
+    - **Mộ Người Bình Thường (`style="buddhist"`)**: Carved lotus bud finial, 2-tier curved roofs (*mái đao cong vảy rồng*), dragon pillars, radiant golden Sauwastika (*CHỮ VẠN 卍*), and incense burner with glowing red joss sticks.
+    - **Floating Stone Platform (`style="platform"`)**: Weathered masonry stone blocks with 3D bevels, brick seams, and moss accents.
   - **Creeping Ground Mist**: Low-altitude drifting fog across the cemetery lawn (`_draw_ground_fog`).
   - **Ghost Speed Fix**: Corrected attribute reference to `ghost.speed` in `_draw_ghost` to eliminate Level 4/5 runtime crashes.
   - **Porter-Duff Zero-Alpha Blackout Fix**: Fixed black bar artifacts on macOS display surfaces by initializing internal canvas as 24-bit RGB (`depth=24`) and switching `show_overlay()` to standard surface-level alpha (`set_alpha(160)`).

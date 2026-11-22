@@ -2,7 +2,7 @@ from typing import List, Optional, Tuple
 import pygame
 
 from core.base_env import Action, BaseEnvironment, GameEvents, RawState
-from env.entities import Ghost, GoalFlag, Obstacle, Pit, Player, WarmthItem
+from env.entities import Ghost, LaserGhost, WispGhost, WillOWisp, GoalFlag, Obstacle, Pit, Player, WarmthItem
 from .game_renderer import GameRenderer
 
 class GameEnvironment(BaseEnvironment):
@@ -39,18 +39,15 @@ class GameEnvironment(BaseEnvironment):
         self.level_name = level_name
 
         # Level entities
-        self.obstacles: List[Obstacle] = obstacles if obstacles is not None else [
-            Obstacle(x=250.0, y=floor_y - 48.0, width=32.0, height=48.0),
-            Obstacle(x=500.0, y=floor_y - 64.0, width=32.0, height=64.0),
-        ]
-        self.pits: List[Pit] = pits if pits is not None else [
-            Pit(x_start=360.0, x_end=420.0),
-        ]
+        self.obstacles: List[Obstacle] = obstacles if obstacles is not None else []
+        self.pits: List[Pit] = pits if pits is not None else []
         self.ghosts: List[Ghost] = ghosts if ghosts is not None else []
         self.items: List[WarmthItem] = items if items is not None else []
+        self.wisps: List[WillOWisp] = []
         self.goal: GoalFlag = goal if goal is not None else GoalFlag(
             x=720.0, y=floor_y - 88.0
         )
+
 
         # Player entity (Hoá)
         self.start_x: float = 50.0
@@ -75,6 +72,7 @@ class GameEnvironment(BaseEnvironment):
             ghost.reset()
         for item in self.items:
             item.reset()
+        self.wisps.clear()
         self.step_count = 0
         return self._get_raw_state()
 
@@ -175,11 +173,21 @@ class GameEnvironment(BaseEnvironment):
             self.player.can_double_jump = True
 
         # -------------------------------------------
-        # Update Ghosts and Check Warmth Item Pickups
+        # Update Ghosts and Wisps
         # -------------------------------------------
         for ghost in self.ghosts:
             ghost.update()
+            # If ghost is a WispGhost and it's time to cast, spawn a projectile
+            if isinstance(ghost, WispGhost) and ghost.can_cast_wisp(self.step_count):
+                hx, hy, vx, vy = ghost.get_wisp_launch_params(self.step_count)
+                self.wisps.append(WillOWisp(x=hx, y=hy, vx=vx, vy=vy))
 
+        # Update all active will-o'-the-wisps (airborne arc -> ground roll -> despawn)
+        for wisp in self.wisps:
+            wisp.update(self.pits, self.floor_y, self.canvas_height)
+        self.wisps = [w for w in self.wisps if w.is_alive]
+
+        # Check Warmth Item Pickups
         for item in self.items:
             if not item.is_collected and self._rects_overlap(self.player.rect, item.rect):
                 item.is_collected = True
@@ -201,8 +209,9 @@ class GameEnvironment(BaseEnvironment):
         hit_laser = any(
             self._segment_intersects_rect(g.get_laser_segment(self.step_count), self.player.rect)
             for g in self.ghosts
-            if g.has_laser
+            if isinstance(g, LaserGhost)
         )
+        hit_wisp = any(self._rects_overlap(self.player.rect, w.rect) for w in self.wisps)
 
         # Death by hitting ghost
         if hit_ghost:
@@ -220,6 +229,12 @@ class GameEnvironment(BaseEnvironment):
         elif hit_laser:
             self.player.is_alive = False
             events.hit_laser = True
+            done = True
+
+        # Death by hitting the will-o-wisp
+        elif hit_wisp:
+            self.player.is_alive = False
+            events.hit_wisp = True
             done = True
 
         # Pit death
@@ -296,7 +311,7 @@ class GameEnvironment(BaseEnvironment):
         # Nearest upcoming rotating laser hazard
         dist_to_laser = -1.0
         for g in self.ghosts:
-            if not g.has_laser:
+            if not isinstance(g, LaserGhost):
                 continue
             seg = g.get_laser_segment(self.step_count)
             if seg is None:
@@ -311,11 +326,29 @@ class GameEnvironment(BaseEnvironment):
             # Check dynamic 2D threat relative to Hoá's actual current position (standing, jumping, or sliding)
             laser_overlaps_player_y = (laser_max_y >= self.player.y) and (laser_min_y <= self.player.bottom)
             laser_is_ahead_or_overlapping = laser_max_x > self.player.x
-            
+
             if laser_overlaps_player_y and laser_is_ahead_or_overlapping:
                 dist = max(0.0, laser_min_x - self.player.right)
                 if dist_to_laser < 0 or dist < dist_to_laser:
                     dist_to_laser = dist
+
+        # Nearest upcoming wisp
+        threatening_wisps = []
+        for w in self.wisps:
+            if not w.is_alive:
+                continue
+            # 1. Wisp is ahead of Hoá (in front)
+            if (w.x + w.radius) >= self.player.x:
+                dist = max(0.0, (w.x - w.radius) - self.player.right)
+                threatening_wisps.append((dist, 1))
+            elif w.vx > 0:
+                dist = max(0.0, self.player.x - (w.x + w.radius))
+                threatening_wisps.append((dist, -1))
+        if threatening_wisps:
+            dist_to_wisp, wisp_dir = min(threatening_wisps, key=lambda item: item[0])
+        else:
+            dist_to_wisp = -1.0
+            wisp_dir = 0
 
         # Nearest upcoming uncollected warmth item
         upcoming_items = [it for it in self.items if not it.is_collected and it.right > self.player.x]
@@ -343,6 +376,8 @@ class GameEnvironment(BaseEnvironment):
             dist_to_ghost=dist_to_ghost,
             ghost_y=ghost_y,
             dist_to_laser=dist_to_laser,
+            dist_to_wisp=dist_to_wisp,
+            wisp_dir=wisp_dir,
             dist_to_item=dist_to_item,
             dist_to_goal=dist_to_goal,
         )

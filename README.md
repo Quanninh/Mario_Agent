@@ -44,11 +44,11 @@ Mario_Agent/
 
 The environment supports a progressive 5-stage curriculum designed for staged reinforcement learning:
 
-1. **Level 1 — Quiet Graveyard**: Introduction to basic jumping over static tombstones (0 pits, 0 ghosts, 0 items).
-2. **Level 2 — Open Grave Pits**: Introduces lethal gap hazards requiring timed leaps.
-3. **Level 3 — Cold Trail**: Introduces Warmth Items placed along challenging jump trajectories.
-4. **Level 4 — Whispering Graves**: Introduces hovering, sinusoidal ghosts with uniform speeds and patrol zones.
-5. **Level 5 — Midnight Escape**: The ultimate gauntlet featuring 4 diverse ghosts with varying velocities, bobbing frequencies, and wave amplitudes alongside pits and items.
+1. **Level 1 — Quiet Graveyard**: Introduction to basic jumping over static tombstones (2 tombstones, 0 pits, 0 ghosts, 0 items).
+2. **Level 2 — Open Grave Pits**: Introduces lethal gap hazards requiring timed leaps (3 tombstones, 2 pits, 0 ghosts, 0 items).
+3. **Level 3 — Whispering Graves**: Introduces hovering sinusoidal ghosts (low jump-over & high walk-under), hellfire erupting pits, and warmth collectible items (3 tombstones, 2 pits with flame, 2 ghosts, 3 items).
+4. **Level 4 — Nightmare Catacombs**: Gauntlet featuring cascading hellfire pits, 5 diverse ghosts including dual counter-rotating laser scissors, fast twitcher demon, and 5 warmth items.
+5. **Level 5 — The Eternal Abyss**: Marathon gauntlet with variable flame heights, multi-speed laser ghosts, varied tombs, and mandatory crouch tunnels (`max_steps=2400`).
 
 ---
 

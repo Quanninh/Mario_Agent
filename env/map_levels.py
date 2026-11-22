@@ -1,53 +1,64 @@
-from dataclasses import dataclass, field
-from typing import Callable, Dict, List
+"""Curriculum level definitions for Hoá's Midnight Escape.
 
-from env.entities import Ghost, GoalFlag, Obstacle, Pit, WarmthItem
+Encapsulates map layouts (obstacles, pits, ghosts, items, goal) and
+stage-specific rules into immutable LevelConfig dataclasses.
+"""
+
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional
+from core import BaseEnvironment
+from env.entities import Ghost, LaserGhost, WispGhost, GoalFlag, Obstacle, Pit, WarmthItem
 from env.game_env import GameEnvironment
+
 
 DEFAULT_FLOOR_Y: float = 320.0
 
 
 @dataclass
 class LevelConfig:
-    """Data container holding the layout of a single graveyard level."""
+    """Configuration bundle defining an individual curriculum stage."""
     name: str
     obstacles: List[Obstacle]
     pits: List[Pit]
     goal: GoalFlag
-    ghosts: List[Ghost] = field(default_factory=list)
-    items: List[WarmthItem] = field(default_factory=list)
+    ghosts: List[Ghost]
+    items: List[WarmthItem]
     floor_y: float = DEFAULT_FLOOR_Y
     max_steps: int = 1000
 
 
 def _build_level_1() -> LevelConfig:
-    """Level 1 (Baseline): Flat ground with 2 tombstones, no pits, no ghosts, no items."""
+    """Level 1 (Quiet Graveyard): Introduction to basic jumping over static tombstones."""
     return LevelConfig(
         name="Level 1: Quiet Graveyard",
         obstacles=[
-            Obstacle(x=250.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="cross"),
-            Obstacle(x=500.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0, style="buddhist"),
+            Obstacle(x=320.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
+            Obstacle(x=640.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
         ],
         pits=[],
-        goal=GoalFlag(x=720.0, y=DEFAULT_FLOOR_Y - 88.0),
+        ghosts=[],
+        items=[],
+        goal=GoalFlag(x=900.0, y=DEFAULT_FLOOR_Y - 88.0),
         floor_y=DEFAULT_FLOOR_Y,
         max_steps=800,
     )
 
 
 def _build_level_2() -> LevelConfig:
-    """Level 2 (Obstacles & Pits): 3 tombstones + 2 grave pits, no ghosts, no items."""
+    """Level 2 (Open Grave Pits): Introduces lethal gap hazards requiring timed leaps."""
     return LevelConfig(
         name="Level 2: Open Graves Pits",
         obstacles=[
-            Obstacle(x=220.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
-            Obstacle(x=520.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0),
-            Obstacle(x=860.0, y=DEFAULT_FLOOR_Y - 68.0, width=32.0, height=68.0),
+            Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
+            Obstacle(x=560.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0),
+            Obstacle(x=880.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
         ],
         pits=[
-            Pit(x_start=340.0, x_end=410.0),  # 70px wide
-            Pit(x_start=680.0, x_end=755.0),  # 75px wide
+            Pit(x_start=360.0, x_end=430.0),  # 70px wide gap
+            Pit(x_start=680.0, x_end=755.0),  # 75px wide gap
         ],
+        ghosts=[],
+        items=[],
         goal=GoalFlag(x=1100.0, y=DEFAULT_FLOOR_Y - 88.0),
         floor_y=DEFAULT_FLOOR_Y,
         max_steps=1000,
@@ -55,33 +66,9 @@ def _build_level_2() -> LevelConfig:
 
 
 def _build_level_3() -> LevelConfig:
-    """Level 3 (Generalization + Items): Shifted tombstones/pits + warmth items introduced."""
+    """Level 3 (Whispering Graves): 3 tombstones, 2 pits (including 1 hellfire), 2 uniform ghosts (jump-over & walk-under), and warmth items."""
     return LevelConfig(
-        name="Level 3: Cold Trail",
-        obstacles=[
-            Obstacle(x=360.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0),
-            Obstacle(x=620.0, y=DEFAULT_FLOOR_Y - 44.0, width=32.0, height=44.0),
-            Obstacle(x=930.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0),
-        ],
-        pits=[
-            Pit(x_start=200.0, x_end=265.0),  # Pit comes FIRST (65px wide)
-            Pit(x_start=750.0, x_end=825.0),  # 75px wide
-        ],
-        items=[
-            WarmthItem(x=225.0, y=DEFAULT_FLOOR_Y - 86.0),   # Mid-air over pit 1
-            WarmthItem(x=490.0, y=DEFAULT_FLOOR_Y - 28.0),   # Along the safe path
-            WarmthItem(x=939.0, y=DEFAULT_FLOOR_Y - 100.0),  # Above tombstone 3
-        ],
-        goal=GoalFlag(x=1120.0, y=DEFAULT_FLOOR_Y - 88.0),
-        floor_y=DEFAULT_FLOOR_Y,
-        max_steps=1000,
-    )
-
-
-def _build_level_4() -> LevelConfig:
-    """Level 4 (Uniform Ghosts): 2 ghosts sharing the exact same default movement parameters."""
-    return LevelConfig(
-        name="Level 4: Whispering Graves",
+        name="Level 3: Whispering Graves",
         obstacles=[
             Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="cross"),
             Obstacle(x=560.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0, style="buddhist"),
@@ -108,62 +95,10 @@ def _build_level_4() -> LevelConfig:
     )
 
 
-def _build_level_5() -> LevelConfig:
-    """Level 5 (Diverse Ghosts): 4 ghosts with distinct speeds, bobbing heights, and wave speeds."""
+def _build_level_4() -> LevelConfig:
+    """Level 4 (Nightmare Catacombs): 5 tombstones, 4 hellfire pits, 5 diverse ghosts including dual counter-rotating laser scissors, fast twitcher demon, and 5 warmth items."""
     return LevelConfig(
-        name="Level 5: Midnight Escape",
-                obstacles=[
-            Obstacle(x=220.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="cross"),
-            Obstacle(x=620.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0, style="buddhist"),
-            Obstacle(x=1000.0, y=DEFAULT_FLOOR_Y - 52.0, width=32.0, height=52.0, style="cross"),
-            Obstacle(x=1320.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0, style="buddhist"),
-        ],
-        pits=[
-            Pit(x_start=460.0, x_end=535.0, has_fire=True, fire_offset=0),   # 75px wide (erupts on ticks 80..99)
-            Pit(x_start=840.0, x_end=915.0, has_fire=True, fire_offset=50),  # 75px wide (alternates: erupts on ticks 30..49)
-        ],
-        ghosts=[
-            # 1. Slow eerie drifter (low -> jump OVER)
-            Ghost(
-                x=320.0, y=DEFAULT_FLOOR_Y - 38.0,
-                patrol_min_x=280.0, patrol_max_x=435.0,
-                speed=1.0, float_amplitude=6.0, float_speed=0.05,
-            ),
-            # 2. Fast twitchy ghost (high -> walk UNDER)
-            Ghost(
-                x=720.0, y=DEFAULT_FLOOR_Y - 82.0,
-                patrol_min_x=675.0, patrol_max_x=820.0,
-                speed=-2.4, float_amplitude=4.0, float_speed=0.14,
-            ),
-            # 3. Swooping poltergeist (high with wide vertical wave)
-            Ghost(
-                x=1120.0, y=DEFAULT_FLOOR_Y - 86.0,
-                patrol_min_x=1060.0, patrol_max_x=1285.0,
-                speed=1.7, float_amplitude=13.0, float_speed=0.10,
-                has_laser=True, laser_length=95.0, laser_rotation_speed=0.04,
-            ),
-            # 4. Brisk final guardian before Hoá's house (low -> jump OVER)
-            Ghost(
-                x=1400.0, y=DEFAULT_FLOOR_Y - 40.0,
-                patrol_min_x=1375.0, patrol_max_x=1495.0,
-                speed=-1.9, float_amplitude=9.0, float_speed=0.12,
-            ),
-        ],
-        items=[
-            WarmthItem(x=229.0, y=DEFAULT_FLOOR_Y - 86.0),   # Above tombstone 1
-            WarmthItem(x=490.0, y=DEFAULT_FLOOR_Y - 88.0),   # Mid-air over pit 1
-            WarmthItem(x=740.0, y=DEFAULT_FLOOR_Y - 28.0),   # Under fast high ghost 2
-            WarmthItem(x=1329.0, y=DEFAULT_FLOOR_Y - 102.0), # Above tombstone 4
-        ],
-        goal=GoalFlag(x=1520.0, y=DEFAULT_FLOOR_Y - 88.0),
-        floor_y=DEFAULT_FLOOR_Y,
-        max_steps=1000,
-    )
-
-def _build_level_6() -> LevelConfig:
-    """Level 6 (The Nightmare Catacombs): Extreme gauntlet with crossfire lasers, cascading flame pits, and twitchy ghosts."""
-    return LevelConfig(
-        name="Level 6: Nightmare Catacombs",
+        name="Level 4: Nightmare Catacombs",
         obstacles=[
             # Tight stone pillars and narrow landing islands between pits
             Obstacle(x=220.0, y=DEFAULT_FLOOR_Y - 52.0, width=32.0, height=52.0, style="cross"),
@@ -195,24 +130,24 @@ def _build_level_6() -> LevelConfig:
                 speed=-3.0, float_amplitude=8.0, float_speed=0.18,
             ),
             # 3 & 4: Dual Counter-Rotating "Laser Scissors" (Crossfire)
-            Ghost(
+            LaserGhost(
                 x=1200.0, y=DEFAULT_FLOOR_Y - 88.0,
                 patrol_min_x=1150.0, patrol_max_x=1360.0,
                 speed=1.5, float_amplitude=10.0, float_speed=0.09,
-                has_laser=True, laser_length=95.0, laser_rotation_speed=0.045, laser_initial_angle=0.0,
+                laser_length=95.0, laser_rotation_speed=0.045, laser_initial_angle=0.0,
             ),
-            Ghost(
+            LaserGhost(
                 x=1320.0, y=DEFAULT_FLOOR_Y - 88.0,
                 patrol_min_x=1220.0, patrol_max_x=1400.0,
                 speed=-1.5, float_amplitude=10.0, float_speed=0.09,
-                has_laser=True, laser_length=95.0, laser_rotation_speed=-0.045, laser_initial_angle=3.14,
+                laser_length=95.0, laser_rotation_speed=-0.045, laser_initial_angle=3.14,
             ),
             # 5. Final long-range sweeper guarding Khuê Văn Các
-            Ghost(
+            LaserGhost(
                 x=1800.0, y=DEFAULT_FLOOR_Y - 85.0,
                 patrol_min_x=1740.0, patrol_max_x=1960.0,
                 speed=1.8, float_amplitude=12.0, float_speed=0.11,
-                has_laser=True, laser_length=110.0, laser_rotation_speed=0.035,
+                laser_length=110.0, laser_rotation_speed=0.035,
             ),
         ],
         items=[
@@ -228,13 +163,186 @@ def _build_level_6() -> LevelConfig:
     )
 
 
+def _build_level_5() -> LevelConfig:
+    """Level 5 (Valley of the Wisp Maidens): Intermediate hard stage featuring a sky filled with Wisp Maidens near the clouds, a gauntlet of sweeping LaserGhosts along the ground, low patrolling base ghosts, and a few ground-level wisp summoners."""
+    return LevelConfig(
+        name="Level 5: Valley of the Wisp Maidens",
+        obstacles=[
+            Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="buddhist"),
+            Obstacle(x=580.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0, style="cross"),
+            Obstacle(x=960.0, y=DEFAULT_FLOOR_Y - 50.0, width=32.0, height=50.0, style="buddhist"),
+            Obstacle(x=1320.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0, style="cross"),
+            Obstacle(x=1680.0, y=DEFAULT_FLOOR_Y - 52.0, width=32.0, height=52.0, style="buddhist"),
+            Obstacle(x=2040.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0, style="cross"),
+            Obstacle(x=2320.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="buddhist"),
+        ],
+        pits=[
+            Pit(x_start=380.0, x_end=450.0),                                       # 70px normal gap
+            Pit(x_start=760.0, x_end=835.0, has_fire=True, fire_offset=0),        # 75px hellfire pit
+            Pit(x_start=1140.0, x_end=1215.0),                                     # 75px normal gap
+            Pit(x_start=1500.0, x_end=1580.0, has_fire=True, fire_offset=30),     # 80px hellfire pit
+            Pit(x_start=1860.0, x_end=1940.0, has_fire=True, fire_offset=60),     # 80px hellfire pit
+        ],
+        ghosts=[
+            # =========================================================================
+            # 1. HIGH SKY & MID-AIR CELESTIAL SQUADRON (Wisp Maidens filling the heavens)
+            # Floating near the clouds (y=70..155) raining spectral fire across the level
+            # =========================================================================
+            # High Sky Maiden 1: Floating right beneath the scroll clouds
+            WispGhost(
+                x=260.0, y=75.0,
+                patrol_min_x=160.0, patrol_max_x=380.0,
+                speed=1.3, float_amplitude=7.0, float_speed=0.08,
+                wisp_cycle=130, wisp_offset=0, wisp_mode="high",
+            ),
+            # Mid-Air Maiden 2: Hovering between clouds and ground
+            WispGhost(
+                x=520.0, y=145.0,
+                patrol_min_x=420.0, patrol_max_x=640.0,
+                speed=-1.4, float_amplitude=8.0, float_speed=0.09,
+                wisp_cycle=140, wisp_offset=45, wisp_mode="low",
+            ),
+            # High Sky Maiden 3: Soaring high above Pit 2
+            WispGhost(
+                x=800.0, y=80.0,
+                patrol_min_x=700.0, patrol_max_x=920.0,
+                speed=1.3, float_amplitude=6.0, float_speed=0.08,
+                wisp_cycle=135, wisp_offset=20, wisp_mode="alternating",
+            ),
+            # Mid-Air Maiden 4: Central sky sentinel over Obstacle 3
+            WispGhost(
+                x=1080.0, y=140.0,
+                patrol_min_x=980.0, patrol_max_x=1200.0,
+                speed=-1.3, float_amplitude=9.0, float_speed=0.09,
+                wisp_cycle=140, wisp_offset=80, wisp_mode="high",
+            ),
+            # High Sky Maiden 5: Cloud dweller above Pit 3
+            WispGhost(
+                x=1380.0, y=70.0,
+                patrol_min_x=1280.0, patrol_max_x=1500.0,
+                speed=1.4, float_amplitude=7.0, float_speed=0.08,
+                wisp_cycle=130, wisp_offset=15, wisp_mode="low",
+            ),
+            # Mid-Air Maiden 6: Mid-sky artillery over the deep hellfire chasm
+            WispGhost(
+                x=1640.0, y=155.0,
+                patrol_min_x=1540.0, patrol_max_x=1760.0,
+                speed=-1.4, float_amplitude=8.0, float_speed=0.09,
+                wisp_cycle=135, wisp_offset=65, wisp_mode="alternating",
+            ),
+            # High Sky Maiden 7: Floating near the Blood Moon and upper cloud wisps
+            WispGhost(
+                x=1920.0, y=85.0,
+                patrol_min_x=1820.0, patrol_max_x=2040.0,
+                speed=1.3, float_amplitude=6.0, float_speed=0.08,
+                wisp_cycle=125, wisp_offset=30, wisp_mode="high",
+            ),
+            # Mid-Air Maiden 8: High priestess defending the approach to Khuê Văn Các
+            WispGhost(
+                x=2200.0, y=145.0,
+                patrol_min_x=2100.0, patrol_max_x=2320.0,
+                speed=-1.5, float_amplitude=8.0, float_speed=0.10,
+                wisp_cycle=120, wisp_offset=90, wisp_mode="alternating",
+            ),
+
+            # =========================================================================
+            # 2. GROUND-LEVEL LASER SENTINELS (Sweeping 360° laser beams along the grass)
+            # =========================================================================
+            # Laser Sentry 1: Clockwise laser monk guarding the first crossing
+            LaserGhost(
+                x=460.0, y=DEFAULT_FLOOR_Y - 84.0,
+                patrol_min_x=400.0, patrol_max_x=530.0,
+                speed=1.4, float_amplitude=8.0, float_speed=0.08,
+                laser_length=85.0, laser_rotation_speed=0.040, laser_initial_angle=0.0,
+            ),
+            # Laser Sentry 2: Counter-clockwise monk sweeping over Pit 2
+            LaserGhost(
+                x=900.0, y=DEFAULT_FLOOR_Y - 86.0,
+                patrol_min_x=840.0, patrol_max_x=960.0,
+                speed=-1.3, float_amplitude=9.0, float_speed=0.09,
+                laser_length=90.0, laser_rotation_speed=-0.042, laser_initial_angle=1.57,
+            ),
+            # Laser Sentry 3: Fast sweeping monk between Pit 3 and Obstacle 4
+            LaserGhost(
+                x=1240.0, y=DEFAULT_FLOOR_Y - 88.0,
+                patrol_min_x=1180.0, patrol_max_x=1310.0,
+                speed=1.5, float_amplitude=8.0, float_speed=0.08,
+                laser_length=90.0, laser_rotation_speed=0.045, laser_initial_angle=3.14,
+            ),
+            # Laser Sentry 4: Wide reach laser monk defending Obstacle 5
+            LaserGhost(
+                x=1600.0, y=DEFAULT_FLOOR_Y - 85.0,
+                patrol_min_x=1530.0, patrol_max_x=1660.0,
+                speed=-1.4, float_amplitude=10.0, float_speed=0.09,
+                laser_length=95.0, laser_rotation_speed=-0.038, laser_initial_angle=0.78,
+            ),
+            # Laser Sentry 5: Grand Sentinel with long laser guarding sanctuary courtyard
+            LaserGhost(
+                x=2020.0, y=DEFAULT_FLOOR_Y - 88.0,
+                patrol_min_x=1950.0, patrol_max_x=2100.0,
+                speed=1.6, float_amplitude=10.0, float_speed=0.09,
+                laser_length=100.0, laser_rotation_speed=0.036, laser_initial_angle=2.35,
+            ),
+
+            # =========================================================================
+            # 3. GROUND-LEVEL WISP MAIDENS (A few low summoners among the graves)
+            # =========================================================================
+            # Ground Maiden 1: Skimming shots rolling along the cemetery turf
+            WispGhost(
+                x=680.0, y=DEFAULT_FLOOR_Y - 72.0,
+                patrol_min_x=610.0, patrol_max_x=740.0,
+                speed=-1.3, float_amplitude=7.0, float_speed=0.08,
+                wisp_cycle=140, wisp_offset=50, wisp_mode="low",
+            ),
+            # Ground Maiden 2: Alternating close-range fire before Pit 5
+            WispGhost(
+                x=1780.0, y=DEFAULT_FLOOR_Y - 74.0,
+                patrol_min_x=1710.0, patrol_max_x=1840.0,
+                speed=1.4, float_amplitude=8.0, float_speed=0.08,
+                wisp_cycle=130, wisp_offset=25, wisp_mode="alternating",
+            ),
+
+            # =========================================================================
+            # 4. GROUND-LEVEL BASE GHOSTS (Low floating sentries that force timed hops)
+            # =========================================================================
+            # Base Ghost 1: Right above grass before Pit 1
+            Ghost(
+                x=320.0, y=DEFAULT_FLOOR_Y - 40.0,
+                patrol_min_x=260.0, patrol_max_x=360.0,
+                speed=1.4, float_amplitude=8.0, float_speed=0.09,
+            ),
+            # Base Ghost 2: Low patroller in the mid graveyard section
+            Ghost(
+                x=1020.0, y=DEFAULT_FLOOR_Y - 42.0,
+                patrol_min_x=960.0, patrol_max_x=1060.0,
+                speed=-1.4, float_amplitude=7.0, float_speed=0.08,
+            ),
+            # Base Ghost 3: Low patroller between the deep hellfire chasms
+            Ghost(
+                x=1440.0, y=DEFAULT_FLOOR_Y - 40.0,
+                patrol_min_x=1380.0, patrol_max_x=1480.0,
+                speed=1.4, float_amplitude=8.0, float_speed=0.09,
+            ),
+        ],
+        items=[
+            WarmthItem(x=249.0, y=DEFAULT_FLOOR_Y - 86.0),   # Atop Tombstone 1
+            WarmthItem(x=620.0, y=DEFAULT_FLOOR_Y - 28.0),   # Ground reward between hazards
+            WarmthItem(x=990.0, y=DEFAULT_FLOOR_Y - 88.0),   # Perched atop Tombstone 3
+            WarmthItem(x=1175.0, y=DEFAULT_FLOOR_Y - 85.0),  # Mid-air over Pit 3
+            WarmthItem(x=1710.0, y=DEFAULT_FLOOR_Y - 28.0),  # Ground rest point before Zone 5
+            WarmthItem(x=2240.0, y=DEFAULT_FLOOR_Y - 28.0),  # Final warmth before Khuê Văn Các
+        ],
+        goal=GoalFlag(x=2460.0, y=DEFAULT_FLOOR_Y - 88.0),
+        floor_y=DEFAULT_FLOOR_Y,
+        max_steps=10000,
+    )
+
 LEVEL_BUILDERS: Dict[int, Callable[[], LevelConfig]] = {
     1: _build_level_1,
     2: _build_level_2,
     3: _build_level_3,
     4: _build_level_4,
     5: _build_level_5,
-    6: _build_level_6,
 }
 
 
@@ -252,9 +360,9 @@ def create_env(level_id: int = 1) -> GameEnvironment:
     return GameEnvironment(
         obstacles=cfg_level.obstacles,
         pits=cfg_level.pits,
+        goal=cfg_level.goal,
         ghosts=cfg_level.ghosts,
         items=cfg_level.items,
-        goal=cfg_level.goal,
         floor_y=cfg_level.floor_y,
         max_steps=cfg_level.max_steps,
         level_name=cfg_level.name,
