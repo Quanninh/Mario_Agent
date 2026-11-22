@@ -9,6 +9,44 @@ from rewards import BalancedRewardStrategy, DenseRewardStrategy, SparseRewardStr
 from agent import TabularQAgent
 
 
+def make_raw_state(
+    player_x: float = 50.0,
+    player_y: float = 288.0,
+    velocity_x: float = 0.0,
+    velocity_y: float = 0.0,
+    is_grounded: bool = True,
+    can_double_jump: bool = False,
+    is_crouching: bool = False,
+    dist_to_obstacle: float = -1.0,
+    obstacle_height: float = 0.0,
+    dist_to_pit: float = -1.0,
+    pit_fire_state: int = 0,
+    dist_to_ghost: float = -1.0,
+    ghost_y: float = 0.0,
+    dist_to_item: float = -1.0,
+    dist_to_laser: float = -1.0,
+    dist_to_goal: float = 500.0,
+) -> RawState:
+    return RawState(
+        player_x=player_x,
+        player_y=player_y,
+        velocity_x=velocity_x,
+        velocity_y=velocity_y,
+        is_grounded=is_grounded,
+        can_double_jump=can_double_jump,
+        is_crouching=is_crouching,
+        dist_to_obstacle=dist_to_obstacle,
+        obstacle_height=obstacle_height,
+        dist_to_pit=dist_to_pit,
+        pit_fire_state=pit_fire_state,
+        dist_to_ghost=dist_to_ghost,
+        ghost_y=ghost_y,
+        dist_to_item=dist_to_item,
+        dist_to_laser=dist_to_laser,
+        dist_to_goal=dist_to_goal,
+    )
+
+
 class TestDiscretizer(unittest.TestCase):
     def setUp(self) -> None:
         self.discretizer = MarioStateDiscretizer()
@@ -18,7 +56,7 @@ class TestDiscretizer(unittest.TestCase):
         self.assertTrue(issubclass(PlayerStateDiscretizer, BaseDiscretizer))
 
     def test_discretize_structure_and_types(self) -> None:
-        raw = RawState(
+        raw = make_raw_state(
             player_x=50.0,
             player_y=288.0,
             velocity_y=0.0,
@@ -33,7 +71,7 @@ class TestDiscretizer(unittest.TestCase):
         )
         state = self.discretizer.discretize(raw)
         self.assertIsInstance(state, tuple)
-        self.assertEqual(len(state), 7)
+        self.assertEqual(len(state), 9)
         self.assertTrue(all(isinstance(x, int) for x in state))
 
     def test_legacy_attribute_compatibility(self) -> None:
@@ -49,11 +87,11 @@ class TestDiscretizer(unittest.TestCase):
             ghost_y = 0.0
 
         state = self.discretizer.discretize(LegacyState())
-        self.assertEqual(len(state), 7)
+        self.assertEqual(len(state), 9)
 
     def test_ghost_dist_and_alt_bins(self) -> None:
         # Low ghost (jump over)
-        raw_low = RawState(
+        raw_low = make_raw_state(
             player_x=50.0,
             player_y=288.0,
             velocity_y=0.0,
@@ -71,7 +109,7 @@ class TestDiscretizer(unittest.TestCase):
         self.assertEqual(s_low[6], 0)  # ghost_alt_bin: LOW
 
         # High ghost (walk under)
-        raw_high = RawState(
+        raw_high = make_raw_state(
             player_x=50.0,
             player_y=288.0,
             velocity_y=0.0,
@@ -91,8 +129,8 @@ class TestDiscretizer(unittest.TestCase):
 
 class TestRewards(unittest.TestCase):
     def setUp(self) -> None:
-        self.s1 = RawState(50.0, 288.0, 0.0, True, -1.0, 0.0, -1.0, -1.0, 0.0, -1.0, 500.0)
-        self.s2 = RawState(54.0, 288.0, 0.0, True, -1.0, 0.0, -1.0, -1.0, 0.0, -1.0, 496.0)
+        self.s1 = make_raw_state(player_x=50.0, player_y=288.0, dist_to_goal=500.0)
+        self.s2 = make_raw_state(player_x=54.0, player_y=288.0, dist_to_goal=496.0)
 
     def test_balanced_reward_ghost_and_item(self) -> None:
         strategy = BalancedRewardStrategy(

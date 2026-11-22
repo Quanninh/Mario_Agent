@@ -142,6 +142,26 @@ class HybridQSARSAAgent(BaseAgent):
         target_future_val = self.beta * sarsa_next_q + (1.0 - self.beta) * max_next_q
         return float(reward + self.gamma * target_future_val)
 
+
+    def update_hybrid(
+        self,
+        state: DiscreteState,
+        action: int,
+        reward: float,
+        next_state: DiscreteState,
+        next_action: Optional[int],
+        done: bool,
+    ) -> float:
+        """Compatibility alias for hybrid SARSA/Q-learning update."""
+        return self.update(
+            state=state,
+            action=action,
+            reward=reward,
+            next_state=next_state,
+            done=done,
+            next_action=next_action,
+        )
+
     def update(
         self,
         state: DiscreteState,
@@ -229,17 +249,24 @@ class HybridQSARSAAgent(BaseAgent):
         if path.suffix == ".json":
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            loaded_actions = data.get("num_actions", self.num_actions)
+            self.num_actions = max(self.num_actions, loaded_actions)
             for state_str, q_vals in data.get("q_table", {}).items():
                 state_tuple = tuple(map(int, state_str.split(",")))
-                self.q_table[state_tuple] = np.array(q_vals, dtype=np.float32)
+                vec = np.zeros(self.num_actions, dtype=np.float32)
+                vec[:min(len(q_vals), self.num_actions)] = q_vals[:self.num_actions]
+                self.q_table[state_tuple] = vec
         else:
             with open(path, "rb") as f:
                 data = pickle.load(f)
+            loaded_actions = data.get("num_actions", self.num_actions)
+            self.num_actions = max(self.num_actions, loaded_actions)
             for state, q_vals in data.get("q_table", {}).items():
-                self.q_table[state] = np.array(q_vals, dtype=np.float32)
+                vec = np.zeros(self.num_actions, dtype=np.float32)
+                vec[:min(len(q_vals), self.num_actions)] = q_vals[:self.num_actions]
+                self.q_table[state] = vec
 
         for attr in (
-            "num_actions",
             "alpha",
             "gamma",
             "beta",

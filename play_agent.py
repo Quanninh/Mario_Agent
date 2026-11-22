@@ -19,6 +19,7 @@ ACTION_NAMES = {
     Action.JUMP: "JUMP",
     Action.RIGHT: "RIGHT",
     Action.RIGHT_JUMP: "RIGHT_JUMP",
+    Action.CROUCH: "CROUCH",
 }
 
 
@@ -176,8 +177,8 @@ def parse_args() -> argparse.Namespace:
         "--level",
         type=int,
         default=1,
-        choices=[1, 2, 3, 4, 5],
-        help="Initial level to load (1..5, default: 1)",
+        choices=[1, 2, 3, 4, 5, 6],
+        help="Initial level to load (1..6, default: 1)",
     )
     parser.add_argument(
         "--reward",
@@ -450,6 +451,10 @@ def play_autonomous(
                 outcome_str = "CAUGHT BY GHOST"
             elif events.fell_in_pit:
                 outcome_str = "FELL IN PIT"
+            elif getattr(events, "hit_fire", False):
+                outcome_str = "INCINERATED BY PIT FIRE"
+            elif getattr(events, "hit_laser", False):
+                outcome_str = "VAPORIZED BY LASER"
             else:
                 outcome_str = "TIMEOUT"
 

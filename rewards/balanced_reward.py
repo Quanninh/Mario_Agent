@@ -18,6 +18,8 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         goal_bonus: float = 200.0,
         pit_penalty: float = -75.0,
         ghost_penalty: float = -75.0,
+        fire_penalty: float = -75.0,
+        laser_penalty: float = -75.0,
         obstacle_penalty: float = -3.0,
         item_bonus: float = 30.0,
         step_penalty: float = -0.1,
@@ -32,6 +34,8 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         self.goal_bonus = goal_bonus
         self.pit_penalty = pit_penalty
         self.ghost_penalty = ghost_penalty
+        self.fire_penalty = fire_penalty
+        self.laser_penalty = laser_penalty
         self.obstacle_penalty = obstacle_penalty
         self.item_bonus = item_bonus
         self.step_penalty = step_penalty
@@ -67,18 +71,26 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         if events.hit_ghost:
             reward += self.ghost_penalty
 
-        # 5. Tombstone Obstacle Collision Penalty
+        # 5. Pit Fire Death Penalty
+        if getattr(events, "hit_fire", False):
+            reward += self.fire_penalty
+
+        # 6. Eye-Laser Death Penalty
+        if getattr(events, "hit_laser", False):
+            reward += self.laser_penalty
+
+        # 7. Tombstone Obstacle Collision Penalty
         if events.hit_obstacle:
             reward += self.obstacle_penalty
 
-        # 6. Warmth Item Collection Bonus
+        # 8. Warmth Item Collection Bonus
         if events.collected_item:
             reward += self.item_bonus
 
-        # 7. Constant living / step cost
+        # 9. Constant living / step cost
         reward += self.step_penalty
 
-        # 8. Unnecessary Jump Penalty
+        # 10. Unnecessary Jump Penalty
         # Fires ONLY when grounded, jumping, and no obstacle, pit, or low ghost within vision_range
         # High ghosts (ghost_y < self.high_ghost_y_threshold) do NOT exempt jumping (discourages jumping up into high ghosts)
         if prev_state.is_grounded and action in (Action.JUMP, Action.RIGHT_JUMP):
@@ -96,21 +108,23 @@ class BalancedRewardStrategy(BaseRewardStrategy):
                 0.0 <= dist_ghost <= self.vision_range
                 and ghost_y >= self.high_ghost_y_threshold
             )
-            if obs_far and pit_far and not low_ghost_near:
+            laser_near = 0.0 <= getattr(prev_state, "dist_to_laser", -1.0) <= self.vision_range
+            if obs_far and pit_far and not low_ghost_near and not laser_near:
                 reward += self.unnecessary_jump_penalty
                 reward -= events.dx * self.weight_progress
 
-        # 9. Stall Penalty (standing still or backtracking without hitting an obstacle)
+        # 11. Stall Penalty (standing still or backtracking without hitting an obstacle)
         if abs(events.dx) < 1e-6 and not events.hit_obstacle:
             reward += self.stall_penalty
 
-        # 10. Timeout Penalty
-        if (
-            done
-            and not events.reached_goal
-            and not events.fell_in_pit
-            and not events.hit_ghost
-        ):
+        # 12. Timeout Penalty (Ensure deaths are never penalized as timeouts)
+        is_hazard_death = (
+            events.fell_in_pit
+            or events.hit_ghost
+            or getattr(events, "hit_fire", False)
+            or getattr(events, "hit_laser", False)
+        )
+        if done and not events.reached_goal and not is_hazard_death:
             reward += self.timeout_penalty
 
         return float(reward)
