@@ -14,7 +14,7 @@ class SparseRewardStrategy(BaseRewardStrategy):
         goal_bonus: float = 100.0,
         death_penalty: float = -50.0,
         pit_penalty: Optional[float] = None,
-        item_bonus: float = 10.0,
+        item_bonus: float = 30.0,
     ):
         self.goal_bonus = goal_bonus
         self.death_penalty = death_penalty if pit_penalty is None else pit_penalty

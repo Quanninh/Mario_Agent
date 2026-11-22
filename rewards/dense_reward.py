@@ -14,8 +14,8 @@ class DenseRewardStrategy(BaseRewardStrategy):
         goal_bonus: float = 150.0,
         death_penalty: float = -60.0,
         obstacle_penalty: float = -2.0,
-        item_bonus: float = 20.0,
-        idle_penalty: float = -0.5,
+        item_bonus: float = 30.0,
+        idle_penalty: float = 0.0,
         timeout_penalty: float = -40.0,
     ):
         self.progress_mult = progress_mult
