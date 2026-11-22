@@ -106,10 +106,56 @@ class Pit:
                 canvas_height - (floor_y - self.fire_height),
             )
         return None
+@dataclass
+class WillOWisp:
+    """A spirit-flame projectile traveling in a parabolic arc that rolls on ground before fizzling."""
+    x: float
+    y: float
+    vx: float
+    vy: float
+    radius: float = 6.0
+    gravity: float = 0.28            # Light gravity for an ethereal, floaty arc
+    roll_ticks: int = 35             # Duration it rolls on the grass before dissolving
+    ground_friction: float = 0.92
+    is_grounded: bool = False
+    is_alive: bool = True
+
+    def update(self, pits: list, floor_y: float = 320.0, canvas_height: float = 400.0) -> None:
+        """Update projectile physics: airborne parabola -> ground roll -> despawn."""
+        if not self.is_grounded:
+            self.x += self.vx
+            self.y += self.vy
+            self.vy += self.gravity
+
+            # Check if projectile reached ground level
+            if self.y + self.radius >= floor_y:
+                # Check if it fell into an open pit
+                in_pit = any(p.x_start < self.x < p.x_end for p in pits)
+                if in_pit:
+                    # Let it fall completely past the bottom of the screen before despawning
+                    if self.y > canvas_height + self.radius:
+                        self.is_alive = False
+                else:
+                    # Lands on solid ground -> transition to rolling state
+                    self.y = floor_y - self.radius
+                    self.vy = 0.0
+                    self.is_grounded = True
+        else:
+            # Rolling along the grass with friction
+            self.x += self.vx
+            self.vx *= self.ground_friction
+            self.roll_ticks -= 1
+            if self.roll_ticks <= 0:
+                self.is_alive = False
+
+    @property
+    def rect(self) -> Tuple[float, float, float, float]:
+        """AABB bounding box for collision detection."""
+        return (self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
 
 @dataclass
 class Ghost:
-    """Represents a hovering ghost patrolling back and forth in mid-air."""
+    """Base ghost with horizontal patrol and sinusoidal vertical floating."""
     x: float                    # Current horizontal position
     y: float                    # Current vertical position (updates with floating wave)
     patrol_min_x: float         # Left boundary of the ghost's patrol zone
@@ -120,32 +166,11 @@ class Ghost:
     float_amplitude: float = 8.0   # Max vertical distance (pixels) the ghost bobs up and down
     float_speed: float = 0.08      # Speed of the sinusoidal floating wave (radians per tick)
 
-    # --- Continuous 360° Rotating Laser ---
-    has_laser: bool = False             # Whether this ghost emits a rotating laser
-    laser_length: float = 90.0          # Beam reach in pixels
-    laser_rotation_speed: float = 0.04  # Rotation speed in rad/tick (positive = clockwise)
-    laser_initial_angle: float = 0.0    # Starting angle offset in radians
-
     def __post_init__(self) -> None:
         self._start_x = self.x
         self._base_y = self.y
         self._start_speed = self.speed
         self._phase = 0.0
-
-    def get_laser_segment(self, step_count: int) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
-        """Returns ((start_x, start_y), (end_x, end_y)) of the continuous 360-degree rotating laser beam."""
-        if not self.has_laser:
-            return None
-        
-        # Originates from the center of the ghost's eyes
-        eye_cx = self.x + self.width / 2.0
-        eye_cy = self.y + self.height * 0.4
-
-        # Continuously rotates 360 degrees based on step count
-        angle = (self.laser_initial_angle + step_count * self.laser_rotation_speed) % (2.0 * math.pi)
-        end_x = eye_cx + math.cos(angle) * self.laser_length
-        end_y = eye_cy + math.sin(angle) * self.laser_length
-        return ((eye_cx, eye_cy), (end_x, end_y))
 
     def update(self) -> None:
         """Patrol horizontally and hover up and down smoothly."""
@@ -178,6 +203,60 @@ class Ghost:
     @property
     def bottom(self) -> float:
         return self.y + self.height
+
+@dataclass
+class LaserGhost(Ghost):
+    # --- Continuous 360° Rotating Laser ---
+    laser_length: float = 90.0          # Beam reach in pixels
+    laser_rotation_speed: float = 0.04  # Rotation speed in rad/tick (positive = clockwise)
+    laser_initial_angle: float = 0.0    # Starting angle offset in radians
+
+    def get_laser_segment(self, step_count: int) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
+        """Returns ((start_x, start_y), (end_x, end_y)) of the continuous 360-degree rotating laser beam."""
+        # Originates from the center of the ghost's eyes
+        eye_cx = self.x + self.width / 2.0
+        eye_cy = self.y + self.height * 0.4
+
+        # Continuously rotates 360 degrees based on step count
+        angle = (self.laser_initial_angle + step_count * self.laser_rotation_speed) % (2.0 * math.pi)
+        end_x = eye_cx + math.cos(angle) * self.laser_length
+        end_y = eye_cy + math.sin(angle) * self.laser_length
+        return ((eye_cx, eye_cy), (end_x, end_y))
+    
+@dataclass
+class WispGhost(Ghost):
+    """Ghost that casts Will-o'-the-Wisp projectiles on a periodic cycle with alternating parabolic heights."""
+    wisp_cycle: int = 140            # Ticks per casting cycle (~2.3 seconds)
+    wisp_offset: int = 0             # Phase shift timing between multiple wisp ghosts
+    wisp_mode: str = "alternating"   # "alternating" (high/low), "high", or "low"
+
+    def is_charging_wisp(self, step_count: int) -> bool:
+        """Telegraphing: Shows a charging spirit-flame in hand 25 ticks prior to release."""
+        phase = (step_count + self.wisp_offset) % self.wisp_cycle
+        return phase >= (self.wisp_cycle - 25)
+    
+    def can_cast_wisp(self, step_count: int) -> bool:
+        """Triggers exactly at cycle completion."""
+        return ((step_count + self.wisp_offset) % self.wisp_cycle) == 0
+
+    def get_wisp_launch_params(self, step_count: int) -> Tuple[float, float, float, float]:
+        """Returns (hand_x, hand_y, vx, vy) with varied parabolic velocities."""
+        facing_dir = 1.0 if self.speed >= 0 else -1.0
+        hand_x = self.x + (self.width if facing_dir > 0 else 0.0)
+        hand_y = self.y + self.height * 0.55
+
+        shot_number = (step_count + self.wisp_offset) // self.wisp_cycle
+
+        if self.wisp_mode == "high" or (self.wisp_mode == "alternating" and shot_number % 2 == 0):
+            # High Parabolic Arc: Floats high into the sky (player can crouch/slide beneath)
+            vx = facing_dir * 1.8
+            vy = -6.4
+        else:
+            # Low Parabolic Arc: Fast skimming shot (player must jump/double-jump over)
+            vx = facing_dir * 3.4
+            vy = -3.2
+
+        return hand_x, hand_y, vx, vy
 
 @dataclass
 class WarmthItem:

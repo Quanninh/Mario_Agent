@@ -7,7 +7,7 @@ from env import GameEnvironment, Ghost, GoalFlag, LEVEL_BUILDERS, Pit, WarmthIte
 class TestGameEnvironment(unittest.TestCase):
     """Automated headless tests for Hoá's Midnight Escape environment."""
     def test_all_levels_headless_smoke(self) -> None:
-        """All 5 levels must run 500 random steps headlessly with zero crashes."""
+        """All registered curriculum levels must run 500 random steps headlessly with zero crashes."""
         rng = random.Random(42)
         for level_id in LEVEL_BUILDERS:
             env = create_env(level_id)
@@ -24,7 +24,8 @@ class TestGameEnvironment(unittest.TestCase):
 
     def test_reset_restores_player_ghosts_and_items(self) -> None:
         """reset() must restore Hoá, all ghosts, and all collected warmth items."""
-        env = create_env(level_id=4)
+        level_id = next(lvl for lvl, builder in LEVEL_BUILDERS.items() if builder().ghosts and builder().items)
+        env = create_env(level_id=level_id)
         env.reset()
         initial_ghost_x = [g.x for g in env.ghosts]
         for _ in range(25):
@@ -241,7 +242,8 @@ class TestGameEnvironment(unittest.TestCase):
 
     def test_ghost_laser_lethal_collision(self) -> None:
         """Walking or jumping into a ghost's rotating laser beam must trigger hit_laser and end episode."""
-        env = create_env(level_id=5)
+        level_id = next(lvl for lvl, builder in LEVEL_BUILDERS.items() if any(g.has_laser for g in builder().ghosts))
+        env = create_env(level_id=level_id)
         env.reset()
         laser_ghost = next(g for g in env.ghosts if g.has_laser)
 
@@ -257,6 +259,24 @@ class TestGameEnvironment(unittest.TestCase):
         self.assertTrue(events.hit_laser)
         self.assertFalse(env.player.is_alive)
         self.assertTrue(done)
+
+    def test_platform_obstacle_landing(self) -> None:
+        """Hoá can jump onto and land on top of a Mario-style platform."""
+        from env.entities import Obstacle
+        platform = Obstacle(x=50.0, y=260.0, width=60.0, height=18.0, style="platform")
+        env = GameEnvironment(obstacles=[platform], pits=[], ghosts=[], items=[])
+        env.reset()
+        # Place player above platform such that next gravity tick crosses the platform top
+        env.player.x = 60.0
+        env.player.y = 225.0
+        env.player.vy = 4.0
+        env.player.is_grounded = False
+
+        state, _, _ = env.step(Action.STAY)
+        # Should land on top of platform: y = platform.y - player.height = 260 - 32 = 228
+        self.assertEqual(env.player.y, 228.0)
+        self.assertTrue(env.player.is_grounded)
+        self.assertEqual(env.player.vy, 0.0)
 
     def test_tombstone_visual_styles_rendering_headless(self) -> None:
         """GameRenderer draws all tombstone styles ('cross', 'buddhist', 'platform') headlessly without error."""
