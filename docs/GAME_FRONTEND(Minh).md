@@ -196,16 +196,18 @@ Dedicated `GameRenderer` class encapsulating all visual elements, display scalin
   - `_draw_hud()`: Level name, remaining steps countdown, and warmth item counter.
 - **Interactive UI Banners**: `show_overlay()` (semi-transparent alpha overlay with key-press skipping) and `show_game_over()` (automatic title, subtitle, and color selection based on outcome).
 
-### 5.5 `env/map_levels.py` — 5-Level Curriculum Registry
+### 5.5 `env/map_levels.py` — 7-Level Curriculum Registry
 Separates stage definitions from `GameEnvironment` (Open/Closed Principle) with `DEFAULT_FLOOR_Y = 320.0`.
 
 - **`LevelConfig` *(dataclass)***: Bundles `name`, `obstacles`, `pits`, `goal`, `ghosts`, `items`, `floor_y`, `max_steps`.
-- **`LEVEL_BUILDERS`** (`1` to `5`):
+- **`LEVEL_BUILDERS`** (`1` to `7`):
   - `1 -> _build_level_1` (*Quiet Graveyard*): 2 tombstones, no pits/ghosts/items (`max_steps=800`).
   - `2 -> _build_level_2` (*Open Graves Pits*): 3 tombstones + 2 pits (`max_steps=1000`).
   - `3 -> _build_level_3` (*Cold Trail*): Shifted tombstones/pits + 3 warmth items (`max_steps=1000`).
   - `4 -> _build_level_4` (*Whispering Graves*): 3 tombstones + 2 pits (Pit 2 has flame jet) + 3 items + 2 uniform ghosts (`max_steps=1000`).
   - `5 -> _build_level_5` (*Midnight Escape*): 4 tombstones + 2 alternating flame pits + 4 items + 4 diverse ghosts (`max_steps=1000`).
+  - `6 -> _build_level_6` (*Nightmare Catacombs*): 360-degree rotating lasers, crossfire laser scissors, and cascading pits (`max_steps=1400`).
+  - `7 -> _build_level_7` (*The Eternal Abyss*): Variable flame heights, multi-speed laser ghosts, varied tombs, and mandatory crouch tunnels (`max_steps=2400`).
 - **Public Factories**: `get_level(level_id)` and `create_env(level_id)`.
 
 ### 5.6 Package Entry Exports (`core/__init__.py`, `env/__init__.py`)
@@ -213,7 +215,7 @@ Separates stage definitions from `GameEnvironment` (Open/Closed Principle) with 
 - **`env/__init__.py`**: Exports `Player`, `Obstacle`, `Pit`, `Ghost`, `WarmthItem`, `GoalFlag`, `GameEnvironment`, `GameRenderer`, `LevelConfig`, `LEVEL_BUILDERS`, `get_level`, `create_env`.
 
 ### 5.7 `play_human.py` — Interactive Playable Entry Point
-Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Down`) stepping `GameEnvironment` at 60 FPS with live level switching (`1–5`), freeze-safe resets (`R`), automatic victory/death overlays (`env.show_game_over(events)`), and exit (`Esc`).
+Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Down`) stepping `GameEnvironment` at 60 FPS with live level switching (`1–7`), freeze-safe resets (`R`), automatic victory/death overlays (`env.show_game_over(events)`), and exit (`Esc`).
 
 ### 5.8 Traditional Vietnamese Pixel Art & Visual Polish (Phase 3 — Complete)
 - **Authentic Khuê Văn Các Destination**:
@@ -229,7 +231,14 @@ Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Dow
   - **Khăn Đóng**: Matching cyan-blue pleated turban with hair silhouette and rear knot (*búi tóc*).
   - **Bamboo Lantern & Silk Tassel**: Handheld bamboo lantern with warm interior glow and dynamic swinging red silk tassel.
   - **Lower Garments**: Traditional white inner trousers and black cloth shoes with white sole lines.
-- **Atmospheric Enhancements & macOS/SDL2 Alpha Bugfix**:
+- **Atmospheric Enhancements & Background Overhaul**:
+  - **16-Bit Dithered Twilight Sky**: 4x4 Bayer matrix ordered dithering transitioning between 7 twilight purple gradient bands with shimmering sparkle stars.
+  - **Crimson Blood Moon**: Multi-ring cosmic aura, ancient gnarled branches, fractured rim bite, and central sacred Om (ॐ) glyph.
+  - **Luminous Vân Mây Ruyi**: Traditional Vietnamese scroll clouds with cascading stepped lobes, trailing serpentine ribbon tails, and deep plum border.
+  - **Redesigned Authentic Tombstones**:
+    - **Mộ Công Giáo (`style="cross"`)**: Polished black granite cross (>60% of height) with 3D specular bevels, standing on an upright inscribed stele with gold frame/motifs and stepped granite base with a central green grass turf.
+    - **Mộ Người Bình Thường (`style="buddhist"`)**: Carved lotus bud finial, 2-tier curved roofs (*mái đao cong vảy rồng*), dragon pillars, radiant golden Sauwastika (*CHỮ VẠN 卍*), and incense burner with glowing red joss sticks.
+    - **Floating Stone Platform (`style="platform"`)**: Weathered masonry stone blocks with 3D bevels, brick seams, and moss accents.
   - **Creeping Ground Mist**: Low-altitude drifting fog across the cemetery lawn (`_draw_ground_fog`).
   - **Ghost Speed Fix**: Corrected attribute reference to `ghost.speed` in `_draw_ghost` to eliminate Level 4/5 runtime crashes.
   - **Porter-Duff Zero-Alpha Blackout Fix**: Fixed black bar artifacts on macOS display surfaces by initializing internal canvas as 24-bit RGB (`depth=24`) and switching `show_overlay()` to standard surface-level alpha (`set_alpha(160)`).

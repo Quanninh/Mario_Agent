@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import ClassVar, Optional, Tuple
 import math
 
 @dataclass
@@ -74,9 +74,10 @@ class Pit:
     fire_height: float = 65.0
 
     # Flame timing constants
-    FIRE_CYCLE: float = 100.0
-    FIRE_WARN_START: float = 65.0
-    FIRE_ACTIVE_START: float = 80.0
+    FIRE_CYCLE: ClassVar[float] = 100.0
+    FIRE_WARN_START: ClassVar[float] = 65.0
+    FIRE_ACTIVE_START: ClassVar[float] = 80.0
+    FIRE_HEIGHT: ClassVar[float] = 65.0
 
     def contains(self, x: float, width: float) -> bool:
         """Checks if an entity is over the pit (meaning no floor beneath it)."""

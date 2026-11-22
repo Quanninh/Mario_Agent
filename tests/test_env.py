@@ -258,5 +258,22 @@ class TestGameEnvironment(unittest.TestCase):
         self.assertFalse(env.player.is_alive)
         self.assertTrue(done)
 
+    def test_tombstone_visual_styles_rendering_headless(self) -> None:
+        """GameRenderer draws all tombstone styles ('cross', 'buddhist', 'platform') headlessly without error."""
+        import pygame
+        from env.entities import Obstacle
+        from env.game_renderer import GameRenderer
+
+        renderer = GameRenderer()
+        canvas = pygame.Surface((800, 400))
+        tomb_cross = Obstacle(x=100.0, y=256.0, width=32.0, height=64.0, style="cross")
+        tomb_buddhist = Obstacle(x=200.0, y=256.0, width=32.0, height=64.0, style="buddhist")
+        platform = Obstacle(x=300.0, y=200.0, width=50.0, height=18.0, style="platform")
+
+        # Must execute without exception
+        renderer._draw_tombstone(canvas, tomb_cross, camera_x=0.0)
+        renderer._draw_tombstone(canvas, tomb_buddhist, camera_x=0.0)
+        renderer._draw_tombstone(canvas, platform, camera_x=0.0)
+
 if __name__ == "__main__":
     unittest.main()
