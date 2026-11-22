@@ -1,53 +1,64 @@
-from dataclasses import dataclass, field
-from typing import Callable, Dict, List
+"""Curriculum level definitions for Hoá's Midnight Escape.
 
+Encapsulates map layouts (obstacles, pits, ghosts, items, goal) and
+stage-specific rules into immutable LevelConfig dataclasses.
+"""
+
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional
+from core import BaseEnvironment
 from env.entities import Ghost, GoalFlag, Obstacle, Pit, WarmthItem
 from env.game_env import GameEnvironment
+
 
 DEFAULT_FLOOR_Y: float = 320.0
 
 
 @dataclass
 class LevelConfig:
-    """Data container holding the layout of a single graveyard level."""
+    """Configuration bundle defining an individual curriculum stage."""
     name: str
     obstacles: List[Obstacle]
     pits: List[Pit]
     goal: GoalFlag
-    ghosts: List[Ghost] = field(default_factory=list)
-    items: List[WarmthItem] = field(default_factory=list)
+    ghosts: List[Ghost]
+    items: List[WarmthItem]
     floor_y: float = DEFAULT_FLOOR_Y
     max_steps: int = 1000
 
 
 def _build_level_1() -> LevelConfig:
-    """Level 1 (Baseline): Flat ground with 2 tombstones, no pits, no ghosts, no items."""
+    """Level 1 (Quiet Graveyard): Introduction to basic jumping over static tombstones."""
     return LevelConfig(
         name="Level 1: Quiet Graveyard",
         obstacles=[
-            Obstacle(x=250.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="cross"),
-            Obstacle(x=500.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0, style="buddhist"),
+            Obstacle(x=320.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
+            Obstacle(x=640.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
         ],
         pits=[],
-        goal=GoalFlag(x=720.0, y=DEFAULT_FLOOR_Y - 88.0),
+        ghosts=[],
+        items=[],
+        goal=GoalFlag(x=900.0, y=DEFAULT_FLOOR_Y - 88.0),
         floor_y=DEFAULT_FLOOR_Y,
         max_steps=800,
     )
 
 
 def _build_level_2() -> LevelConfig:
-    """Level 2 (Obstacles & Pits): 3 tombstones + 2 grave pits, no ghosts, no items."""
+    """Level 2 (Open Grave Pits): Introduces lethal gap hazards requiring timed leaps."""
     return LevelConfig(
         name="Level 2: Open Graves Pits",
         obstacles=[
-            Obstacle(x=220.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
-            Obstacle(x=520.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0),
-            Obstacle(x=860.0, y=DEFAULT_FLOOR_Y - 68.0, width=32.0, height=68.0),
+            Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
+            Obstacle(x=560.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0),
+            Obstacle(x=880.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0),
         ],
         pits=[
-            Pit(x_start=340.0, x_end=410.0),  # 70px wide
-            Pit(x_start=680.0, x_end=755.0),  # 75px wide
+            Pit(x_start=360.0, x_end=430.0),  # 70px wide gap
+            Pit(x_start=680.0, x_end=755.0),  # 75px wide gap
         ],
+        ghosts=[],
+        items=[],
         goal=GoalFlag(x=1100.0, y=DEFAULT_FLOOR_Y - 88.0),
         floor_y=DEFAULT_FLOOR_Y,
         max_steps=1000,
@@ -55,33 +66,9 @@ def _build_level_2() -> LevelConfig:
 
 
 def _build_level_3() -> LevelConfig:
-    """Level 3 (Generalization + Items): Shifted tombstones/pits + warmth items introduced."""
+    """Level 3 (Whispering Graves): 3 tombstones, 2 pits (including 1 hellfire), 2 uniform ghosts (jump-over & walk-under), and warmth items."""
     return LevelConfig(
-        name="Level 3: Cold Trail",
-        obstacles=[
-            Obstacle(x=360.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0),
-            Obstacle(x=620.0, y=DEFAULT_FLOOR_Y - 44.0, width=32.0, height=44.0),
-            Obstacle(x=930.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0),
-        ],
-        pits=[
-            Pit(x_start=200.0, x_end=265.0),  # Pit comes FIRST (65px wide)
-            Pit(x_start=750.0, x_end=825.0),  # 75px wide
-        ],
-        items=[
-            WarmthItem(x=225.0, y=DEFAULT_FLOOR_Y - 86.0),   # Mid-air over pit 1
-            WarmthItem(x=490.0, y=DEFAULT_FLOOR_Y - 28.0),   # Along the safe path
-            WarmthItem(x=939.0, y=DEFAULT_FLOOR_Y - 100.0),  # Above tombstone 3
-        ],
-        goal=GoalFlag(x=1120.0, y=DEFAULT_FLOOR_Y - 88.0),
-        floor_y=DEFAULT_FLOOR_Y,
-        max_steps=1000,
-    )
-
-
-def _build_level_4() -> LevelConfig:
-    """Level 4 (Uniform Ghosts): 2 ghosts sharing the exact same default movement parameters."""
-    return LevelConfig(
-        name="Level 4: Whispering Graves",
+        name="Level 3: Whispering Graves",
         obstacles=[
             Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="cross"),
             Obstacle(x=560.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0, style="buddhist"),
@@ -108,62 +95,10 @@ def _build_level_4() -> LevelConfig:
     )
 
 
-def _build_level_5() -> LevelConfig:
-    """Level 5 (Diverse Ghosts): 4 ghosts with distinct speeds, bobbing heights, and wave speeds."""
+def _build_level_4() -> LevelConfig:
+    """Level 4 (Nightmare Catacombs): 5 tombstones, 4 hellfire pits, 5 diverse ghosts including dual counter-rotating laser scissors, fast twitcher demon, and 5 warmth items."""
     return LevelConfig(
-        name="Level 5: Midnight Escape",
-                obstacles=[
-            Obstacle(x=220.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="cross"),
-            Obstacle(x=620.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0, style="buddhist"),
-            Obstacle(x=1000.0, y=DEFAULT_FLOOR_Y - 52.0, width=32.0, height=52.0, style="cross"),
-            Obstacle(x=1320.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0, style="buddhist"),
-        ],
-        pits=[
-            Pit(x_start=460.0, x_end=535.0, has_fire=True, fire_offset=0),   # 75px wide (erupts on ticks 80..99)
-            Pit(x_start=840.0, x_end=915.0, has_fire=True, fire_offset=50),  # 75px wide (alternates: erupts on ticks 30..49)
-        ],
-        ghosts=[
-            # 1. Slow eerie drifter (low -> jump OVER)
-            Ghost(
-                x=320.0, y=DEFAULT_FLOOR_Y - 38.0,
-                patrol_min_x=280.0, patrol_max_x=435.0,
-                speed=1.0, float_amplitude=6.0, float_speed=0.05,
-            ),
-            # 2. Fast twitchy ghost (high -> walk UNDER)
-            Ghost(
-                x=720.0, y=DEFAULT_FLOOR_Y - 82.0,
-                patrol_min_x=675.0, patrol_max_x=820.0,
-                speed=-2.4, float_amplitude=4.0, float_speed=0.14,
-            ),
-            # 3. Swooping poltergeist (high with wide vertical wave)
-            Ghost(
-                x=1120.0, y=DEFAULT_FLOOR_Y - 86.0,
-                patrol_min_x=1060.0, patrol_max_x=1285.0,
-                speed=1.7, float_amplitude=13.0, float_speed=0.10,
-                has_laser=True, laser_length=95.0, laser_rotation_speed=0.04,
-            ),
-            # 4. Brisk final guardian before Hoá's house (low -> jump OVER)
-            Ghost(
-                x=1400.0, y=DEFAULT_FLOOR_Y - 40.0,
-                patrol_min_x=1375.0, patrol_max_x=1495.0,
-                speed=-1.9, float_amplitude=9.0, float_speed=0.12,
-            ),
-        ],
-        items=[
-            WarmthItem(x=229.0, y=DEFAULT_FLOOR_Y - 86.0),   # Above tombstone 1
-            WarmthItem(x=490.0, y=DEFAULT_FLOOR_Y - 88.0),   # Mid-air over pit 1
-            WarmthItem(x=740.0, y=DEFAULT_FLOOR_Y - 28.0),   # Under fast high ghost 2
-            WarmthItem(x=1329.0, y=DEFAULT_FLOOR_Y - 102.0), # Above tombstone 4
-        ],
-        goal=GoalFlag(x=1520.0, y=DEFAULT_FLOOR_Y - 88.0),
-        floor_y=DEFAULT_FLOOR_Y,
-        max_steps=1000,
-    )
-
-def _build_level_6() -> LevelConfig:
-    """Level 6 (The Nightmare Catacombs): Extreme gauntlet with crossfire lasers, cascading flame pits, and twitchy ghosts."""
-    return LevelConfig(
-        name="Level 6: Nightmare Catacombs",
+        name="Level 4: Nightmare Catacombs",
         obstacles=[
             # Tight stone pillars and narrow landing islands between pits
             Obstacle(x=220.0, y=DEFAULT_FLOOR_Y - 52.0, width=32.0, height=52.0, style="cross"),
@@ -227,10 +162,11 @@ def _build_level_6() -> LevelConfig:
         max_steps=1400,
     )
 
-def _build_level_7() -> LevelConfig:
-    """Level 7 (The Eternal Abyss): Marathon gauntlet with variable flame heights, multi-speed laser ghosts, varied tombs, and mandatory crouch tunnels."""
+
+def _build_level_5() -> LevelConfig:
+    """Level 5 (The Eternal Abyss): Marathon gauntlet with variable flame heights, multi-speed laser ghosts, varied tombs, and mandatory crouch tunnels."""
     return LevelConfig(
-        name="Level 7: The Eternal Abyss",
+        name="Level 5: The Eternal Abyss",
         obstacles=[
             # Section 1: Varied tombstone heights (low step vs tall monolith)
             Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 36.0, width=32.0, height=36.0, style="buddhist"),    # Low step
@@ -326,13 +262,16 @@ def _build_level_7() -> LevelConfig:
     )
 
 
+# Alias so callers requesting Level 7 continue to resolve cleanly to The Eternal Abyss
+_build_level_7 = _build_level_5
+
+
 LEVEL_BUILDERS: Dict[int, Callable[[], LevelConfig]] = {
     1: _build_level_1,
     2: _build_level_2,
     3: _build_level_3,
     4: _build_level_4,
     5: _build_level_5,
-    6: _build_level_6,
     7: _build_level_7,
 }
 
@@ -351,9 +290,9 @@ def create_env(level_id: int = 1) -> GameEnvironment:
     return GameEnvironment(
         obstacles=cfg_level.obstacles,
         pits=cfg_level.pits,
+        goal=cfg_level.goal,
         ghosts=cfg_level.ghosts,
         items=cfg_level.items,
-        goal=cfg_level.goal,
         floor_y=cfg_level.floor_y,
         max_steps=cfg_level.max_steps,
         level_name=cfg_level.name,

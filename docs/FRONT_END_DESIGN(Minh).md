@@ -66,12 +66,10 @@
 
 ---
 
-## 4. Curriculum Progression & Stages (Levels 1–7)
+## 4. Curriculum Progression & Stages (Levels 1–5)
 
 1. **Level 1 (`Quiet Graveyard`)**: 2 tombstones, 0 pits, 0 ghosts, 0 items (`max_steps=800`). Baseline jumping.
 2. **Level 2 (`Open Graves Pits`)**: 3 tombstones + 2 grave pits, 0 ghosts, 0 items (`max_steps=1000`). Timed gap leaps.
-3. **Level 3 (`Cold Trail`)**: Shifted tombstones/pits + 3 warmth items (`max_steps=1000`). Collectible items & layout generalization.
-4. **Level 4 (`Whispering Graves`)**: 3 tombstones + 2 pits (Pit 2 has flame jet) + 3 warmth items + 2 uniform ghosts (`max_steps=1000`). Low & high ghost dodging.
-5. **Level 5 (`Midnight Escape`)**: 4 tombstones + 2 alternating flame pits + 4 warmth items + 4 diverse ghosts (`max_steps=1000`). Multi-speed dodging and timing.
-6. **Level 6 (`Nightmare Catacombs`)**: 5 tombstones + 4 hellfire pits + 5 diverse ghosts (including dual counter-rotating laser scissors) + 5 warmth items (`max_steps=1400`). Continuous 360-degree rotating laser hazards.
-7. **Level 7 (`The Eternal Abyss`)**: Marathon gauntlet with variable flame heights, multi-speed laser ghosts, varied tombs, and mandatory crouch tunnels (`max_steps=2400`).
+3. **Level 3 (`Whispering Graves`)**: 3 tombstones + 2 pits (including 1 hellfire pit) + 2 uniform ghosts (jump-over & walk-under) + 3 warmth items (`max_steps=1000`).
+4. **Level 4 (`Nightmare Catacombs`)**: 5 tombstones + 4 hellfire pits + 5 diverse ghosts (including dual counter-rotating laser scissors) + 5 warmth items (`max_steps=1400`). Continuous 360-degree rotating laser hazards.
+5. **Level 5 (`The Eternal Abyss`)**: Marathon gauntlet with variable flame heights, multi-speed laser ghosts, varied tombs, and mandatory crouch tunnels (`max_steps=2400`).
