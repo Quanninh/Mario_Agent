@@ -12,15 +12,15 @@
 ### 1.1 Project Objective & Story
 The goal of this project is to develop an autonomous AI agent that learns to play a custom 2D platformer through **interaction and experience**, rather than manually programmed rules.
 
-- **Story**: Hoá wakes up late on a freezing night in the middle of a graveyard near his house. Terrified and cold, he must navigate his way home—jumping over tall tombstones and open grave pits, dodging floating ghosts hovering in the air, and collecting warmth items along the way until he reaches his glowing home.
-- **Learning Process**: Initially, the agent knows nothing and acts randomly. Over hundreds of episodes, it receives rewards (moving closer to home, collecting warmth items, reaching the house) and penalties (falling into grave pits, touching ghosts, stalling) to learn an optimal navigation policy.
+- **Story**: Hoá wakes up late on a freezing night in the middle of a graveyard near his house. Terrified and cold, he must navigate his way home—jumping over tall tombstones and open grave pits, dodging diverse ghosts (base hovering ghosts, sweeping laser specters, and soaring wisp maidens), and collecting **Warding Garlic Bulbs (*Củ Tỏi Trừ Tà*)** along the way until he reaches the sanctuary of the illuminated **Khuê Văn Các** pavilion.
+- **Learning Process**: Initially, the agent knows nothing and acts randomly. Over hundreds of episodes, it receives rewards (moving closer to sanctuary, collecting garlic bulbs, reaching the pavilion) and penalties (falling into grave pits, touching ghosts, laser/fire hits, stalling) to learn an optimal navigation policy.
 
 ### 1.2 Core Problem Formulation (Markov Decision Process)
 - **Agent**: Hoá, observing the nearby surroundings and choosing discrete actions.
-- **Environment**: A 2D midnight graveyard platformer with tall tombstones, open grave pits, hovering ghosts, warmth items, and Hoá's house as the finish line.
-- **State ($S$)**: Discretized representations of Hoá's position, altitude, grounded status, and relative distance to nearby tombstones, pits, ghosts, and home.
-- **Action ($A$)**: Discrete decisions (`Stay`, `Left`, `Jump`, `Right`, `Right + Jump`).
-- **Reward ($R$)**: Feedback reinforcing forward progress, item collection, and reaching home while penalizing traps, ghost collisions, or stalling.
+- **Environment**: A 2D midnight graveyard platformer with tall tombstones, open grave pits (with periodic hellfire), hovering ghosts, laser ghosts, wisp maidens, collectible warding garlic bulbs, and the Khuê Văn Các pavilion as the finish line.
+- **State ($S$)**: Discretized representations of Hoá's position, altitude, grounded status, double jump availability, crouching state, and relative distance to nearby tombstones, pits, pit fire phases, ghosts, and the goal.
+- **Action ($A$)**: 6 discrete decisions (`Stay`, `Left`, `Jump`, `Right`, `Right + Jump`, `Crouch`).
+- **Reward ($R$)**: Feedback reinforcing forward progress, garlic item collection, and reaching home while penalizing traps, ghost collisions, or stalling.
 - **Algorithm**: **Tabular Q-Learning** with a Q-Table storing $Q(s, a)$ values updated via Temporal Difference (TD) learning and an $\epsilon$-greedy exploration strategy.
 
 ### 1.3 Key Deliverables
@@ -44,11 +44,11 @@ The end-to-end lifecycle follows the standard Reinforcement Learning training an
 The system executes across 4 high-level phases during each step and episode:
 
 1. **Environment Step**:
-   - Executes the selected action (`Stay`, `Right`, `Left`, `Jump`, `Right + Jump`).
-   - Updates player physics, checks bounding-box collisions, and emits game transition events.
+   - Executes the selected action (`Stay`, `Right`, `Left`, `Jump`, `Right + Jump`, `Crouch`).
+   - Updates player physics (gravity, jumps, crouch slides), updates ghost patrols, advances rotating lasers, simulates parabolic will-o'-the-wisp projectiles, checks bounding-box collisions, and emits game transition events.
 
 2. **State & Reward Processing**:
-   - **Discretizer**: Converts continuous coordinates and obstacle distances into a discrete state tuple $s$.
+   - **Discretizer**: Converts continuous coordinates, kinematics, and obstacle distances into a discrete state tuple $s$.
    - **Reward Strategy**: Computes scalar reward $r$ based on forward progress, death penalties, and goal bonuses.
 
 3. **Q-Learning Update**:
