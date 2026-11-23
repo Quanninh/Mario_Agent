@@ -16,6 +16,7 @@ venv/
 
 # Pdf file
 *.pdf
+*.csv
 
 # Optional: uncomment if training logs become too large for Git
 # logs/
