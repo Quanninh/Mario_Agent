@@ -67,7 +67,7 @@ The system executes across 4 high-level phases during each step and episode:
 ```text
 Mario_Agent/
 ├── core/            # Base interfaces (Environment, Agent, Discretizer, Reward)
-├── env/             # Pygame 2D Mario environment & level layouts
+├── env/             # Pygame 2D graveyard environment, entities & 5 level layouts
 ├── discretizer/     # Continuous-to-discrete state mapping
 ├── rewards/         # Pluggable reward strategies (Sparse, Dense, Balanced)
 ├── agent/           # Q-Learning agent (Q-Table & Epsilon-Greedy policy)
