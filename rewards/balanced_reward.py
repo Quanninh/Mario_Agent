@@ -26,13 +26,16 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         obstacle_penalty: float = -3.0,
         item_bonus: float = 30.0,
         step_penalty: float = -0.1,
-        unnecessary_jump_penalty: float = -1.5,
-        stall_penalty: float = 0.0,
+        unnecessary_jump_penalty: float = -15.0,
         timeout_penalty: float = -50.0,
-        vision_range: float = 80.0,
+        obs_threat_distance: float = 50.0,
+        pit_threat_distance: float = 45.0,
+        ghost_threat_distance: float = 80.0,
+        laser_threat_distance: float = 55.0,
+        wisp_threat_distance: float = 65.0,
+        monster_threat_distance: float = 75.0,
         ghost_height: float = 28.0,
         ghost_clearance_margin: float = 4.0,
-        jump_penalty: Optional[float] = None,
     ):
         self.weight_progress = weight_progress
         self.weight_regress = weight_regress
@@ -46,13 +49,14 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         self.obstacle_penalty = obstacle_penalty
         self.item_bonus = item_bonus
         self.step_penalty = step_penalty
-        self.unnecessary_jump_penalty = (
-            jump_penalty if jump_penalty is not None else unnecessary_jump_penalty
-        )
-        self.jump_penalty = self.unnecessary_jump_penalty
-        self.stall_penalty = stall_penalty
+        self.unnecessary_jump_penalty = unnecessary_jump_penalty
         self.timeout_penalty = timeout_penalty
-        self.vision_range = vision_range
+        self.obs_threat_distance = obs_threat_distance
+        self.pit_threat_distance = pit_threat_distance
+        self.ghost_threat_distance = ghost_threat_distance
+        self.laser_threat_distance = laser_threat_distance
+        self.wisp_threat_distance = wisp_threat_distance
+        self.monster_threat_distance = monster_threat_distance
         self.ghost_height = ghost_height
         self.ghost_clearance_margin = ghost_clearance_margin
 
@@ -110,16 +114,17 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         reward += self.step_penalty
 
         # 10. Unnecessary Jump Penalty
-        # Fires ONLY when grounded, jumping, and no obstacle, pit, or low/eye-level ghost within vision_range
-        # A ghost with overhead clearance (safe to walk under) does NOT exempt jumping
+        # Fires ONLY when grounded, taking off, and NO hazard justifies a jump.
+        # Aligned with Discretizer threat horizons to avoid penalizing legitimate evasive maneuvers.
+        # A ghost with overhead clearance (safe to walk under) does NOT exempt jumping.
         if prev_state.is_grounded and action in (Action.JUMP, Action.RIGHT_JUMP):
             obs_far = (
                 prev_state.dist_to_obstacle < 0.0
-                or prev_state.dist_to_obstacle > self.vision_range
+                or prev_state.dist_to_obstacle > self.obs_threat_distance
             )
             pit_far = (
                 prev_state.dist_to_pit < 0.0
-                or prev_state.dist_to_pit > self.vision_range
+                or prev_state.dist_to_pit > self.pit_threat_distance
             )
             dist_ghost = getattr(prev_state, "dist_to_ghost", -1.0)
             ghost_y = getattr(prev_state, "ghost_y", 0.0)
@@ -130,20 +135,16 @@ class BalancedRewardStrategy(BaseRewardStrategy):
                 and (ghost_y + self.ghost_height) <= (player_y - self.ghost_clearance_margin)
             )
             low_ghost_near = (
-                0.0 <= dist_ghost <= self.vision_range
+                0.0 <= dist_ghost <= self.ghost_threat_distance
                 and not ghost_overhead_cleared
             )
-            laser_near = 0.0 <= getattr(prev_state, "dist_to_laser", -1.0) <= self.vision_range
-            wisp_near = 0.0 <= getattr(prev_state, "dist_to_wisp", -1.0) <= self.vision_range
-            monster_near = 0.0 <= getattr(prev_state, "dist_to_monster", -1.0) <= self.vision_range
+            laser_near = 0.0 <= getattr(prev_state, "dist_to_laser", -1.0) <= self.laser_threat_distance
+            wisp_near = 0.0 <= getattr(prev_state, "dist_to_wisp", -1.0) <= self.wisp_threat_distance
+            monster_near = 0.0 <= getattr(prev_state, "dist_to_monster", -1.0) <= self.monster_threat_distance
             if obs_far and pit_far and not low_ghost_near and not laser_near and not wisp_near and not monster_near:
                 reward += self.unnecessary_jump_penalty
 
-        # 11. Stall Penalty (standing still without hitting an obstacle)
-        if abs(events.dx) < 1e-6 and not events.hit_obstacle:
-            reward += self.stall_penalty
-
-        # 12. Timeout Penalty (Ensure deaths are never penalized as timeouts)
+        # 11. Timeout Penalty (Ensure deaths are never penalized as timeouts)
         is_hazard_death = (
             events.fell_in_pit
             or events.hit_ghost

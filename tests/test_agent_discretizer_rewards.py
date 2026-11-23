@@ -211,6 +211,43 @@ class TestRewards(unittest.TestCase):
         r_goal = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_goal, True)
         self.assertAlmostEqual(r_goal, 203.9)  # 4.0 + 200.0 - 0.1
 
+    def test_balanced_reward_jump_exemption_and_spam_penalty(self) -> None:
+        strategy = BalancedRewardStrategy(unnecessary_jump_penalty=-15.0)
+
+        # Baseline: walking on flat open ground
+        s_open = make_raw_state(is_grounded=True)
+        ev = GameEvents(dx=4.0)
+        r_walk = strategy.calculate_reward(s_open, Action.RIGHT, s_open, ev, False)
+
+        # 1. Unprovoked jump on open ground -> MUST incur -15.0 penalty
+        r_unprovoked_jump = strategy.calculate_reward(s_open, Action.RIGHT_JUMP, s_open, ev, False)
+        self.assertAlmostEqual(r_unprovoked_jump - r_walk, -15.0)
+
+        # 2. Jump when monster is approaching at 60px (<= 75px threshold) -> EXEMPT
+        s_monster = make_raw_state(is_grounded=True, dist_to_monster=60.0)
+        r_jump_monster = strategy.calculate_reward(s_monster, Action.RIGHT_JUMP, s_monster, ev, False)
+        self.assertAlmostEqual(r_jump_monster, r_walk)
+
+        # 3. Jump when monster is far at 100px (> 75px threshold) -> PENALIZED
+        s_monster_far = make_raw_state(is_grounded=True, dist_to_monster=100.0)
+        r_jump_monster_far = strategy.calculate_reward(s_monster_far, Action.RIGHT_JUMP, s_monster_far, ev, False)
+        self.assertAlmostEqual(r_jump_monster_far - r_walk, -15.0)
+
+        # 4. Jump when wisp is incoming at 55px (<= 65px threshold) -> EXEMPT
+        s_wisp = make_raw_state(is_grounded=True, dist_to_wisp=55.0, wisp_dir=1)
+        r_jump_wisp = strategy.calculate_reward(s_wisp, Action.RIGHT_JUMP, s_wisp, ev, False)
+        self.assertAlmostEqual(r_jump_wisp, r_walk)
+
+        # 5. Jump when laser is threatening at 50px (<= 55px threshold) -> EXEMPT
+        s_laser = make_raw_state(is_grounded=True, dist_to_laser=50.0)
+        r_jump_laser = strategy.calculate_reward(s_laser, Action.RIGHT_JUMP, s_laser, ev, False)
+        self.assertAlmostEqual(r_jump_laser, r_walk)
+
+        # 6. Airborne double jump (is_grounded=False) -> NEVER penalized by unnecessary_jump_penalty
+        s_air = make_raw_state(is_grounded=False, can_double_jump=True)
+        r_air_jump = strategy.calculate_reward(s_air, Action.RIGHT_JUMP, s_air, ev, False)
+        self.assertAlmostEqual(r_air_jump, r_walk)
+
     def test_dense_reward_ghost_and_item(self) -> None:
         strategy = DenseRewardStrategy(death_penalty=-60.0, item_bonus=20.0)
         self.assertIsInstance(strategy, BaseRewardStrategy)
