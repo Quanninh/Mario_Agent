@@ -17,6 +17,7 @@ class SparseRewardStrategy(BaseRewardStrategy):
         ghost_penalty: Optional[float] = None,
         fire_penalty: Optional[float] = None,
         laser_penalty: Optional[float] = None,
+        wisp_penalty: Optional[float] = None,
         item_bonus: float = 30.0,
     ):
         self.goal_bonus = goal_bonus
@@ -25,6 +26,7 @@ class SparseRewardStrategy(BaseRewardStrategy):
         self.ghost_penalty = ghost_penalty if ghost_penalty is not None else death_penalty
         self.fire_penalty = fire_penalty if fire_penalty is not None else death_penalty
         self.laser_penalty = laser_penalty if laser_penalty is not None else death_penalty
+        self.wisp_penalty = wisp_penalty if wisp_penalty is not None else death_penalty
         self.item_bonus = item_bonus
 
     def calculate_reward(
@@ -45,6 +47,8 @@ class SparseRewardStrategy(BaseRewardStrategy):
             return self.fire_penalty
         if getattr(events, "hit_laser", False):
             return self.laser_penalty
+        if getattr(events, "hit_wisp", False):
+            return self.wisp_penalty
         if events.collected_item:
             return self.item_bonus
         return 0.0

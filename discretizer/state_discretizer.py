@@ -5,9 +5,9 @@ from core.interfaces import BaseDiscretizer, DiscreteState
 
 class MarioStateDiscretizer(BaseDiscretizer):
     """
-    Transforms continuous RawState into a compact hashable 9-tuple:
+    Transforms continuous RawState into a compact hashable 11-tuple:
         (grounded_bin, vy_bin, obs_dist_bin, obs_height_bin, pit_dist_bin,
-         ghost_dist_bin, ghost_alt_bin, laser_bin, crouch_bin)
+         ghost_dist_bin, ghost_alt_bin, laser_bin, wisp_bin, crouch_bin, double_jump_bin)
 
     Cardinality:
         grounded_bin:        2 values (0: airborne, 1: on ground)
@@ -18,7 +18,9 @@ class MarioStateDiscretizer(BaseDiscretizer):
         ghost_dist_bin:      4 values (0: None >80px or <0px, 1: Far 35-80px, 2: Close 0<dist<=35px, 3: Overlap dist==0.0)
         ghost_alt_bin:       2 values (0: Low/None - jump over, 1: High - walk/crouch under)
         laser_bin:           2 values (0: Safe/None, 1: Threat/Overhead <=55px)
+        wisp_bin:            3 values (0: Safe/None, 1: Incoming Ahead, 2: Chasing Behind)
         crouch_bin:          2 values (0: Standing, 1: Crouching/Sliding)
+        double_jump_bin:     2 values (0: Spent/Unavailable, 1: Armed/Ready)
     """
 
     def __init__(
@@ -31,6 +33,7 @@ class MarioStateDiscretizer(BaseDiscretizer):
         ghost_high_threshold: float = 60.0,
         obs_close_threshold: float = 45.0,
         laser_threat_distance: float = 55.0,
+        wisp_threat_distance: float = 65.0,
     ):
         self.velocity_threshold = velocity_threshold
         self.high_obstacle_threshold = high_obstacle_threshold
@@ -39,6 +42,7 @@ class MarioStateDiscretizer(BaseDiscretizer):
         self.ghost_high_threshold = ghost_high_threshold
         self.obs_close_threshold = obs_close_threshold
         self.laser_threat_distance = laser_threat_distance
+        self.wisp_threat_distance = wisp_threat_distance
 
     def discretize(self, raw_state: RawState) -> DiscreteState:
         player_y = getattr(raw_state, "player_y", getattr(raw_state, "mario_y", 0.0))
@@ -109,8 +113,21 @@ class MarioStateDiscretizer(BaseDiscretizer):
         dist_laser = getattr(raw_state, "dist_to_laser", -1.0)
         laser_bin = 1 if (0.0 <= dist_laser <= self.laser_threat_distance) else 0
 
-        # 9. Crouch Posture Bin (0: Standing, 1: Crouching)
+        # 9. Will-o'-the-Wisp Hazard Bin (0: Safe/None, 1: Incoming Ahead, 2: Chasing Behind)
+        dist_wisp = getattr(raw_state, "dist_to_wisp", -1.0)
+        wisp_dir = getattr(raw_state, "wisp_dir", 0)
+        if dist_wisp < 0.0 or dist_wisp > self.wisp_threat_distance:
+            wisp_bin = 0  # SAFE / NONE
+        elif wisp_dir >= 0:
+            wisp_bin = 1  # INCOMING_AHEAD
+        else:
+            wisp_bin = 2  # CHASING_BEHIND
+
+        # 10. Crouch Posture Bin (0: Standing, 1: Crouching)
         crouch_bin = 1 if getattr(raw_state, "is_crouching", False) else 0
+
+        # 11. Mid-Air Double Jump Bin (0: Unavailable/Spent, 1: Ready)
+        double_jump_bin = 1 if getattr(raw_state, "can_double_jump", False) else 0
 
         return (
             grounded_bin,
@@ -121,7 +138,9 @@ class MarioStateDiscretizer(BaseDiscretizer):
             ghost_dist_bin,
             ghost_alt_bin,
             laser_bin,
+            wisp_bin,
             crouch_bin,
+            double_jump_bin,
         )
 
 

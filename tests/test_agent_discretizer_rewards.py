@@ -25,6 +25,8 @@ def make_raw_state(
     ghost_y: float = 0.0,
     dist_to_item: float = -1.0,
     dist_to_laser: float = -1.0,
+    dist_to_wisp: float = -1.0,
+    wisp_dir: int = 0,
     dist_to_goal: float = 500.0,
 ) -> RawState:
     return RawState(
@@ -43,6 +45,8 @@ def make_raw_state(
         ghost_y=ghost_y,
         dist_to_item=dist_to_item,
         dist_to_laser=dist_to_laser,
+        dist_to_wisp=dist_to_wisp,
+        wisp_dir=wisp_dir,
         dist_to_goal=dist_to_goal,
     )
 
@@ -71,7 +75,7 @@ class TestDiscretizer(unittest.TestCase):
         )
         state = self.discretizer.discretize(raw)
         self.assertIsInstance(state, tuple)
-        self.assertEqual(len(state), 9)
+        self.assertEqual(len(state), 11)
         self.assertTrue(all(isinstance(x, int) for x in state))
 
     def test_legacy_attribute_compatibility(self) -> None:
@@ -87,7 +91,7 @@ class TestDiscretizer(unittest.TestCase):
             ghost_y = 0.0
 
         state = self.discretizer.discretize(LegacyState())
-        self.assertEqual(len(state), 9)
+        self.assertEqual(len(state), 11)
 
     def test_ghost_dist_and_alt_bins(self) -> None:
         # Low ghost (jump over)
@@ -125,6 +129,27 @@ class TestDiscretizer(unittest.TestCase):
         s_high = self.discretizer.discretize(raw_high)
         self.assertEqual(s_high[5], 2)  # ghost_dist_bin: CLOSE
         self.assertEqual(s_high[6], 1)  # ghost_alt_bin: HIGH
+
+    def test_wisp_and_double_jump_bins(self) -> None:
+        # Double jump armed
+        raw_dj = make_raw_state(can_double_jump=True, is_grounded=False)
+        s_dj = self.discretizer.discretize(raw_dj)
+        self.assertEqual(s_dj[10], 1)  # double_jump_bin: 1
+
+        # Wisp ahead within threat distance
+        raw_wisp_ahead = make_raw_state(dist_to_wisp=30.0, wisp_dir=1)
+        s_wisp_ahead = self.discretizer.discretize(raw_wisp_ahead)
+        self.assertEqual(s_wisp_ahead[8], 1)  # wisp_bin: INCOMING_AHEAD
+
+        # Wisp behind
+        raw_wisp_behind = make_raw_state(dist_to_wisp=30.0, wisp_dir=-1)
+        s_wisp_behind = self.discretizer.discretize(raw_wisp_behind)
+        self.assertEqual(s_wisp_behind[8], 2)  # wisp_bin: CHASING_BEHIND
+
+        # Wisp far
+        raw_wisp_far = make_raw_state(dist_to_wisp=100.0, wisp_dir=1)
+        s_wisp_far = self.discretizer.discretize(raw_wisp_far)
+        self.assertEqual(s_wisp_far[8], 0)  # wisp_bin: SAFE
 
 
 class TestRewards(unittest.TestCase):

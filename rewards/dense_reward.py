@@ -18,6 +18,7 @@ class DenseRewardStrategy(BaseRewardStrategy):
         ghost_penalty: Optional[float] = None,
         fire_penalty: Optional[float] = None,
         laser_penalty: Optional[float] = None,
+        wisp_penalty: Optional[float] = None,
         obstacle_penalty: float = -2.0,
         item_bonus: float = 30.0,
         idle_penalty: float = 0.0,
@@ -30,6 +31,7 @@ class DenseRewardStrategy(BaseRewardStrategy):
         self.ghost_penalty = ghost_penalty if ghost_penalty is not None else death_penalty
         self.fire_penalty = fire_penalty if fire_penalty is not None else death_penalty
         self.laser_penalty = laser_penalty if laser_penalty is not None else death_penalty
+        self.wisp_penalty = wisp_penalty if wisp_penalty is not None else death_penalty
         self.obstacle_penalty = obstacle_penalty
         self.item_bonus = item_bonus
         self.idle_penalty = idle_penalty
@@ -57,6 +59,8 @@ class DenseRewardStrategy(BaseRewardStrategy):
             reward += self.fire_penalty
         if getattr(events, "hit_laser", False):
             reward += self.laser_penalty
+        if getattr(events, "hit_wisp", False):
+            reward += self.wisp_penalty
         if events.hit_obstacle:
             reward += self.obstacle_penalty
         if events.collected_item:
@@ -68,6 +72,7 @@ class DenseRewardStrategy(BaseRewardStrategy):
             or events.hit_ghost
             or getattr(events, "hit_fire", False)
             or getattr(events, "hit_laser", False)
+            or getattr(events, "hit_wisp", False)
         )
         if done and not events.reached_goal and not is_hazard_death:
             reward += self.timeout_penalty

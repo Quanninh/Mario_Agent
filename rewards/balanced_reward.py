@@ -20,6 +20,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         ghost_penalty: float = -75.0,
         fire_penalty: float = -75.0,
         laser_penalty: float = -75.0,
+        wisp_penalty: float = -75.0,
         obstacle_penalty: float = -3.0,
         item_bonus: float = 30.0,
         step_penalty: float = -0.1,
@@ -36,6 +37,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         self.ghost_penalty = ghost_penalty
         self.fire_penalty = fire_penalty
         self.laser_penalty = laser_penalty
+        self.wisp_penalty = wisp_penalty
         self.obstacle_penalty = obstacle_penalty
         self.item_bonus = item_bonus
         self.step_penalty = step_penalty
@@ -79,6 +81,10 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         if getattr(events, "hit_laser", False):
             reward += self.laser_penalty
 
+        # 6b. Will-o'-the-Wisp Death Penalty
+        if getattr(events, "hit_wisp", False):
+            reward += self.wisp_penalty
+
         # 7. Tombstone Obstacle Collision Penalty
         if events.hit_obstacle:
             reward += self.obstacle_penalty
@@ -109,7 +115,8 @@ class BalancedRewardStrategy(BaseRewardStrategy):
                 and ghost_y >= self.high_ghost_y_threshold
             )
             laser_near = 0.0 <= getattr(prev_state, "dist_to_laser", -1.0) <= self.vision_range
-            if obs_far and pit_far and not low_ghost_near and not laser_near:
+            wisp_near = 0.0 <= getattr(prev_state, "dist_to_wisp", -1.0) <= self.vision_range
+            if obs_far and pit_far and not low_ghost_near and not laser_near and not wisp_near:
                 reward += self.unnecessary_jump_penalty
                 reward -= events.dx * self.weight_progress
 
@@ -123,6 +130,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
             or events.hit_ghost
             or getattr(events, "hit_fire", False)
             or getattr(events, "hit_laser", False)
+            or getattr(events, "hit_wisp", False)
         )
         if done and not events.reached_goal and not is_hazard_death:
             reward += self.timeout_penalty

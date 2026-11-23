@@ -455,6 +455,8 @@ def play_autonomous(
                 outcome_str = "INCINERATED BY PIT FIRE"
             elif getattr(events, "hit_laser", False):
                 outcome_str = "VAPORIZED BY LASER"
+            elif getattr(events, "hit_wisp", False):
+                outcome_str = "STRUCK BY WILL-O'-THE-WISP"
             else:
                 outcome_str = "TIMEOUT"
 
