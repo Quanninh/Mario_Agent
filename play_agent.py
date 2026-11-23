@@ -177,8 +177,8 @@ def parse_args() -> argparse.Namespace:
         "--level",
         type=int,
         default=1,
-        choices=[1, 2, 3, 4, 5, 6, 7],
-        help="Initial level to load (1..7, default: 1)",
+        choices=[1, 2, 3, 4, 5, 6, 7, 8],
+        help="Initial level to load (1..8, default: 1)",
     )
     parser.add_argument(
         "--reward",
@@ -261,7 +261,7 @@ def play_autonomous(
     print(f"[AI Player] Mode: {current_mode.upper()} | Reward: {current_reward.upper()} | Variant: {current_variant.upper()}")
     print(f"[AI Player] Active Agent: {agent_display_name}")
     print("Controls:")
-    print("  [1 / 2 / 3 / 4 / 5 / 6 / 7] Switch Level live")
+    print("  [1 - 8]             Switch Level live (1..8)")
     print("  [F1 / F2 / F3]      Swap Q-Table: Balanced (F1), Sparse (F2), Dense (F3)")
     print("  [T]                 Toggle Variant: Best <-> Final")
     print("  [H / A]             Toggle Agent: TabularQAgent <-> HybridAgent")
@@ -295,7 +295,7 @@ def play_autonomous(
         if just_pressed(pygame.K_ESCAPE):
             break
 
-        # Level switching (1..7)
+        # Level switching (1..8)
         new_lvl = None
         if just_pressed(pygame.K_1):
             new_lvl = 1
@@ -311,6 +311,8 @@ def play_autonomous(
             new_lvl = 6
         elif just_pressed(pygame.K_7):
             new_lvl = 7
+        elif just_pressed(pygame.K_8):
+            new_lvl = 8
 
         if new_lvl is not None and new_lvl != current_level:
             env.close()

@@ -5,9 +5,10 @@ from core.interfaces import BaseDiscretizer, DiscreteState
 
 class MarioStateDiscretizer(BaseDiscretizer):
     """
-    Transforms continuous RawState into a compact hashable 11-tuple:
+    Transforms continuous RawState into a compact hashable 12-tuple:
         (grounded_bin, vy_bin, obs_dist_bin, obs_height_bin, pit_dist_bin,
-         ghost_dist_bin, ghost_alt_bin, laser_bin, wisp_bin, crouch_bin, double_jump_bin)
+         ghost_dist_bin, ghost_alt_bin, laser_bin, wisp_bin, crouch_bin,
+         double_jump_bin, monster_bin)
 
     Cardinality:
         grounded_bin:        2 values (0: airborne, 1: on ground)
