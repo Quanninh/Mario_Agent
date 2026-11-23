@@ -18,7 +18,9 @@ class GameEnvironment(BaseEnvironment):
     WALK_SPEED: float = 4.0
     JUMP_FORCE: float = -13.0
     DOUBLE_JUMP_RATIO: float = 0.75
+    SLIDE_INITIAL_SPEED: float = 6.8
     SLIDE_FRICTION: float = 0.90
+    SLIDE_MIN_CRAWL_SPEED: float = 2.5
     STANDING_HEIGHT: float = 32.0
     CROUCH_HEIGHT: float = 18.0
 
@@ -33,6 +35,7 @@ class GameEnvironment(BaseEnvironment):
         floor_y: float = 320.0,
         max_steps: int = 1000,
         level_name: str = "Graveyard",
+        level_id: int = 1,
         canvas_width: int = 800,
         canvas_height: int = 400,
     ) -> None:
@@ -41,6 +44,7 @@ class GameEnvironment(BaseEnvironment):
         self.floor_y = floor_y
         self.max_steps = max_steps
         self.level_name = level_name
+        self.level_id = level_id
 
         # Level entities
         self.obstacles: List[Obstacle] = obstacles if obstacles is not None else []
@@ -94,23 +98,54 @@ class GameEnvironment(BaseEnvironment):
         # --------------------------------------------------------
         # Horizontal Movement, Crouch, Slide, and X-Axis Collision
         # --------------------------------------------------------
-        if action == Action.CROUCH and self.player.is_grounded:
+        # 1. Check whether an overhead obstacle prevents standing up
+        standing_test_rect = (
+            self.player.x,
+            self.player.bottom - self.STANDING_HEIGHT,
+            self.player.width,
+            self.STANDING_HEIGHT,
+        )
+        has_low_ceiling = any(self._rects_overlap(standing_test_rect, obs.rect) for obs in self.obstacles)
+        # 2. Player must remain crouched if: pressing CROUCH while grounded OR trapped under a low ceiling
+        must_crouch = (action == Action.CROUCH and self.player.is_grounded) or (self.player.is_crouching and has_low_ceiling)
+        if must_crouch:
+            was_moving = abs(self.player.vx) > 0.1
+            facing = 1.0 if self.player.facing_right else -1.0
+
             if not self.player.is_crouching:
-                # Transition standing -> crouching: lower head, keep feet on ground
+                # Transition standing -> crouching: lower hitbox height
                 self.player.is_crouching = True
                 self.player.y += (self.STANDING_HEIGHT - self.CROUCH_HEIGHT)
                 self.player.height = self.CROUCH_HEIGHT
-            self.player.vx *= self.SLIDE_FRICTION
-            if abs(self.player.vx) < 0.3:
-                self.player.vx = 0.0
+                
+                # Only initiate momentum slide if already running; stationary duck keeps vx = 0
+                self.player.vx = facing * self.SLIDE_INITIAL_SPEED if was_moving else 0.0
+            else:
+                if has_low_ceiling:
+                    # Inside low tunnel: crawl if directional keys are held, or decay momentum
+                    if action in (Action.RIGHT, Action.RIGHT_JUMP):
+                        self.player.facing_right = True
+                        self.player.vx = max(self.player.vx * self.SLIDE_FRICTION, self.SLIDE_MIN_CRAWL_SPEED)
+                    elif action == Action.LEFT:
+                        self.player.facing_right = False
+                        self.player.vx = min(self.player.vx * self.SLIDE_FRICTION, -self.SLIDE_MIN_CRAWL_SPEED)
+                    else:
+                        # Released controls: decelerate to a complete stop
+                        self.player.vx *= self.SLIDE_FRICTION
+                        if abs(self.player.vx) < 0.2:
+                            self.player.vx = 0.0
+                else:
+                    # Outdoors: momentum slide decays to stop
+                    self.player.vx *= self.SLIDE_FRICTION
+                    if abs(self.player.vx) < 0.2:
+                        self.player.vx = 0.0
         else:
+            # Outdoors and NOT crouching: stand upright (Slide Cancel)
             if self.player.is_crouching:
-                # Transition crouching -> standing: raise head back up
                 self.player.is_crouching = False
                 self.player.y -= (self.STANDING_HEIGHT - self.CROUCH_HEIGHT)
                 self.player.height = self.STANDING_HEIGHT
-
-            # Update velocity for standard walking / jumping
+            # Standard outdoor walking / running
             if action in (Action.RIGHT, Action.RIGHT_JUMP):
                 self.player.vx = self.WALK_SPEED
                 self.player.facing_right = True
@@ -119,7 +154,8 @@ class GameEnvironment(BaseEnvironment):
                 self.player.facing_right = False
             elif action in (Action.STAY, Action.JUMP):
                 self.player.vx = 0.0
-
+            
+        
         self.player.x += self.player.vx
 
         # Prevent walking off the left screen boundary
@@ -141,16 +177,20 @@ class GameEnvironment(BaseEnvironment):
         # -----------------------------------------------------
         # Vertical Movement (Jump + Gravity) & Y-Axis Collision
         # -----------------------------------------------------
-        if action in (Action.JUMP, Action.RIGHT_JUMP):
+        if action in (Action.JUMP, Action.RIGHT_JUMP) and not self.player.is_crouching:
+            # God Mode grants a 35% higher leap impulse to clear colossal abysses
+            jump_impulse = self.JUMP_FORCE * 1.35 if getattr(self, "god_mode", False) else self.JUMP_FORCE
+
             if self.player.is_grounded:
                 # 1. First ground jump: take off and ENABLE double jump for mid-air!
-                self.player.vy = self.JUMP_FORCE
+                self.player.vy = jump_impulse
                 self.player.is_grounded = False
                 self.player.can_double_jump = True
-            elif self.player.can_double_jump:
-                # 2. Mid-air double jump: second impulse and CONSUME double jump!
-                self.player.vy = self.JUMP_FORCE * self.DOUBLE_JUMP_RATIO
-                self.player.can_double_jump = False
+            elif self.player.can_double_jump or getattr(self, "god_mode", False):
+                # 2. Mid-air double jump (and infinite airborne flutter leaps in God Mode!)
+                self.player.vy = jump_impulse * self.DOUBLE_JUMP_RATIO
+                if not getattr(self, "god_mode", False):
+                    self.player.can_double_jump = False
             
         self.player.vy += self.GRAVITY
         old_bottom = self.player.bottom
@@ -227,11 +267,14 @@ class GameEnvironment(BaseEnvironment):
         )
         hit_wisp = any(self._rects_overlap(self.player.rect, w.rect) for w in self.wisps)
 
-        hit_monster = any(
-            self._rects_overlap(self.player.rect, m.rect)
-            for m in self.monsters
-            if m.is_alive and m.state in (GraveMonsterState.EMERGING, GraveMonsterState.ACTIVE)
+        collided_monster = next(
+            (m for m in self.monsters
+             if m.is_alive
+             and m.state in (GraveMonsterState.EMERGING, GraveMonsterState.ACTIVE)
+             and self._rects_overlap(self.player.rect, m.rect)),
+            None
         )
+        hit_monster = collided_monster is not None
 
         if not self.god_mode:
             # Death by hitting ghost
@@ -262,6 +305,11 @@ class GameEnvironment(BaseEnvironment):
             elif hit_monster:
                 self.player.is_alive = False
                 events.hit_monster = True
+                from .entities import CuongThi, QuyNhapTrang
+                if isinstance(collided_monster, CuongThi):
+                    events.monster_type = "cuong_thi"
+                elif isinstance(collided_monster, QuyNhapTrang):
+                    events.monster_type = "quy_nhap_trang"
                 done = True
 
             # Pit death

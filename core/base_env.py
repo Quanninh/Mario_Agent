@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, Optional
 
 class Action:
     """Discrete action space for the Mario agent."""
@@ -54,6 +54,7 @@ class GameEvents:
     hit_laser: bool = False       # True if Hoá touched a ghost's eye laser [DIE]
     hit_wisp: bool = False        # True if Hoá touched a will-o'-the-wisp projectile [DIE]
     hit_monster: bool = False     # True if Hoá touched an emerging or active grave monster [DIE]
+    monster_type: Optional[str] = None  # Specific monster type: "cuong_thi" or "quy_nhap_trang"
     collected_item: bool = False  # True if Hoá collected a warmth item [BONUS]
 
 class BaseEnvironment(ABC):

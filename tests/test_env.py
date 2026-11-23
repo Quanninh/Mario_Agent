@@ -178,8 +178,8 @@ class TestGameEnvironment(unittest.TestCase):
         self.assertEqual(env.player.vx, env.WALK_SPEED)
         state, _, _ = env.step(Action.CROUCH)
         self.assertTrue(state.is_crouching)
-        # Velocity should be WALK_SPEED * SLIDE_FRICTION (3.28)
-        self.assertAlmostEqual(env.player.vx, env.WALK_SPEED * env.SLIDE_FRICTION, places=2)
+        # Velocity should match initial boosted slide speed
+        self.assertAlmostEqual(env.player.vx, env.SLIDE_INITIAL_SPEED, places=2)
 
     def test_pit_fire_phases_and_bounding_box(self) -> None:
         """Pits with fire follow dormant (0) -> warning (1) -> active flame (2) cycles."""
@@ -381,6 +381,72 @@ class TestGameEnvironment(unittest.TestCase):
         # 4. Active standing pause on ground (draped talisman)
         ct._is_grounded = True
         renderer._draw_grave_monster(canvas, ct, camera_x=0.0, step_count=35, floor_y=320.0)
+
+    def test_level_8_marathon_architecture_and_sentry_monsters(self) -> None:
+        """Level 8 features 7,200px length, multiple slide tunnels, and sentry monsters on wide platforms."""
+        from env.entities import CuongThi, QuyNhapTrang, LaserGhost, WispGhost
+        cfg8 = LEVEL_BUILDERS[8]()
+        self.assertEqual(cfg8.name, "Level 8: The Celestial Purgatory")
+        self.assertGreater(cfg8.goal.x, 7000.0)
+        self.assertGreaterEqual(len(cfg8.obstacles), 40)
+        self.assertGreaterEqual(len(cfg8.pits), 10)
+        self.assertGreaterEqual(len(cfg8.monsters), 10)
+        self.assertGreaterEqual(len(cfg8.ghosts), 15)
+
+        # Check for hanging slide tunnels (y=0.0, height=296.0)
+        slide_tunnels = [obs for obs in cfg8.obstacles if obs.y == 0.0 and obs.height == 320.0 - 24.0]
+        self.assertGreaterEqual(len(slide_tunnels), 4)
+
+        # Check platform sentries
+        platform_sentries = [m for m in cfg8.monsters if m.patrol_min_x is not None]
+        self.assertGreaterEqual(len(platform_sentries), 3)
+
+        # Check that platform sentry boundaries match wide platforms
+        for sentry in platform_sentries:
+            catwalk = sentry.patrol_max_x - sentry.patrol_min_x
+            self.assertGreaterEqual(catwalk, 100.0)
+
+    def test_god_mode_super_jump(self) -> None:
+        """God Mode grants higher jump velocity and infinite mid-air leaps."""
+        env = GameEnvironment(obstacles=[], pits=[], ghosts=[], items=[])
+        env.reset()
+        env.god_mode = True
+
+        # First ground jump: boosted by 1.35x
+        env.step(Action.JUMP)
+        self.assertAlmostEqual(env.player.vy, env.JUMP_FORCE * 1.35 + env.GRAVITY, places=2)
+
+        # In mid-air: infinite leaps allowed
+        for _ in range(5):
+            env.step(Action.JUMP)
+            self.assertTrue(env.player.vy < 0.0)
+
+    def test_monster_specific_death_attribution(self) -> None:
+        """Killed by CuongThi sets monster_type='cuong_thi'; QuyNhapTrang sets 'quy_nhap_trang'."""
+        from env.entities import CuongThi, QuyNhapTrang, GraveMonsterState
+        # Test CuongThi death
+        ct = CuongThi(x=100.0, y=320.0 - 32.0)
+        ct.state = GraveMonsterState.ACTIVE
+        env = GameEnvironment(obstacles=[], pits=[], ghosts=[], items=[], monsters=[ct])
+        env.reset()
+        env.player.x = 100.0
+        env.player.y = 320.0 - 32.0
+        _, events, done = env.step(Action.STAY)
+        self.assertTrue(done)
+        self.assertTrue(events.hit_monster)
+        self.assertEqual(events.monster_type, "cuong_thi")
+
+        # Test QuyNhapTrang death
+        qnt = QuyNhapTrang(x=100.0, y=320.0 - 32.0)
+        qnt.state = GraveMonsterState.ACTIVE
+        env2 = GameEnvironment(obstacles=[], pits=[], ghosts=[], items=[], monsters=[qnt])
+        env2.reset()
+        env2.player.x = 100.0
+        env2.player.y = 320.0 - 32.0
+        _, events2, done2 = env2.step(Action.STAY)
+        self.assertTrue(done2)
+        self.assertTrue(events2.hit_monster)
+        self.assertEqual(events2.monster_type, "quy_nhap_trang")
 
 if __name__ == "__main__":
     unittest.main()

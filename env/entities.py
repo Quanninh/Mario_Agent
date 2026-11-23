@@ -214,6 +214,7 @@ class LaserGhost(Ghost):
     laser_length: float = 90.0          # Beam reach in pixels
     laser_rotation_speed: float = 0.04  # Rotation speed in rad/tick (positive = clockwise)
     laser_initial_angle: float = 0.0    # Starting angle offset in radians
+    laser_sweep_amplitude: float = 0.0  # If > 0, sweeps back and forth via sine wave (searchlight)
 
     def get_laser_segment(self, step_count: int) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
         """Returns ((start_x, start_y), (end_x, end_y)) of the continuous 360-degree rotating laser beam."""
@@ -221,8 +222,13 @@ class LaserGhost(Ghost):
         eye_cx = self.x + self.width / 2.0
         eye_cy = self.y + self.height * 0.4
 
-        # Continuously rotates 360 degrees based on step count
-        angle = (self.laser_initial_angle + step_count * self.laser_rotation_speed) % (2.0 * math.pi)
+        if self.laser_sweep_amplitude > 0.0:
+            # Sine-sweeping searchlight (sweeps between initial_angle ± amplitude)
+            angle = self.laser_initial_angle + self.laser_sweep_amplitude * math.sin(step_count * self.laser_rotation_speed)
+        else:
+            # Continuously rotates 360 degrees based on step count
+            angle = (self.laser_initial_angle + step_count * self.laser_rotation_speed) % (2.0 * math.pi)
+
         end_x = eye_cx + math.cos(angle) * self.laser_length
         end_y = eye_cy + math.sin(angle) * self.laser_length
         return ((eye_cx, eye_cy), (end_x, end_y))
@@ -286,6 +292,12 @@ class GraveMonster:
     leap_force_y: float = -7.5    # Upward impulse when leaping over pits
     is_alive: bool = True
 
+    # --- Platform Sentry Patrol Attributes ---
+    platform_y: Optional[float] = None    # Top of elevated stone platform
+    patrol_min_x: Optional[float] = None  # Left turnaround boundary
+    patrol_max_x: Optional[float] = None  # Right turnaround boundary
+    facing_dir: float = -1.0              # -1.0 = moving left, 1.0 = moving right
+
     def __post_init__(self) -> None:
         self._start_x = self.x
         self._start_y = self.y
@@ -333,7 +345,7 @@ class GraveMonster:
         if pits is None:
             pits = []
         
-        target_stand_y = floor_y - self.height
+        target_stand_y = (self.platform_y if self.platform_y is not None else floor_y) - self.height
 
         if self.state == GraveMonsterState.DORMANT:
             if abs(player_x - self.x) <= self.trigger_dist:
@@ -375,8 +387,22 @@ class QuyNhapTrang(GraveMonster):
         self._is_jumping = False
 
     def update_pursuit(self, player_x: float, floor_y: float, pits: List[Pit]) -> None:
-        stand_y = floor_y - self.height
+        stand_y = (self.platform_y if self.platform_y is not None else floor_y) - self.height
 
+        # A. Platform Sentry Mode (runs back and forth across stone platform)
+        if self.patrol_min_x is not None and self.patrol_max_x is not None:
+            self.y = stand_y
+            self.vx = self.facing_dir * self.base_speed
+            self.x += self.vx
+            if self.x <= self.patrol_min_x:
+                self.x = self.patrol_min_x
+                self.facing_dir = 1.0
+            elif self.right >= self.patrol_max_x:
+                self.x = self.patrol_max_x - self.width
+                self.facing_dir = -1.0
+            return
+
+        # B. Standard Ground Pursuit (existing ground vaulting)
         if self._is_jumping:
             # Airborne trajectory vaulting over the pit
             self.vy += self.gravity
@@ -419,8 +445,36 @@ class CuongThi(GraveMonster):
         self._is_grounded = True
 
     def update_pursuit(self, player_x: float, floor_y: float, pits: List[Pit]) -> None:
-        stand_y = floor_y - self.height
-
+        stand_y = (self.platform_y if self.platform_y is not None else floor_y) - self.height
+        
+        # A. Platform Sentry Mode (rhythmic hops back and forth on the platform)
+        if self.patrol_min_x is not None and self.patrol_max_x is not None:
+            if self._is_grounded:
+                self.vx = 0.0
+                self.vy = 0.0
+                self.y = stand_y
+                self._pause_timer += 1
+                if self._pause_timer >= self.pause_duration:
+                    self._pause_timer = 0
+                    self._is_grounded = False
+                    # Check boundary reversal before hop
+                    if self.facing_dir < 0 and self.x <= self.patrol_min_x + 6.0:
+                        self.facing_dir = 1.0
+                    elif self.facing_dir > 0 and self.right >= self.patrol_max_x - 6.0:
+                        self.facing_dir = -1.0
+                    self.vx = self.facing_dir * self.hop_speed_x
+                    self.vy = self.hop_force_y
+            else:
+                self.vy += self.gravity
+                self.x += self.vx
+                self.y += self.vy
+                if self.y >= stand_y:
+                    self.y = stand_y
+                    self.vy = 0.0
+                    self._is_grounded = True
+            return
+        
+        # B. Standard Ground Pursuit 
         if self._is_grounded:
             self.vx = 0.0
             self.vy = 0.0
