@@ -117,7 +117,7 @@ class HybridQSARSAAgent(BaseAgent):
         if self.mode == "hazard_gated":
             # Check proximity to lethal hazards:
             # - Index 4: pit_dist_bin (0: NONE, 1: FAR, 2: IMMEDIATE)
-            # - Index 5: ghost_dist_bin (0: NONE, 1: FAR, 2: CLOSE)
+            # - Index 5: ghost_dist_bin (0: NONE, 1: FAR, 2: CLOSE, 3: OVERLAP)
             pit_dist_bin = next_state[4] if len(next_state) > 4 else 0
             ghost_dist_bin = next_state[5] if len(next_state) > 5 else 0
             is_lethal_hazard = (pit_dist_bin != 0) or (ghost_dist_bin != 0)
@@ -256,6 +256,7 @@ class HybridQSARSAAgent(BaseAgent):
     # Aliases for backward compatibility and uniform API with TabularQAgent
     load_q_table = load
     save_q_table = save
+    update_hybrid = update
 
 
 # Convenience alias

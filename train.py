@@ -5,7 +5,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
-from agent import TabularQAgent
+from agent import HybridQSARSAAgent, TabularQAgent
 from discretizer import MarioStateDiscretizer
 from env import create_env
 from rewards import create_reward_strategy
@@ -15,7 +15,15 @@ from training import Trainer
 class ProgressTracker:
     """Zero-dependency ASCII progress tracker with inline or newline output."""
 
-    def __init__(self, mode: str, reward: str, total_episodes: int, use_inline: bool) -> None:
+    def __init__(
+        self,
+        agent_tag: str,
+        mode: str,
+        reward: str,
+        total_episodes: int,
+        use_inline: bool,
+    ) -> None:
+        self.agent_tag = agent_tag
         self.mode = mode
         self.reward = reward
         self.total_episodes = total_episodes
@@ -51,7 +59,8 @@ class ProgressTracker:
                 pct_str = f"{pct * 100.0:5.1f}%"
 
                 line = (
-                    f"\r[{bar}] {pct_str} | Lvl {data['level_id']} ({lvl_ep}/{ep_per_lvl}) | "
+                    f"\r[{bar}] {pct_str} | {self.agent_tag} | {self.mode.capitalize()} | {self.reward.upper()} | "
+                    f"Lvl {data['level_id']} ({lvl_ep}/{ep_per_lvl}) | "
                     f"Win50: {data['rolling_win_rate_50']:5.1f}% | "
                     f"R: {data['total_reward']:+7.1f} | eps: {data['epsilon']:.3f} | "
                     f"States: {data['states_discovered']:4d}/1152 | ETA: {eta_str}"
@@ -64,7 +73,7 @@ class ProgressTracker:
             # Clean newline logs every 100 episodes, episode 1, or level completion
             if current_ep == 1 or current_ep % 100 == 0 or is_level_end:
                 print(
-                    f"[{self.mode.capitalize()} | {self.reward.upper()}] "
+                    f"[{self.agent_tag.upper()} | {self.mode.capitalize()} | {self.reward.upper()}] "
                     f"Global Ep {current_ep:4d}/{total_ep:4d} | "
                     f"Lvl {data['level_id']} ({lvl_ep:4d}/{ep_per_lvl:4d}) | "
                     f"Win50: {data['rolling_win_rate_50']:5.1f}% | "
@@ -74,19 +83,19 @@ class ProgressTracker:
                 sys.stdout.flush()
 
 
-def print_comparison_table(all_results: Dict[Tuple[str, str], Dict], levels: List[int]) -> None:
-    """Prints a clear comparison table across all completed (mode, reward) experiments."""
-    print("\n" + "=" * 120)
-    print(" " * 42 + "EXPERIMENT EVALUATION COMPARISON SUMMARY")
-    print("=" * 120)
+def print_comparison_table(all_results: Dict[Tuple[str, str, str], Dict], levels: List[int]) -> None:
+    """Prints a clear comparison table across all completed (agent, mode, reward) experiments."""
+    print("\n" + "=" * 135)
+    print(" " * 48 + "EXPERIMENT EVALUATION COMPARISON SUMMARY")
+    print("=" * 135)
     header = (
-        f"{'Mode':<12} {'Reward':<10} {'Level':<14} {'Untrained Win%':<16} "
+        f"{'Agent':<16} {'Mode':<12} {'Reward':<10} {'Level':<14} {'Untrained Win%':<16} "
         f"{'Trained Win%':<14} {'Untrained R':<14} {'Trained R':<14} {'Clear Steps':<14} {'Items'}"
     )
     print(header)
-    print("-" * 120)
+    print("-" * 135)
 
-    for (mode, reward_name), res in all_results.items():
+    for (agent_tag, mode, reward_name), res in all_results.items():
         summary = res.get("evaluation_summary", {})
         for lvl in levels:
             lvl_key = f"level_{lvl}"
@@ -102,7 +111,7 @@ def print_comparison_table(all_results: Dict[Tuple[str, str], Dict], levels: Lis
             items = f"{stats.get('avg_items_collected', 0.0):.1f}"
 
             print(
-                f"{mode:<12} {reward_name:<10} {f'Level {lvl}':<14} {untrained_win:<16} "
+                f"{agent_tag:<16} {mode:<12} {reward_name:<10} {f'Level {lvl}':<14} {untrained_win:<16} "
                 f"{trained_win:<14} {untrained_r:<14} {trained_r:<14} {clear_steps:<14} {items}"
             )
 
@@ -114,7 +123,7 @@ def print_comparison_table(all_results: Dict[Tuple[str, str], Dict], levels: Lis
                     z3_r = f"{z3.get('avg_reward', 0.0):+.1f}"
                     z3_items = f"{z3.get('avg_items_collected', 0.0):.1f}"
                     print(
-                        f"{'':<12} {'':<10} {'  -> L3 ZeroShot':<14} {'--':<16} "
+                        f"{'':<16} {'':<12} {'':<10} {'  -> L3 ZeroShot':<14} {'--':<16} "
                         f"{z3_win:<14} {'--':<14} {z3_r:<14} {'--':<14} {z3_items}"
                     )
                 elif lvl == 4 and "level_5_zero_shot" in summary:
@@ -123,15 +132,33 @@ def print_comparison_table(all_results: Dict[Tuple[str, str], Dict], levels: Lis
                     z5_r = f"{z5.get('avg_reward', 0.0):+.1f}"
                     z5_items = f"{z5.get('avg_items_collected', 0.0):.1f}"
                     print(
-                        f"{'':<12} {'':<10} {'  -> L5 ZeroShot':<14} {'--':<16} "
+                        f"{'':<16} {'':<12} {'':<10} {'  -> L5 ZeroShot':<14} {'--':<16} "
                         f"{z5_win:<14} {'--':<14} {z5_r:<14} {'--':<14} {z5_items}"
                     )
-        print("-" * 120)
+        print("-" * 135)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Headless RL Training & Evaluation Harness for Hoá's Midnight Escape"
+    )
+    parser.add_argument(
+        "--agent",
+        choices=["tabular", "hybrid", "all"],
+        default="all",
+        help="Agent algorithm family: 'tabular', 'hybrid', or 'all' (default: 'all')",
+    )
+    parser.add_argument(
+        "--hybrid-mode",
+        choices=["expected", "linear", "hazard_gated"],
+        default="expected",
+        help="Hybrid SARSA-Q target formulation: 'expected', 'linear', or 'hazard_gated' (default: 'expected')",
+    )
+    parser.add_argument(
+        "--beta",
+        type=float,
+        default=0.25,
+        help="SARSA blending factor beta for Hybrid agent (default: 0.25)",
     )
     parser.add_argument(
         "--mode",
@@ -179,8 +206,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--rewarm-epsilon-ghost",
         type=float,
-        default=0.40,
-        help="Exploration re-warming epsilon when entering ghost levels >=4 in curriculum (default: 0.40)",
+        default=0.35,
+        help="Exploration re-warming epsilon when entering ghost levels >=4 in curriculum (default: 0.35)",
     )
     parser.add_argument(
         "--replay-ratio",
@@ -282,80 +309,110 @@ def main() -> None:
         checkpoint_interval = args.checkpoint_interval
 
     # Determine experiment grid
+    agents = ["tabular", "hybrid"] if args.agent == "all" else [args.agent]
     modes = ["curriculum", "separate"] if args.mode == "all" else [args.mode]
     rewards = ["balanced", "sparse", "dense"] if args.reward == "all" else [args.reward]
 
-    total_experiments = len(modes) * len(rewards)
-    print(f"[train.py] Executing {total_experiments} experiment(s): Modes={modes}, Rewards={rewards}, Levels={args.levels}")
+    total_experiments = len(agents) * len(modes) * len(rewards)
+    print(
+        f"[train.py] Executing {total_experiments} experiment(s): "
+        f"Agents={agents}, Modes={modes}, Rewards={rewards}, Levels={args.levels}"
+    )
 
     use_inline = sys.stdout.isatty() and not args.no_progress_bar
 
-    all_results: Dict[Tuple[str, str], Dict] = {}
+    all_results: Dict[Tuple[str, str, str], Dict] = {}
     exp_idx = 0
 
-    for mode in modes:
-        for reward_name in rewards:
-            exp_idx += 1
-            print(f"\n{'='*70}")
-            print(f"[{exp_idx}/{total_experiments}] Starting: Mode={mode.upper()} | Reward={reward_name.upper()}")
-            print(f"{'='*70}")
+    for agent_type in agents:
+        agent_tag = "tabular" if agent_type == "tabular" else f"hybrid_{args.hybrid_mode}"
+        for mode in modes:
+            for reward_name in rewards:
+                exp_idx += 1
+                print(f"\n{'='*75}")
+                print(
+                    f"[{exp_idx}/{total_experiments}] Starting: Agent={agent_tag.upper()} | "
+                    f"Mode={mode.upper()} | Reward={reward_name.upper()}"
+                )
+                print(f"{'='*75}")
 
-            # Deterministic per-experiment seed
-            random.seed(args.seed)
-            np.random.seed(args.seed)
+                # Deterministic per-experiment seed
+                random.seed(args.seed)
+                np.random.seed(args.seed)
 
-            # Factory for agents with exact seed and hyperparameters
-            def make_agent() -> TabularQAgent:
-                return TabularQAgent(
-                    learning_rate=args.alpha,
-                    discount_factor=args.gamma,
-                    epsilon=args.epsilon_start,
-                    epsilon_min=args.epsilon_min,
-                    epsilon_decay=args.epsilon_decay,
-                    seed=args.seed,
+                # Factory for agents with exact seed and hyperparameters
+                if agent_type == "tabular":
+                    def make_agent() -> TabularQAgent:
+                        return TabularQAgent(
+                            learning_rate=args.alpha,
+                            discount_factor=args.gamma,
+                            epsilon=args.epsilon_start,
+                            epsilon_min=args.epsilon_min,
+                            epsilon_decay=args.epsilon_decay,
+                            seed=args.seed,
+                        )
+                else:
+                    def make_agent() -> HybridQSARSAAgent:
+                        return HybridQSARSAAgent(
+                            learning_rate=args.alpha,
+                            discount_factor=args.gamma,
+                            epsilon=args.epsilon_start,
+                            epsilon_min=args.epsilon_min,
+                            epsilon_decay=args.epsilon_decay,
+                            mode=args.hybrid_mode,
+                            beta=args.beta,
+                            seed=args.seed,
+                        )
+
+                reward_strategy = create_reward_strategy(reward_name)
+                discretizer = MarioStateDiscretizer()
+
+                trainer = Trainer(
+                    env_factory=create_env,
+                    discretizer=discretizer,
+                    reward_strategy=reward_strategy,
+                    reward_name=reward_name,
+                    agent_type=agent_type,
+                    hybrid_mode=args.hybrid_mode,
+                    beta=args.beta,
+                    action_repeat=args.action_repeat,
+                    rewarm_epsilon=args.rewarm_epsilon,
+                    rewarm_epsilon_ghost=args.rewarm_epsilon_ghost,
+                    alpha_min=args.alpha_min,
+                    replay_ratio=args.replay_ratio,
+                    eval_interval=eval_interval,
+                    eval_episodes_periodic=eval_episodes_periodic,
+                    final_eval_episodes=final_eval_episodes,
+                    untrained_eval_episodes=untrained_eval_episodes,
+                    checkpoint_interval=checkpoint_interval,
+                    checkpoints_dir=args.checkpoints_dir,
+                    outputs_dir=args.outputs_dir,
                 )
 
-            reward_strategy = create_reward_strategy(reward_name)
-            discretizer = MarioStateDiscretizer()
+                total_eps = len(args.levels) * episodes_per_level
+                tracker = ProgressTracker(
+                    agent_tag=agent_tag,
+                    mode=mode,
+                    reward=reward_name,
+                    total_episodes=total_eps,
+                    use_inline=use_inline,
+                )
 
-            trainer = Trainer(
-                env_factory=create_env,
-                discretizer=discretizer,
-                reward_strategy=reward_strategy,
-                reward_name=reward_name,
-                action_repeat=args.action_repeat,
-                rewarm_epsilon=args.rewarm_epsilon,
-                rewarm_epsilon_ghost=args.rewarm_epsilon_ghost,
-                alpha_min=args.alpha_min,
-                replay_ratio=args.replay_ratio,
-                eval_interval=eval_interval,
-                eval_episodes_periodic=eval_episodes_periodic,
-                final_eval_episodes=final_eval_episodes,
-                untrained_eval_episodes=untrained_eval_episodes,
-                checkpoint_interval=checkpoint_interval,
-                checkpoints_dir=args.checkpoints_dir,
-                outputs_dir=args.outputs_dir,
-            )
+                is_canonical = (
+                    mode == "curriculum"
+                    and reward_name == "balanced"
+                    and agent_tag == "tabular"
+                )
 
-            total_eps = len(args.levels) * episodes_per_level
-            tracker = ProgressTracker(
-                mode=mode,
-                reward=reward_name,
-                total_episodes=total_eps,
-                use_inline=use_inline,
-            )
-
-            is_canonical = (mode == "curriculum" and reward_name == "balanced")
-
-            result = trainer.run_experiment(
-                agent_factory=make_agent,
-                mode=mode,
-                levels=args.levels,
-                episodes_per_level=episodes_per_level,
-                is_canonical_production=is_canonical,
-                progress_callback=tracker.callback,
-            )
-            all_results[(mode, reward_name)] = result
+                result = trainer.run_experiment(
+                    agent_factory=make_agent,
+                    mode=mode,
+                    levels=args.levels,
+                    episodes_per_level=episodes_per_level,
+                    is_canonical_production=is_canonical,
+                    progress_callback=tracker.callback,
+                )
+                all_results[(agent_tag, mode, reward_name)] = result
 
     # Print summary comparison table
     print_comparison_table(all_results, args.levels)
