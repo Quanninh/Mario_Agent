@@ -295,5 +295,92 @@ class TestGameEnvironment(unittest.TestCase):
         renderer._draw_tombstone(canvas, tomb_buddhist, camera_x=0.0)
         renderer._draw_tombstone(canvas, platform, camera_x=0.0)
 
+    def test_level_7_elements_and_single_monster_per_grave(self) -> None:
+        """Level 7 combines all entities, exceeds Level 5 difficulty, and ensures 1 monster per grave."""
+        from env.entities import CuongThi, QuyNhapTrang, LaserGhost, WispGhost, Obstacle
+        cfg7 = LEVEL_BUILDERS[7]()
+        self.assertEqual(cfg7.name, "Level 7: Cataclysm of the Undead")
+        self.assertGreater(len(cfg7.obstacles), 5)
+        self.assertGreater(len(cfg7.pits), 4)
+        self.assertGreater(len(cfg7.ghosts), 8)
+        self.assertGreater(len(cfg7.items), 6)
+        self.assertIsNotNone(cfg7.monsters)
+        self.assertEqual(len(cfg7.monsters), 4)
+
+        # Confirm all entity types are present
+        has_cuong_thi = any(isinstance(m, CuongThi) for m in cfg7.monsters)
+        has_quy_nhap_trang = any(isinstance(m, QuyNhapTrang) for m in cfg7.monsters)
+        has_laser = any(isinstance(g, LaserGhost) for g in cfg7.ghosts)
+        has_wisp = any(isinstance(g, WispGhost) for g in cfg7.ghosts)
+        has_fire_pit = any(p.has_fire for p in cfg7.pits)
+        has_platform = any(o.style == "platform" for o in cfg7.obstacles)
+
+        self.assertTrue(has_cuong_thi)
+        self.assertTrue(has_quy_nhap_trang)
+        self.assertTrue(has_laser)
+        self.assertTrue(has_wisp)
+        self.assertTrue(has_fire_pit)
+        self.assertTrue(has_platform)
+
+        # Constraint check: Exactly one monster per tombstone obstacle
+        grave_coords = [m._start_x for m in cfg7.monsters]
+        self.assertEqual(len(grave_coords), len(set(grave_coords)), "Every monster must have a distinct grave coordinate!")
+        obstacle_xs = [o.x for o in cfg7.obstacles]
+        for gx in grave_coords:
+            self.assertIn(gx, obstacle_xs, f"Ambush origin {gx} must match an existing obstacle tombstone!")
+
+    def test_cuong_thi_hopping_and_pit_vault(self) -> None:
+        """CuongThi pauses on ground, hops leftward, and automatically vaults pits."""
+        from env.entities import CuongThi, Pit, GraveMonsterState
+        ct = CuongThi(x=200.0, y=288.0, trigger_dist=150.0, hop_speed_x=2.5, hop_force_y=-5.5, pause_duration=5)
+        pit = Pit(x_start=140.0, x_end=190.0)
+        floor_y = 320.0
+
+        # Trigger emergence
+        ct.update(player_x=100.0, floor_y=floor_y, pits=[pit])
+        self.assertEqual(ct.state, GraveMonsterState.EMERGING)
+
+        # Fast forward emergence to ACTIVE
+        for _ in range(50):
+            ct.update(player_x=100.0, floor_y=floor_y, pits=[pit])
+
+        self.assertEqual(ct.state, GraveMonsterState.ACTIVE)
+
+        # Step through hops and verify vaulting
+        vaulted = False
+        for _ in range(60):
+            ct.update(player_x=100.0, floor_y=floor_y, pits=[pit])
+            if not ct._is_grounded and ct.y < floor_y - ct.height:
+                vaulted = True
+                break
+        self.assertTrue(vaulted)
+
+    def test_cuong_thi_renderer_all_states_headless(self) -> None:
+        """GameRenderer draws CuongThi in dormant, emerging, and hopping charge states without error."""
+        import pygame
+        from env.entities import CuongThi, GraveMonsterState
+        from env.game_renderer import GameRenderer
+
+        renderer = GameRenderer()
+        canvas = pygame.Surface((800, 400))
+        ct = CuongThi(x=200.0, y=288.0)
+
+        # 1. Dormant omen on grave
+        self.assertEqual(ct.state, GraveMonsterState.DORMANT)
+        renderer._draw_grave_monster(canvas, ct, camera_x=0.0, step_count=10, floor_y=320.0)
+
+        # 2. Emerging state
+        ct.state = GraveMonsterState.EMERGING
+        renderer._draw_grave_monster(canvas, ct, camera_x=0.0, step_count=20, floor_y=320.0)
+
+        # 3. Active hopping charge (airborne hop)
+        ct.state = GraveMonsterState.ACTIVE
+        ct._is_grounded = False
+        renderer._draw_grave_monster(canvas, ct, camera_x=0.0, step_count=30, floor_y=320.0)
+
+        # 4. Active standing pause on ground (draped talisman)
+        ct._is_grounded = True
+        renderer._draw_grave_monster(canvas, ct, camera_x=0.0, step_count=35, floor_y=320.0)
+
 if __name__ == "__main__":
     unittest.main()

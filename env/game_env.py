@@ -2,7 +2,10 @@ from typing import List, Optional, Tuple
 import pygame
 
 from core.base_env import Action, BaseEnvironment, GameEvents, RawState
-from env.entities import Ghost, LaserGhost, WispGhost, WillOWisp, GoalFlag, Obstacle, Pit, Player, WarmthItem
+from env.entities import (
+    Ghost, LaserGhost, WispGhost, WillOWisp, GoalFlag, Obstacle, Pit, Player, WarmthItem,
+    GraveMonster, GraveMonsterState
+)
 from .game_renderer import GameRenderer
 
 class GameEnvironment(BaseEnvironment):
@@ -24,6 +27,7 @@ class GameEnvironment(BaseEnvironment):
         obstacles: Optional[List[Obstacle]] = None,
         pits: Optional[List[Pit]] = None,
         ghosts: Optional[List[Ghost]] = None,
+        monsters: Optional[List[GraveMonster]] = None,
         items: Optional[List[WarmthItem]] = None,
         goal: Optional[GoalFlag] = None,
         floor_y: float = 320.0,
@@ -42,6 +46,7 @@ class GameEnvironment(BaseEnvironment):
         self.obstacles: List[Obstacle] = obstacles if obstacles is not None else []
         self.pits: List[Pit] = pits if pits is not None else []
         self.ghosts: List[Ghost] = ghosts if ghosts is not None else []
+        self.monsters: List[GraveMonster] = monsters if monsters is not None else []
         self.items: List[WarmthItem] = items if items is not None else []
         self.wisps: List[WillOWisp] = []
         self.goal: GoalFlag = goal if goal is not None else GoalFlag(
@@ -56,6 +61,7 @@ class GameEnvironment(BaseEnvironment):
 
         # Episode tracking
         self.step_count: int = 0
+        self.god_mode: bool = False
 
         # UI Renderer (Lazy initialized on first render call)
         self._renderer: Optional[GameRenderer] = None
@@ -70,6 +76,8 @@ class GameEnvironment(BaseEnvironment):
         self.player.reset(self.start_x, self.start_y)
         for ghost in self.ghosts:
             ghost.reset()
+        for monster in self.monsters: # <-- Add here
+            monster.reset()
         for item in self.items:
             item.reset()
         self.wisps.clear()
@@ -172,6 +180,8 @@ class GameEnvironment(BaseEnvironment):
         if was_grounded and not self.player.is_grounded:
             self.player.can_double_jump = True
 
+        self._resolve_pit_wall_collisions()
+
         # -------------------------------------------
         # Update Ghosts and Wisps
         # -------------------------------------------
@@ -186,6 +196,10 @@ class GameEnvironment(BaseEnvironment):
         for wisp in self.wisps:
             wisp.update(self.pits, self.floor_y, self.canvas_height)
         self.wisps = [w for w in self.wisps if w.is_alive]
+
+        # Update active grave monsters (rising from graves, leaping over pits, pursuing left)
+        for monster in self.monsters:
+            monster.update(self.player.x, self.floor_y, self.pits)
 
         # Check Warmth Item Pickups
         for item in self.items:
@@ -213,38 +227,56 @@ class GameEnvironment(BaseEnvironment):
         )
         hit_wisp = any(self._rects_overlap(self.player.rect, w.rect) for w in self.wisps)
 
-        # Death by hitting ghost
-        if hit_ghost:
-            self.player.is_alive = False
-            events.hit_ghost = True
-            done = True
+        hit_monster = any(
+            self._rects_overlap(self.player.rect, m.rect)
+            for m in self.monsters
+            if m.is_alive and m.state in (GraveMonsterState.EMERGING, GraveMonsterState.ACTIVE)
+        )
 
-        # Death by hitting fire
-        elif hit_fire:
-            self.player.is_alive = False
-            events.hit_fire = True
-            done = True
+        if not self.god_mode:
+            # Death by hitting ghost
+            if hit_ghost:
+                self.player.is_alive = False
+                events.hit_ghost = True
+                done = True
 
-        # Death by hitting laser of the ghost
-        elif hit_laser:
-            self.player.is_alive = False
-            events.hit_laser = True
-            done = True
+            # Death by hitting fire
+            elif hit_fire:
+                self.player.is_alive = False
+                events.hit_fire = True
+                done = True
 
-        # Death by hitting the will-o-wisp
-        elif hit_wisp:
-            self.player.is_alive = False
-            events.hit_wisp = True
-            done = True
+            # Death by hitting laser of the ghost
+            elif hit_laser:
+                self.player.is_alive = False
+                events.hit_laser = True
+                done = True
 
-        # Pit death
-        elif self.player.y > self.canvas_height:
-            self.player.is_alive = False
-            events.fell_in_pit = True
-            done = True
+            # Death by hitting the will-o-wisp
+            elif hit_wisp:
+                self.player.is_alive = False
+                events.hit_wisp = True
+                done = True
+
+            # Death by hitting grave monster
+            elif hit_monster:
+                self.player.is_alive = False
+                events.hit_monster = True
+                done = True
+
+            # Pit death
+            elif self.player.y > self.canvas_height:
+                self.player.is_alive = False
+                events.fell_in_pit = True
+                done = True
+        else:
+            # In God Mode: if fall into the pit, the force push the player back
+            if self.player.y > self.floor_y + 30.0:
+                self.player.y = self.floor_y - self.player.height
+                self.player.vy = -10.0      # Force of the pushing back
 
         # Goal reached
-        elif self.goal.is_reached(self.player):
+        if self.goal.is_reached(self.player):
             events.reached_goal = True
             done = True
 
@@ -277,6 +309,18 @@ class GameEnvironment(BaseEnvironment):
     # --------------
     # Helper Methods
     # --------------
+    def _resolve_pit_wall_collisions(self) -> None:
+        """Confines Hoá horizontally between the pit walls when falling below ground level."""
+        if self.player.bottom > self.floor_y:
+            for pit in self.pits:
+                if self.player.x < pit.x_end and self.player.right > pit.x_start:
+                    if self.player.x < pit.x_start:
+                        self.player.x = pit.x_start
+                        self.player.vx = 0.0
+                    elif self.player.right > pit.x_end:
+                        self.player.x = pit.x_end - self.player.width
+                        self.player.vx = 0.0
+
     def _get_raw_state(self) -> RawState:
         """Build local-vision RawState for the agent/discretizer."""
         upcoming_obs = [obs for obs in self.obstacles if obs.right > self.player.x]
@@ -350,6 +394,21 @@ class GameEnvironment(BaseEnvironment):
             dist_to_wisp = -1.0
             wisp_dir = 0
 
+        # Nearest upcoming grave monster (charging QuyNhapTrang or hopping CuongThi)
+        upcoming_monsters = [
+            m for m in self.monsters
+            if m.is_alive
+            and m.state in (GraveMonsterState.EMERGING, GraveMonsterState.ACTIVE)
+            and m.right > self.player.x
+        ]
+        if upcoming_monsters:
+            nearest_monster = min(upcoming_monsters, key=lambda m: m.x)
+            dist_to_monster = max(0.0, nearest_monster.x - self.player.right)
+            monster_y = nearest_monster.y
+        else:
+            dist_to_monster = -1.0
+            monster_y = 0.0
+
         # Nearest upcoming uncollected warmth item
         upcoming_items = [it for it in self.items if not it.is_collected and it.right > self.player.x]
         if upcoming_items:
@@ -378,6 +437,8 @@ class GameEnvironment(BaseEnvironment):
             dist_to_laser=dist_to_laser,
             dist_to_wisp=dist_to_wisp,
             wisp_dir=wisp_dir,
+            dist_to_monster=dist_to_monster,
+            monster_y=monster_y,
             dist_to_item=dist_to_item,
             dist_to_goal=dist_to_goal,
         )

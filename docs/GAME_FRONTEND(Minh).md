@@ -24,6 +24,8 @@ Hoá lives near a graveyard. Somehow, he wakes up in the middle of the graveyard
 | **Rotating Laser Ghosts** | `LaserGhost` | Wears Nón Lá straw hat, talisman, and Bagua mirror; fires a lethal 360° continuously rotating scarlet laser beam (`hit_laser=True`, `done=True`). |
 | **Wisp Maidens (*Bạch Y Ma Nữ*)** | `WispGhost` | White mourning robes with flowing cyan hair; charges and launches parabolic Will-o'-the-Wisp projectiles across sky and ground. |
 | **Will-o'-the-Wisp Fireballs** | `WillOWisp` | Parabolic bouncing spirit projectiles with ground friction and rolling embers (`hit_wisp=True`, `done=True`). |
+| **Quỷ Nhập Tràng (Corpse Demon)** | `QuyNhapTrang` (`GraveMonster`) | Ambushes from tombstones when Hoá approaches ($<180\text{px}$); sprints aggressively with billowing black hair, white shroud, red eyes, and vaults over open pits (`hit_monster=True`, `done=True`). |
+| **Cương Thi (Jiangshi / Hopping Vampire)** | `CuongThi` (`GraveMonster`) | Dormant grave with yellow talisman & hovering cyan spirit flames; bursts out in Qing navy robe, prominent red official hat, and pale cyan limbs; performs rhythmic leftward hops with dynamic draped/fluttering forehead talisman and autonomous pit gap vaulting (`hit_monster=True`, `done=True`). |
 | **Warding Garlic Bulb (*Củ Tỏi Trừ Tà*)** | `WarmthItem` | Sacred garlic bulb collectible along the path (`collected_item=True`), reflecting the Vietnamese tradition of carrying garlic into cemeteries to ward off wandering spirits and malevolent ghosts. Features expanding lilac smoke and golden star burst upon pickup. |
 | **Khuê Văn Các Pavilion** | `GoalFlag` | Hanoi's iconic Temple of Literature pavilion with glowing sunburst window (*Cửa Sổ Sao Khuê*) and amber sanctuary light (`reached_goal=True`, `done=True`). |
 
@@ -230,24 +232,26 @@ Dedicated `GameRenderer` class encapsulating all visual elements, display scalin
   - `_draw_hud()`: Level name, remaining steps countdown, and `Garlic: X/Y` item counter.
 - **Interactive UI Banners**: `show_overlay()` (semi-transparent alpha overlay with key-press skipping) and `show_game_over()` (automatic title, subtitle, and color selection based on outcome).
 
-### 5.5 `env/map_levels.py` — 5-Level Curriculum Registry
+### 5.5 `env/map_levels.py` — 7-Level Curriculum Registry
 Separates stage definitions from `GameEnvironment` (Open/Closed Principle) with `DEFAULT_FLOOR_Y = 320.0`.
 
-- **`LevelConfig` *(dataclass)***: Bundles `name`, `obstacles`, `pits`, `goal`, `ghosts`, `items`, `floor_y`, `max_steps`.
-- **`LEVEL_BUILDERS`** (`1` to `5`):
+- **`LevelConfig` *(dataclass)***: Bundles `name`, `obstacles`, `pits`, `goal`, `ghosts`, `items`, `monsters`, `floor_y`, `max_steps`.
+- **`LEVEL_BUILDERS`** (`1` to `7`):
   - `1 -> _build_level_1` (*Quiet Graveyard*): 2 tombstones, no pits/ghosts/items (`max_steps=800`).
   - `2 -> _build_level_2` (*Open Graves Pits*): 3 tombstones + 2 pits (`max_steps=1000`).
   - `3 -> _build_level_3` (*Whispering Graves*): 3 tombstones + 2 pits (including 1 hellfire pit) + 2 uniform ghosts (jump-over & walk-under) + 3 garlic bulbs (`max_steps=1000`).
   - `4 -> _build_level_4` (*Nightmare Catacombs*): 5 tombstones + 4 hellfire pits + 5 diverse ghosts (including dual counter-rotating laser scissors) + 5 garlic bulbs (`max_steps=1400`).
   - `5 -> _build_level_5` (*Valley of the Wisp Maidens*): Intermediate-hard vertical gauntlet featuring 18 ghosts: 8 high-sky and mid-air Wisp Maidens flying between $y = 70$ and $y = 155$, 5 ground-level LaserGhosts sweeping 360° rotating beams, 2 ground Wisp Maidens, 3 patrolling base ghosts, 7 tombstones, 5 pits (including 3 hellfire eruptions), and 6 garlic bulbs (`max_steps=2400`).
+  - `6 -> _build_level_6` (*Awakening of the Corpse Demon*): Introduces Quỷ Nhập Tràng grave ambushes, pit gap vaulting, LaserGhosts, Wisp Maidens, and flame pits (`max_steps=1500`).
+  - `7 -> _build_level_7` (*Cataclysm of the Undead*): Master challenge gauntlet combining all entities under the single-monster-per-grave rule: 8 varied obstacles (Buddhist steles, Catholic crosses, floating stone platforms), 6 pits with staggered Hellfire flame cycles, 4 distinct grave ambushes (Cương Thi hopping vampires and Quỷ Nhập Tràng corpse demons), 11 diverse ghosts (laser scissors, sky/turf wisp maidens, twitchers), and 8 garlic bulbs (`max_steps=10000`).
 - **Public Factories**: `get_level(level_id)` and `create_env(level_id)`.
 
 ### 5.6 Package Entry Exports (`core/__init__.py`, `env/__init__.py`)
 - **`core/__init__.py`**: Exports `Action`, `RawState`, `GameEvents`, `BaseEnvironment`.
-- **`env/__init__.py`**: Exports `Player`, `Obstacle`, `Pit`, `Ghost`, `LaserGhost`, `WispGhost`, `WarmthItem`, `GoalFlag`, `GameEnvironment`, `GameRenderer`, `LevelConfig`, `LEVEL_BUILDERS`, `get_level`, `create_env`.
+- **`env/__init__.py`**: Exports `Player`, `Obstacle`, `Pit`, `Ghost`, `LaserGhost`, `WispGhost`, `GraveMonster`, `GraveMonsterState`, `QuyNhapTrang`, `CuongThi`, `WarmthItem`, `GoalFlag`, `GameEnvironment`, `GameRenderer`, `LevelConfig`, `LEVEL_BUILDERS`, `get_level`, `create_env`.
 
 ### 5.7 `play_human.py` — Interactive Playable Entry Point
-Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Down`) stepping `GameEnvironment` at 60 FPS with live level switching (`1–5`), freeze-safe resets (`R`), automatic victory/death overlays (`env.show_game_over(events)`), and exit (`Esc`).
+Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Down`) stepping `GameEnvironment` at 60 FPS with live level switching (`1–7`), God Mode invincibility toggle (`G`), freeze-safe resets (`R`), automatic victory/death overlays (`env.show_game_over(events)`), and exit (`Esc`).
 
 ### 5.8 Traditional Vietnamese Pixel Art & Visual Polish (Phase 3 — Complete)
 - **Authentic Khuê Văn Các Destination**:
@@ -276,3 +280,19 @@ Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Dow
   - **Porter-Duff Zero-Alpha Blackout Fix**: Fixed black bar artifacts on macOS display surfaces by initializing internal canvas as 24-bit RGB (`depth=24`) and switching `show_overlay()` to standard surface-level alpha (`set_alpha(160)`).
   - **Compact Lantern Ambient Glow**: Scaled lantern light radius down to a focused 48x48 ambient aura around Hoá.
   - **Icy Cyan Timeout Banner**: Shifted timeout game-over text to glacial frost cyan `(165, 230, 255)`.
+
+### 5.9 Grave Monsters, God Mode & Gauntlet Stages (Phase 4 — Complete)
+- **Grave Monster Hierarchy (`GraveMonster`)**:
+  - Base class providing lifecycle states (`DORMANT`, `EMERGING`, `ACTIVE`), proximity trigger check, upward emergence animation, and autonomous pit gap vaulting (`_get_upcoming_pit`, `_vault_pit`).
+  - **Quỷ Nhập Tràng (`QuyNhapTrang`)**: Sprinting corpse demon with accelerating pursuit, wild billowing hair, fluttering white burial shroud, and piercing red eyes.
+  - **Cương Thi (`CuongThi`)**: Jiangshi hopping vampire with 3 motion states:
+    - *Dormant*: Yellow Taoist talisman on tombstone face and 3 hovering cyan spirit flames.
+    - *Emerging*: Pink/white upward starburst rays, flying paper talismans, and rising stiff Qing navy robe.
+    - *Active (Hop/Stand)*: Stiff bounding motion, pale cyan limbs matching arms, prominent ceremonial red mandarin hat with gold crown jewel, and dynamic forehead talisman (drapes straight down when standing; flutters back during hops to unveil piercing red eyes).
+- **Single-Monster-Per-Grave Rule**:
+  - Every monster is tied to a single, distinct tombstone obstacle coordinates; no tombstone shares multiple ambushes.
+- **God Mode Testing Mode (`env.god_mode`)**:
+  - Toggleable in human play via `[G]`; renders a golden halo above the `"Hoá"` player label and a `[GOD MODE: INVINCIBLE]` top-left HUD banner.
+  - Prevents death from ghosts, lasers, flame jets, and monsters; bounces Hoá back up if falling into pits (`player.vy = -10.0`).
+- **Comprehensive Headless Test Suite**:
+  - 20 unit tests in `tests/test_env.py` covering all 7 curriculum stages, deterministic resets, collisions, double jump mechanics, GraveMonster AI, and headless graphics rendering.

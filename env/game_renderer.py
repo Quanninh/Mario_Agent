@@ -2,7 +2,10 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 import math
 import pygame
 
-from .entities import Ghost, LaserGhost, WispGhost, WillOWisp, GoalFlag, Obstacle, Pit, Player, WarmthItem
+from .entities import (
+    Ghost, LaserGhost, WispGhost, WillOWisp, GoalFlag, Obstacle, Pit, Player, WarmthItem,
+    GraveMonster, GraveMonsterState, QuyNhapTrang, CuongThi
+)
 if TYPE_CHECKING:
     from core.base_env import GameEvents
     from .game_env import GameEnvironment
@@ -147,6 +150,50 @@ class GameRenderer:
     COLOR_EYE_PUPIL_BG = (226, 210, 170)
     COLOR_EYE_RUNE = (34, 26, 24)
 
+    # Quỷ Nhập Tràng (Corpse Demon) & Ambush Rupture Palette
+    COLOR_QUY_SKIN = (185, 195, 202)            # Ashen pale undead skin
+    COLOR_QUY_SKIN_SHADOW = (130, 142, 152)     # Sunken flesh shadow
+    COLOR_QUY_EYE_RED = (255, 20, 20)           # Blazing crimson red eyes
+    COLOR_QUY_EYE_CORE = (255, 220, 220)        # Piercing specular eye pupil
+    COLOR_QUY_MOUTH = (35, 10, 15)              # Shrieking cavernous dark mouth
+    COLOR_QUY_TEETH = (240, 240, 230)           # Sharp bared teeth
+    COLOR_QUY_HAIR = (12, 12, 18)               # Pitch black wild hair
+    COLOR_QUY_HAIR_HIGHLIGHT = (45, 48, 62)     # Hair strand sheen
+    COLOR_QUY_ROBE_WHITE = (235, 240, 248)      # Tattered white funeral shroud
+    COLOR_QUY_ROBE_MID = (175, 188, 202)        # Shroud fold midtone
+    COLOR_QUY_ROBE_SHADOW = (118, 132, 148)     # Deep cloth shadow
+    COLOR_QUY_DUST = (165, 150, 135)            # Kicked-up running dirt dust
+    COLOR_TOMB_RUPTURE = (22, 15, 12)           # Dark breach crater at tomb base
+    COLOR_TOMB_DIRT = (55, 42, 32)              # Bursting grave earth clods
+    COLOR_TALISMAN_PAPER = (245, 215, 70)       # Flying yellow joss paper
+
+    # Cương Thi (Jiangshi / Hopping Vampire) Palette
+    COLOR_JIANGSHI_ROBE_DARK = (24, 34, 58)      # Qing imperial navy court robe base
+    COLOR_JIANGSHI_ROBE_MID = (38, 54, 90)       # Navy robe midtone
+    COLOR_JIANGSHI_ROBE_LIGHT = (68, 92, 142)    # Robe sleeve highlight fold
+    COLOR_JIANGSHI_SKIRT_DARK = (18, 24, 40)     # Inner dark undertunic skirt
+    COLOR_JIANGSHI_HAT_BLACK = (18, 18, 24)      # Black trim on mandarin hat
+    COLOR_JIANGSHI_HAT_RED = (215, 35, 35)       # Prominent ceremonial red mandarin hat body
+    COLOR_JIANGSHI_HAT_RED_BRIGHT = (245, 65, 65)# Vibrant highlight on red hat dome
+    COLOR_JIANGSHI_HAT_RED_DARK = (150, 22, 25)  # Deep shadow on red hat brim
+    COLOR_JIANGSHI_HAT_BUTTON = (255, 220, 75)   # Imperial golden top crown jewel
+    COLOR_JIANGSHI_BRAID = (15, 15, 20)          # Trailing braided queue hair
+    COLOR_JIANGSHI_RIBBON = (45, 150, 75)        # Jade green ribbon securing braid
+    COLOR_JIANGSHI_BADGE_BG = (32, 42, 68)       # Chest Mandarin square (Bổ tử) background
+    COLOR_JIANGSHI_BADGE_GOLD = (245, 210, 65)   # Chest badge golden embroidered motif
+    COLOR_JIANGSHI_SKIN = (165, 195, 215)        # Pale undead blue-cyan skin and fingers
+    COLOR_JIANGSHI_SKIN_SHD = (110, 138, 160)    # Cold sunken facial and arm shadow
+    COLOR_JIANGSHI_CLAWS = (165, 195, 215)       # Pale cyan fingers matching arm skin
+    COLOR_JIANGSHI_EYE_RED = (255, 30, 30)       # Burning scarlet red eye
+    COLOR_JIANGSHI_EYE_CORE = (255, 230, 230)    # Piercing white specular eye pupil
+    COLOR_JIANGSHI_BEAM = (255, 45, 65)          # Piercing crimson horizontal gaze laser beam
+    COLOR_JIANGSHI_SHOES = (22, 22, 28)          # Traditional black cloth official shoes
+    COLOR_JIANGSHI_SOLES = (235, 235, 235)       # White layered cloth shoe soles
+    COLOR_WISP_CYAN_FLAME = (61, 245, 202)       # Hovering spirit wisp flame
+    COLOR_WISP_CYAN_CORE = (210, 255, 245)       # Luminous flame core
+    COLOR_BURST_PINK_GLOW = (255, 180, 200)      # Upward burst energetic glow
+    COLOR_BURST_WHITE_CORE = (255, 250, 255)     # Searing core burst rays
+
     # Traditional Vietnamese Scroll Clouds (Luminous Standout Vân Mây Palette)
     COLOR_CLOUD_OUTLINE = (32, 18, 42)        # Deep midnight plum border (high-contrast separation)
     COLOR_CLOUD_BORDER = (32, 18, 42)         # Backwards-compatible alias
@@ -277,6 +324,10 @@ class GameRenderer:
         for wisp in env.wisps:
             self._draw_wisp(canvas, wisp, camera_x, env.step_count)
 
+        # Draw Grave Monsters (ambush ground ruptures, emergence, and charges)
+        for monster in env.monsters:
+            self._draw_grave_monster(canvas, monster, camera_x, env.step_count, env.floor_y)
+
         # Track newly collected garlic items for collection burst animation (Image 2)
         if env.step_count == 0:
             self._prev_collected_ids = set()
@@ -305,7 +356,7 @@ class GameRenderer:
         self._draw_ground_fog(canvas, camera_x, env.step_count, env.floor_y)
 
         # Draw player
-        self._draw_player(canvas, env.player, camera_x, env.step_count)
+        self._draw_player(canvas, env.player, camera_x, env.step_count, god_mode=getattr(env, "god_mode", False))
 
         # Draw dynamic ambient lantern light casting forward onto the graveyard
         self._draw_lantern_light(canvas, env.player, camera_x, env.step_count)
@@ -424,9 +475,16 @@ class GameRenderer:
             )
         elif events.hit_wisp:
             self.show_overlay(
-                title="INCINERATED!",
+                title="SPIRITED AWAY!",
                 subtitle="Consumed by a wandering will-o'-the-wisp!",
-                color=(80, 220, 255),  # Spectral cyan
+                color=self.COLOR_WISP_HAIR_CYAN,  # Spectral cyan
+                duration_ms=3000,
+            )
+        elif events.hit_monster:
+            self.show_overlay(
+                title="DEVOURED BY CORPSE DEMON!",
+                subtitle="Quỷ Nhập Tràng ambushed you from the grave!",
+                color=(255, 30, 30),  # Blazing blood red
                 duration_ms=3000,
             )
         elif events.fell_in_pit:
@@ -1673,6 +1731,533 @@ class GameRenderer:
                 if (step_count + gx) % 2 == 0:
                     pygame.draw.rect(canvas, (255, 215, 60), (x + gx * 3, y + r - 1, 2, 2))
 
+    def _draw_grave_monster(
+        self,
+        canvas: pygame.Surface,
+        monster: GraveMonster,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders grave ambush ruptures and monster entities."""
+        # 0. If dormant and CuongThi, render the talisman seal on the grave & hovering spirit flames
+        if monster.state == GraveMonsterState.DORMANT:
+            if isinstance(monster, CuongThi):
+                self._draw_cuong_thi_tomb_omen(canvas, monster, camera_x, step_count, floor_y)
+            return
+
+        # 1. If emerging or active, draw the ruptured earth crater at the foot of the ambush tombstone
+        if monster.state in (GraveMonsterState.EMERGING, GraveMonsterState.ACTIVE):
+            self._draw_tomb_rupture(canvas, monster._start_x, camera_x, step_count, floor_y)
+
+        # 2. Render the monster sprite
+        if monster.is_alive:
+            if isinstance(monster, QuyNhapTrang):
+                self._draw_quy_nhap_trang(canvas, monster, camera_x, step_count, floor_y)
+            elif isinstance(monster, CuongThi):
+                self._draw_cuong_thi(canvas, monster, camera_x, step_count, floor_y)
+
+    def _draw_tomb_rupture(
+        self,
+        canvas: pygame.Surface,
+        start_x: float,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders the ruptured earth breach crater at the foot of the tombstone."""
+        gx = start_x - camera_x
+        gy = floor_y
+
+        if gx < -80 or gx > self.canvas_width + 80:
+            return
+
+        # Dark jagged breach hole in the ground
+        pygame.draw.ellipse(canvas, self.COLOR_TOMB_RUPTURE, (int(gx - 4), int(gy - 4), 32, 10))
+
+        # Broken soil chunks splayed outward
+        pygame.draw.polygon(canvas, self.COLOR_TOMB_DIRT, [
+            (int(gx - 6), int(gy)), (int(gx + 2), int(gy - 5)), (int(gx + 6), int(gy))
+        ])
+        pygame.draw.polygon(canvas, self.COLOR_TOMB_DIRT, [
+            (int(gx + 18), int(gy)), (int(gx + 24), int(gy - 4)), (int(gx + 30), int(gy))
+        ])
+
+        # Bursting earth debris & flying talismans
+        for di in range(5):
+            dist_phase = (step_count * 0.5 + di * 13) % 22
+            d_dir = -1.0 if di % 2 == 0 else 1.0
+            dx = int(gx + 12 + d_dir * (dist_phase * 1.1 + di * 2))
+            dy = int(gy - (dist_phase * 1.3) + (di * 2))
+            if dy < gy + 2:
+                pygame.draw.rect(canvas, self.COLOR_TOMB_DIRT, (dx, dy, 2, 2))
+
+        # Flying yellow joss paper talismans
+        for ti in range(3):
+            t_phase = step_count * 0.15 + ti * 2.1
+            tx = int(gx + 4 + ti * 10 + math.sin(t_phase) * 8)
+            ty = int(gy - 8 - (ti * 8) + math.cos(t_phase) * 4)
+            pygame.draw.rect(canvas, self.COLOR_TALISMAN_PAPER, (tx, ty, 4, 5))
+            pygame.draw.line(canvas, (180, 20, 20), (tx + 1, ty + 1), (tx + 3, ty + 3), 1)
+
+    def _draw_quy_nhap_trang(
+        self,
+        canvas: pygame.Surface,
+        monster: QuyNhapTrang,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders the authentic Corpse Demon (Quỷ Nhập Tràng) matching Reference Art:
+        - Glowing red eyes with intense crimson specular aura.
+        - Wild black hair streaming back like dark flames.
+        - Ragged white funeral robe flapping violently in the wind.
+        - Predatory forward crouch sprint with outstretched claws.
+        - Kicking up dust clouds while charging.
+        """
+        x = monster.x - camera_x
+        y = monster.y
+        w, h = monster.width, monster.height
+        cx = x + w / 2.0
+        cy = y + h / 2.0
+
+        if x < -60 or x > self.canvas_width + 60:
+            return
+
+        is_emerging = monster.state == GraveMonsterState.EMERGING
+
+        # ----------------------------------------------------
+        # 1. State: BURSTING OUT (Rising smoothly from grave hole)
+        # ----------------------------------------------------
+        if is_emerging:
+            # Dirt spray behind the emerging body
+            spray_surf = pygame.Surface((int(w + 20), int(h + 20)), pygame.SRCALPHA)
+            for i in range(5):
+                sp_x = int(10 + math.sin(step_count * 0.4 + i) * 12)
+                sp_y = int(h - (i * 4))
+                pygame.draw.rect(spray_surf, (52, 42, 34, 140), (sp_x, sp_y, 3, 3))
+            canvas.blit(spray_surf, (cx - (w + 20) / 2, y))
+
+            # Torso & White Funeral Robe rising up
+            robe_pts = [
+                (cx - 5, y + 10),
+                (cx + 5, y + 10),
+                (cx + 8, y + h - 2),
+                (cx + 3, y + h - 6),
+                (cx - 2, y + h - 2),
+                (cx - 7, y + h - 5),
+            ]
+            pygame.draw.polygon(canvas, self.COLOR_QUY_ROBE_WHITE, robe_pts)
+            pygame.draw.line(canvas, self.COLOR_QUY_ROBE_SHADOW, (cx - 1, y + 12), (cx - 1, y + h - 4), 1)
+
+            # Shrieking Ashen Head
+            head_x = int(cx)
+            head_y = int(y + 6)
+            pygame.draw.circle(canvas, self.COLOR_QUY_SKIN, (head_x, head_y), 5)
+            # Wide open shrieking mouth
+            pygame.draw.ellipse(canvas, self.COLOR_QUY_MOUTH, (head_x - 2, head_y + 1, 4, 4))
+            pygame.draw.line(canvas, self.COLOR_QUY_TEETH, (head_x - 1, head_y + 2), (head_x + 1, head_y + 2), 1)
+
+            # Glowing piercing red eyes
+            pygame.draw.rect(canvas, self.COLOR_QUY_EYE_RED, (head_x - 3, head_y - 1, 2, 2))
+            pygame.draw.rect(canvas, self.COLOR_QUY_EYE_RED, (head_x + 1, head_y - 1, 2, 2))
+            pygame.draw.rect(canvas, self.COLOR_QUY_EYE_CORE, (head_x - 2, head_y - 1, 1, 1))
+            pygame.draw.rect(canvas, self.COLOR_QUY_EYE_CORE, (head_x + 2, head_y - 1, 1, 1))
+
+            # Wild hair billowing straight UP into the sky!
+            for hi in range(5):
+                wave_up = math.sin(step_count * 0.35 + hi * 1.1) * 3
+                h_start = (head_x - 4 + hi * 2, head_y - 3)
+                h_mid = (head_x - 6 + hi * 3 + int(wave_up), head_y - 12)
+                h_tip = (head_x - 8 + hi * 4 + int(wave_up * 1.5), head_y - 20)
+                pygame.draw.lines(canvas, self.COLOR_QUY_HAIR, False, [h_start, h_mid, h_tip], 2)
+
+            # Dangling clawed arms
+            pygame.draw.line(canvas, self.COLOR_QUY_ROBE_WHITE, (cx - 5, y + 11), (cx - 9, y + 20), 2)
+            pygame.draw.line(canvas, self.COLOR_QUY_ROBE_WHITE, (cx + 5, y + 11), (cx + 9, y + 20), 2)
+            pygame.draw.circle(canvas, self.COLOR_QUY_SKIN, (int(cx - 9), int(y + 21)), 2)
+            pygame.draw.circle(canvas, self.COLOR_QUY_SKIN, (int(cx + 9), int(y + 21)), 2)
+            return
+
+        # ----------------------------------------------------
+        # 2. State: FRENZIED CHARGE (Sprinting Low Towards the Left)
+        # ----------------------------------------------------
+        run_cycle = step_count * 0.45
+        leg_stride = math.sin(run_cycle) * 5
+
+        # Dust cloud kicking up behind running bare feet
+        for di in range(3):
+            dust_phase = (step_count * 0.3 + di * 4) % 12
+            dust_x = int(cx + 10 + di * 5 + dust_phase * 1.2)
+            dust_y = int(y + h - 2 - (dust_phase * 0.4))
+            dust_surf = pygame.Surface((8, 8), pygame.SRCALPHA)
+            pygame.draw.circle(dust_surf, (165, 150, 135, int(120 - dust_phase * 9)), (4, 4), int(3 + dust_phase * 0.3))
+            canvas.blit(dust_surf, (dust_x, dust_y))
+
+        # Ethereal soul wisp trails drifting behind her head and back
+        for si in range(2):
+            trail_offset = 12 + si * 14
+            wisp_wave = math.sin(step_count * 0.2 + si * 2.0) * 4
+            sw_surf = pygame.Surface((8, 8), pygame.SRCALPHA)
+            pygame.draw.circle(sw_surf, (180, 220, 245, 65), (4, 4), 3)
+            pygame.draw.circle(sw_surf, (255, 255, 255, 90), (4, 4), 1)
+            canvas.blit(sw_surf, (int(cx + trail_offset), int(cy - 4 + wisp_wave)))
+
+        # Bare Running Legs (striding aggressively)
+        foot_f_x = int(cx - 4 - leg_stride)
+        foot_f_y = int(y + h - 1)
+        foot_b_x = int(cx + 4 + leg_stride)
+        foot_b_y = int(y + h - 1 + max(0, -leg_stride))
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN_SHADOW, (int(cx + 2), int(y + h - 10)), (foot_b_x, foot_b_y), 2)
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN, (int(cx - 2), int(y + h - 10)), (foot_f_x, foot_f_y), 2)
+
+        # White Funeral Robe Flapping Violently Backwards
+        cloth_wave_1 = math.sin(step_count * 0.4) * 3
+        cloth_wave_2 = math.cos(step_count * 0.45) * 4
+        robe_pts = [
+            (cx - 6, y + 10),                            # Robe neck front
+            (cx + 3, y + 9),                             # Robe shoulder back
+            (cx + 16 + int(cloth_wave_1), y + 14),       # Upper flapping sleeve trail
+            (cx + 18 + int(cloth_wave_2), y + 22),       # Trailing tattered hem 1
+            (cx + 12 + int(cloth_wave_1), y + h - 4),    # Trailing tattered hem 2
+            (cx + 4, y + h - 6),                         # Lower hem center
+            (cx - 3, y + h - 5),                         # Lower hem front
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_QUY_ROBE_WHITE, robe_pts)
+        pygame.draw.polygon(canvas, self.COLOR_QUY_ROBE_MID, robe_pts, 1)
+        # Ragged shadow folds inside the flowing dress
+        pygame.draw.line(canvas, self.COLOR_QUY_ROBE_SHADOW, (cx - 2, y + 12), (cx + 10 + int(cloth_wave_1), y + 18), 1)
+        pygame.draw.line(canvas, self.COLOR_QUY_ROBE_SHADOW, (cx, y + 16), (cx + 8 + int(cloth_wave_2), y + 24), 1)
+
+        # Torso angled forward aggressively into the sprint
+        pygame.draw.line(canvas, self.COLOR_QUY_ROBE_WHITE, (cx + 1, y + 9), (cx - 6, y + 16), 4)
+
+        # Outstretched Hungry Clawed Arms (reaching leftward to snatch Hoá)
+        # Back arm
+        pygame.draw.line(canvas, self.COLOR_QUY_ROBE_MID, (cx - 2, y + 11), (cx - 10, y + 14), 2)
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN, (cx - 10, y + 14), (cx - 16, y + 13), 2)
+        # Front arm (thrust straight forward)
+        pygame.draw.line(canvas, self.COLOR_QUY_ROBE_WHITE, (cx - 4, y + 12), (cx - 12, y + 16), 3)
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN, (cx - 12, y + 16), (cx - 18, y + 16), 2)
+        # Sharp predatory claw fingers
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN_SHADOW, (cx - 18, y + 16), (cx - 21, y + 14), 1)
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN_SHADOW, (cx - 18, y + 16), (cx - 22, y + 16), 1)
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN_SHADOW, (cx - 18, y + 16), (cx - 21, y + 18), 1)
+
+        # Ashen shrieking head (thrust forward)
+        head_x = int(cx - 6)
+        head_y = int(y + 8)
+        pygame.draw.circle(canvas, self.COLOR_QUY_SKIN, (head_x, head_y), 5)
+        # Shrieking open mouth with bared teeth
+        pygame.draw.ellipse(canvas, self.COLOR_QUY_MOUTH, (head_x - 4, head_y + 1, 4, 3))
+        pygame.draw.rect(canvas, self.COLOR_QUY_TEETH, (head_x - 3, head_y + 1, 2, 1))
+
+        # Glowing Blood-Red Eyes with intense crimson specular glint
+        eye_aura = pygame.Surface((8, 6), pygame.SRCALPHA)
+        pygame.draw.circle(eye_aura, (255, 20, 20, 95), (4, 3), 3)
+        canvas.blit(eye_aura, (head_x - 7, head_y - 3))
+
+        pygame.draw.rect(canvas, self.COLOR_QUY_EYE_RED, (head_x - 4, head_y - 1, 2, 2))
+        pygame.draw.rect(canvas, self.COLOR_QUY_EYE_CORE, (head_x - 3, head_y - 1, 1, 1))
+
+        # Long wild jet-black hair streaming back in the wind like dark flames!
+        for hi in range(5):
+            hair_wave = math.sin(step_count * 0.35 + hi * 0.9) * 4
+            h_start = (head_x + 1, head_y - 3 + hi)
+            h_mid = (head_x + 9 + hi * 2, head_y - 2 + int(hair_wave))
+            h_end = (head_x + 18 + hi * 3, head_y - 4 + int(hair_wave * 1.4))
+            pygame.draw.lines(canvas, self.COLOR_QUY_HAIR, False, [h_start, h_mid, h_end], 2)
+            pygame.draw.line(canvas, self.COLOR_QUY_HAIR_HIGHLIGHT, (h_mid[0] - 2, h_mid[1]), (h_end[0] - 4, h_end[1]), 1)
+
+    def _draw_cuong_thi_tomb_omen(
+        self,
+        canvas: pygame.Surface,
+        monster: CuongThi,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders the dormant Jiangshi grave omen matching Reference Art Panel 1:
+        - Yellow Taoist paper talisman pasted in the center of the headstone.
+        - Three ethereal cyan spirit flames / wisps hovering in orbit around the grave.
+        """
+        gx = monster._start_x - camera_x
+        if gx < -80 or gx > self.canvas_width + 80:
+            return
+
+        head_cx = int(gx + 16)
+        tomb_face_y = int(floor_y - 34)
+
+        # 1. Yellow Taoist paper talisman pasted on headstone stele
+        tal_w, tal_h = 8, 16
+        tal_x = head_cx - tal_w // 2
+        tal_y = tomb_face_y - tal_h // 2
+        pygame.draw.rect(canvas, self.COLOR_TALISMAN_PAPER, (tal_x, tal_y, tal_w, tal_h))
+        pygame.draw.rect(canvas, (210, 180, 45), (tal_x, tal_y, tal_w, tal_h), 1)
+        # Red cinnabar Taoist warding runes
+        pygame.draw.line(canvas, (190, 25, 25), (tal_x + 3, tal_y + 2), (tal_x + 4, tal_y + 2), 1)
+        pygame.draw.line(canvas, (190, 25, 25), (tal_x + 3, tal_y + 4), (tal_x + 3, tal_y + 13), 1)
+        pygame.draw.line(canvas, (190, 25, 25), (tal_x + 1, tal_y + 7), (tal_x + 6, tal_y + 7), 1)
+        pygame.draw.line(canvas, (190, 25, 25), (tal_x + 2, tal_y + 10), (tal_x + 5, tal_y + 10), 1)
+
+        # 2. Three ethereal cyan spirit flames floating around the tombstone
+        flame_configs = [
+            (-6, -48, 0.09, 0.12, 3.0, 4.0),   # Flame 1: hovering top-left
+            (16, -62, 0.08, 0.14, 4.0, 5.0),   # Flame 2: hovering top-center
+            (36, -34, 0.10, 0.11, 3.0, 3.5),   # Flame 3: floating near mid-right
+        ]
+        for fx_off, fy_off, sx_speed, sy_speed, ax, ay in flame_configs:
+            fx = int(gx + fx_off + math.sin(step_count * sx_speed) * ax)
+            fy = int(floor_y + fy_off + math.cos(step_count * sy_speed) * ay)
+
+            # Ethereal cyan aura
+            aura_surf = pygame.Surface((18, 20), pygame.SRCALPHA)
+            pygame.draw.circle(aura_surf, (61, 245, 202, 60), (9, 10), 8)
+            canvas.blit(aura_surf, (fx - 9, fy - 10))
+
+            # Flickering teardrop flame polygon
+            f_tip = (fx, fy - 7)
+            f_left = (fx - 4, fy)
+            f_right = (fx + 4, fy)
+            f_bottom = (fx, fy + 4)
+            pygame.draw.polygon(canvas, self.COLOR_WISP_CYAN_FLAME, [f_tip, f_right, f_bottom, f_left])
+
+            # Bright white-cyan incandescent flame core
+            pygame.draw.circle(canvas, self.COLOR_WISP_CYAN_CORE, (fx, fy), 2)
+            pygame.draw.circle(canvas, (255, 255, 255), (fx, fy - 1), 1)
+
+            # Rising spirit ember spark
+            spark_y = fy - 8 - int((step_count * 0.4 + fx_off) % 8)
+            pygame.draw.rect(canvas, self.COLOR_WISP_CYAN_CORE, (fx + (1 if (step_count // 4) % 2 else -1), spark_y, 1, 1))
+
+    def _draw_cuong_thi(
+        self,
+        canvas: pygame.Surface,
+        monster: CuongThi,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders the authentic Jiangshi (Cương Thi) matching Reference Art:
+        - Emerging: Ground rupture, upward pink-white energy blast rays, flying talismans, rising stiff Qing court robe.
+        - Hopping Charge: Stiff arms held forward with midnight claws, official mandarin hat, trailing queue braid with green ribbon,
+          fluttering forehead yellow talisman, exposed glowing crimson eye with forward laser gaze beam, and donut smoke rings.
+        """
+        x = monster.x - camera_x
+        y = monster.y
+        w, h = monster.width, monster.height
+        cx = x + w / 2.0
+        cy = y + h / 2.0
+
+        if x < -80 or x > self.canvas_width + 80:
+            return
+
+        is_emerging = monster.state == GraveMonsterState.EMERGING
+
+        # ----------------------------------------------------
+        # 1. State: BURSTING OUT (Panel 2)
+        # ----------------------------------------------------
+        if is_emerging:
+            # A. Radiant upward pink-white energetic burst rays
+            for ray_i in range(9):
+                ray_angle = math.radians(-135 + ray_i * 11 + math.sin(step_count * 0.4 + ray_i) * 3)
+                ray_len = 28 + (ray_i % 3) * 8 + int(math.sin(step_count * 0.5 + ray_i * 1.5) * 4)
+                r_tip_x = int(cx + math.cos(ray_angle) * ray_len)
+                r_tip_y = int(y + h * 0.6 + math.sin(ray_angle) * ray_len)
+                pygame.draw.line(canvas, self.COLOR_BURST_PINK_GLOW, (int(cx), int(y + h * 0.6)), (r_tip_x, r_tip_y), 3)
+                pygame.draw.line(canvas, self.COLOR_BURST_WHITE_CORE, (int(cx), int(y + h * 0.6)), (r_tip_x, r_tip_y), 1)
+
+            # B. Flying yellow paper talismans swirling upward
+            for ti in range(4):
+                t_phase = step_count * 0.18 + ti * 1.8
+                tx = int(cx + (ti - 1.5) * 12 + math.sin(t_phase) * 10)
+                ty = int(y + 6 - ti * 6 + math.cos(t_phase) * 5)
+                pygame.draw.rect(canvas, self.COLOR_TALISMAN_PAPER, (tx, ty, 4, 6))
+                pygame.draw.line(canvas, (180, 20, 20), (tx + 1, ty + 1), (tx + 3, ty + 4), 1)
+
+            # C. Rising stiff body in Qing imperial navy robe
+            robe_w = 14
+            robe_rect = (int(cx - robe_w // 2), int(y + 11), robe_w, int(h - 13))
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_ROBE_DARK, robe_rect)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_ROBE_MID, (robe_rect[0] + 2, robe_rect[1], robe_w - 4, robe_rect[3]))
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_LIGHT, (int(cx), int(y + 11)), (int(cx), int(y + h - 2)), 1)
+
+            # Chest Mandarin square rank badge (Bổ tử)
+            badge_rect = (int(cx - 4), int(y + 14), 8, 7)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_BG, badge_rect)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_GOLD, badge_rect, 1)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_GOLD, (int(cx - 2), int(y + 16), 4, 3))
+
+            # Outstretched arms held stiffly forward (pale cyan skin & fingers)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_MID, (cx - 4, y + 13), (cx - 14, y + 17), 4)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_DARK, (cx + 2, y + 13), (cx - 8, y + 17), 4)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 14, y + 17), (cx - 18, y + 17), 2)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 8, y + 17), (cx - 12, y + 17), 2)
+            # Pale cyan fingers matching arms
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 18, y + 17), (cx - 21, y + 17), 1)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 12, y + 17), (cx - 15, y + 17), 1)
+
+            # Head & Prominent Red Official Mandarin Hat
+            head_x, head_y = int(cx), int(y + 6)
+            pygame.draw.circle(canvas, self.COLOR_JIANGSHI_SKIN, (head_x, head_y), 5)
+            # Vibrant Red Hat Brim & Crown
+            hat_brim_rect = (head_x - 7, head_y - 6, 14, 3)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_HAT_RED_DARK, hat_brim_rect)
+            hat_dome_rect = (head_x - 5, head_y - 10, 10, 5)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_HAT_RED, hat_dome_rect)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_HAT_RED_BRIGHT, (head_x - 4, head_y - 9), (head_x + 3, head_y - 9), 1)
+            # Imperial gold button / jewel on top
+            pygame.draw.circle(canvas, self.COLOR_JIANGSHI_HAT_BUTTON, (head_x, head_y - 10), 2)
+
+            # Forehead yellow talisman hanging straight down over the face
+            tal_rect = (head_x - 3, head_y - 4, 6, 11)
+            pygame.draw.rect(canvas, self.COLOR_TALISMAN_PAPER, tal_rect)
+            pygame.draw.line(canvas, (190, 20, 20), (head_x, head_y - 2), (head_x, head_y + 5), 1)
+            # Red glowing eyes visible at talisman edges
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_RED, (head_x - 4, head_y - 2, 2, 2))
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_RED, (head_x + 2, head_y - 2, 2, 2))
+            return
+
+        # ----------------------------------------------------
+        # 2. State: HOPPING CHARGE (Panel 3)
+        # ----------------------------------------------------
+        # A. Expanding donut smoke / dust rings on ground
+        for ri in range(3):
+            ring_age = (step_count * 0.45 + ri * 6) % 18
+            ring_x = int(cx + 8 + ri * 9 + ring_age * 1.1)
+            ring_y = int(floor_y - 5)
+            ring_rad = int(3 + ring_age * 0.4)
+            ring_alpha = max(0, int(150 - ring_age * 8))
+            if ring_rad > 2 and ring_alpha > 0:
+                ring_surf = pygame.Surface((ring_rad * 2 + 4, ring_rad * 2 + 4), pygame.SRCALPHA)
+                pygame.draw.circle(ring_surf, (175, 160, 145, ring_alpha), (ring_rad + 2, ring_rad + 2), ring_rad, 2)
+                canvas.blit(ring_surf, (ring_x - ring_rad - 2, ring_y - ring_rad - 2))
+
+        # B. Stiff legs held together in black cloth shoes with white soles
+        leg_y = y + h - 10
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_SKIRT_DARK, (int(cx - 3), int(leg_y), 6, 7))
+        shoe_y = int(y + h - 4)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_SHOES, (int(cx - 5), shoe_y, 4, 3))
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_SHOES, (int(cx), shoe_y, 4, 3))
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SOLES, (int(cx - 5), shoe_y + 3), (int(cx - 2), shoe_y + 3), 1)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SOLES, (int(cx), shoe_y + 3), (int(cx + 3), shoe_y + 3), 1)
+
+        # C. Qing navy court robe & chest rank badge
+        robe_top = int(y + 10)
+        robe_h = int(h - 18)
+        robe_pts = [
+            (cx - 4, robe_top),
+            (cx + 4, robe_top),
+            (cx + 7, robe_top + robe_h),
+            (cx - 5, robe_top + robe_h),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_JIANGSHI_ROBE_DARK, robe_pts)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_LIGHT, (cx - 1, robe_top), (cx - 1, robe_top + robe_h), 1)
+
+        badge_rect = (int(cx - 4), int(robe_top + 3), 7, 7)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_BG, badge_rect)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_GOLD, badge_rect, 1)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_GOLD, (int(cx - 2), int(robe_top + 5), 3, 3))
+
+        # D. Outstretched arms held rigidly straight forward towards the left
+        # Back arm
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_DARK, (cx, y + 11), (cx - 12, y + 11), 3)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN_SHD, (cx - 12, y + 11), (cx - 17, y + 11), 2)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN_SHD, (cx - 17, y + 11), (cx - 21, y + 11), 1)
+        # Front arm
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_MID, (cx - 2, y + 14), (cx - 14, y + 14), 4)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_LIGHT, (cx - 2, y + 13), (cx - 14, y + 13), 1)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 14, y + 14), (cx - 20, y + 14), 2)
+        # Pale cyan fingers matching arm color
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 20, y + 13), (cx - 24, y + 12), 1)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 20, y + 14), (cx - 25, y + 14), 1)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 20, y + 15), (cx - 24, y + 16), 1)
+
+        # E. Head & Prominent Red Official Mandarin Hat
+        head_x = int(cx - 1)
+        head_y = int(y + 7)
+        pygame.draw.circle(canvas, self.COLOR_JIANGSHI_SKIN, (head_x, head_y), 5)
+        hat_brim = (head_x - 6, head_y - 6, 12, 3)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_HAT_RED_DARK, hat_brim)
+        hat_dome = (head_x - 4, head_y - 9, 8, 4)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_HAT_RED, hat_dome)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_HAT_RED_BRIGHT, (head_x - 3, head_y - 9), (head_x + 2, head_y - 9), 1)
+        pygame.draw.circle(canvas, self.COLOR_JIANGSHI_HAT_BUTTON, (head_x, head_y - 9), 2)
+
+        # Check whether the Jiangshi is airborne in a hop or standing paused on the ground
+        is_hopping = not getattr(monster, "_is_grounded", True)
+
+        # F. Trailing braided queue hair with jade-green ribbon
+        ribbon_x = head_x + 5
+        ribbon_y = head_y - 3
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_RIBBON, (ribbon_x, ribbon_y, 4, 3))
+        if is_hopping:
+            queue_wave = math.sin(step_count * 0.4) * 2
+            q_pts = [
+                (ribbon_x + 3, ribbon_y + 1),
+                (ribbon_x + 10, ribbon_y + int(queue_wave)),
+                (ribbon_x + 18, ribbon_y + int(queue_wave * 1.5) - 1),
+            ]
+            pygame.draw.lines(canvas, self.COLOR_JIANGSHI_BRAID, False, q_pts, 2)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_RIBBON, (ribbon_x + 3, ribbon_y + 2), (ribbon_x + 11, ribbon_y + 4 + int(queue_wave)), 1)
+        else:
+            q_pts = [
+                (ribbon_x + 3, ribbon_y + 1),
+                (ribbon_x + 6, ribbon_y + 7),
+                (ribbon_x + 8, ribbon_y + 14),
+            ]
+            pygame.draw.lines(canvas, self.COLOR_JIANGSHI_BRAID, False, q_pts, 2)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_RIBBON, (ribbon_x + 3, ribbon_y + 2), (ribbon_x + 8, ribbon_y + 7), 1)
+
+        # G. Forehead yellow talisman & Glowing Crimson Eyes
+        if is_hopping:
+            # Fluttering backwards horizontally in the wind while hopping
+            tal_wave = math.sin(step_count * 0.45) * 2
+            tal_pts = [
+                (head_x - 1, head_y - 3),
+                (head_x + 6, head_y - 4 + int(tal_wave)),
+                (head_x + 14, head_y - 5 + int(tal_wave * 1.3)),
+                (head_x + 13, head_y - 1 + int(tal_wave * 1.3)),
+                (head_x + 5, head_y + int(tal_wave)),
+                (head_x - 1, head_y + 1),
+            ]
+            pygame.draw.polygon(canvas, self.COLOR_TALISMAN_PAPER, tal_pts)
+            pygame.draw.lines(canvas, (190, 25, 25), False, [
+                (head_x, head_y - 1),
+                (head_x + 5, head_y - 2 + int(tal_wave)),
+                (head_x + 12, head_y - 3 + int(tal_wave * 1.3))
+            ], 1)
+
+            # Face & eye fully unveiled during hop: glowing crimson red eye
+            eye_x = head_x - 3
+            eye_y = head_y - 1
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_RED, (eye_x, eye_y, 3, 2))
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_CORE, (eye_x + 1, eye_y, 1, 1))
+
+            # Subtle compact eye glow aura (no long laser beam)
+            eye_surf = pygame.Surface((8, 6), pygame.SRCALPHA)
+            pygame.draw.ellipse(eye_surf, (255, 30, 30, 95), (0, 0, 8, 6))
+            canvas.blit(eye_surf, (eye_x - 3, eye_y - 2))
+        else:
+            # When standing on ground: yellow talisman drapes straight down over face
+            tal_sway = math.sin(step_count * 0.15) * 0.8
+            tal_w, tal_h = 6, 12
+            tal_pts = [
+                (head_x - 3, head_y - 4),
+                (head_x + 3, head_y - 4),
+                (head_x + 3 + int(tal_sway), head_y - 4 + tal_h),
+                (head_x - 3 + int(tal_sway), head_y - 4 + tal_h),
+            ]
+            pygame.draw.polygon(canvas, self.COLOR_TALISMAN_PAPER, tal_pts)
+            pygame.draw.polygon(canvas, (210, 180, 45), tal_pts, 1)
+            # Red cinnabar Taoist warding runes
+            pygame.draw.line(canvas, (190, 20, 20), (int(head_x), head_y - 2), (int(head_x + tal_sway), head_y + 6), 1)
+            pygame.draw.line(canvas, (190, 20, 20), (int(head_x - 1), head_y + 2), (int(head_x + 2), head_y + 2), 1)
+
+            # Glowing red eyes visible menacingly at the side edges of the draped talisman
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_RED, (head_x - 4, head_y - 1, 2, 2))
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_CORE, (head_x - 3, head_y - 1, 1, 1))
+
     def _draw_item(
         self,
         canvas: pygame.Surface,
@@ -2113,6 +2698,7 @@ class GameRenderer:
         player: Player,
         camera_x: float,
         step_count: int = 0,
+        god_mode: bool = False,
     ) -> None:
         """Renders Hoá in traditional Vietnamese Áo Ngũ Thân May Kép Đệm Bông, matching Khăn Đóng & Lồng Đèn."""
         x = player.x - camera_x
@@ -2299,6 +2885,27 @@ class GameRenderer:
             tag_x = int(x + w / 2 - tag_text.get_width() / 2)
             tag_y = int(y - 16)  # 14px above player head
 
+            # Golden Celestial Halo Ring when in God Mode
+            if god_mode:
+                halo_cx = int(x + w / 2)
+                bob = math.sin(step_count * 0.12) * 1.5
+                halo_cy = int(tag_y - 6 + bob)
+
+                # 1. Warm golden aura glow
+                aura_surf = pygame.Surface((24, 12), pygame.SRCALPHA)
+                pygame.draw.ellipse(aura_surf, (255, 215, 60, 70), (0, 0, 24, 12))
+                canvas.blit(aura_surf, (halo_cx - 12, halo_cy - 6))
+
+                # 2. Outer golden rim & inner brilliant highlight
+                pygame.draw.ellipse(canvas, (245, 180, 30), (halo_cx - 8, halo_cy - 3, 16, 6), 2)
+                pygame.draw.ellipse(canvas, (255, 240, 130), (halo_cx - 8, halo_cy - 3, 16, 6), 1)
+
+                # 3. Celestial sparkle glint revolving on the ring
+                sparkle_phase = (step_count * 0.18) % (math.pi * 2)
+                sparkle_x = int(halo_cx + math.cos(sparkle_phase) * 7)
+                sparkle_y = int(halo_cy + math.sin(sparkle_phase) * 2)
+                pygame.draw.rect(canvas, (255, 255, 255), (sparkle_x, sparkle_y, 1, 1))
+
             # Draw drop shadow first, then main text on top
             canvas.blit(shadow_text, (tag_x + 1, tag_y + 1))
             canvas.blit(tag_text, (tag_x, tag_y))
@@ -2334,3 +2941,11 @@ class GameRenderer:
             warmth_shadow = self._font.render(warmth_str, True, (10, 10, 20))
             canvas.blit(warmth_shadow, (17, 45))
             canvas.blit(warmth_text, (16, 44))
+
+        # Line 4: God mode status tag in HUD
+        if getattr(env, "god_mode", False):
+            hud_y = 59 if env.items else 44
+            god_hud_text = self._font.render("[GOD MODE: INVINCIBLE]", True, (255, 215, 60))
+            god_hud_shadow = self._font.render("[GOD MODE: INVINCIBLE]", True, (10, 10, 20))
+            canvas.blit(god_hud_shadow, (17, hud_y + 1))
+            canvas.blit(god_hud_text, (16, hud_y))

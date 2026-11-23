@@ -4,10 +4,13 @@ Encapsulates map layouts (obstacles, pits, ghosts, items, goal) and
 stage-specific rules into immutable LevelConfig dataclasses.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 from core import BaseEnvironment
-from env.entities import Ghost, LaserGhost, WispGhost, GoalFlag, Obstacle, Pit, WarmthItem
+from env.entities import (
+    Ghost, LaserGhost, WispGhost, GoalFlag, Obstacle, Pit, WarmthItem,
+    GraveMonster, QuyNhapTrang, CuongThi
+)
 from env.game_env import GameEnvironment
 
 
@@ -23,6 +26,7 @@ class LevelConfig:
     goal: GoalFlag
     ghosts: List[Ghost]
     items: List[WarmthItem]
+    monsters: Optional[List[GraveMonster]] = None
     floor_y: float = DEFAULT_FLOOR_Y
     max_steps: int = 1000
 
@@ -337,12 +341,238 @@ def _build_level_5() -> LevelConfig:
         max_steps=10000,
     )
 
+
+def _build_level_6() -> LevelConfig:
+    """Level 6 (Awakening of the Corpse Demon): Medium difficulty stage introducing Quỷ Nhập Tràng ambushes combined with sweeping LaserGhosts, Wisp Maidens, flame pits, and ancient monuments."""
+    return LevelConfig(
+        name="Level 6: Awakening of the Corpse Demon",
+        obstacles=[
+            Obstacle(x=220.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="buddhist"),
+            Obstacle(x=520.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0, style="cross"),       # Ambush Grave 1
+            Obstacle(x=860.0, y=DEFAULT_FLOOR_Y - 52.0, width=32.0, height=52.0, style="buddhist"),
+            Obstacle(x=1220.0, y=DEFAULT_FLOOR_Y - 60.0, width=32.0, height=60.0, style="cross"),     # Ambush Grave 2
+            Obstacle(x=1540.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="buddhist"),
+        ],
+        pits=[
+            Pit(x_start=360.0, x_end=430.0),                                       # 70px normal pit
+            Pit(x_start=700.0, x_end=775.0, has_fire=True, fire_offset=0),         # 75px hellfire pit
+            Pit(x_start=1060.0, x_end=1130.0),                                     # 70px gap for Quỷ Nhập Tràng pit-vaulting
+        ],
+        ghosts=[
+            # 1. Base hovering ghost (low float before Pit 1)
+            Ghost(
+                x=300.0, y=DEFAULT_FLOOR_Y - 40.0,
+                patrol_min_x=260.0, patrol_max_x=340.0,
+                speed=1.4, float_amplitude=7.0, float_speed=0.08,
+            ),
+            # 2. Wisp Maiden casting rolling will-o'-the-wisps across the graveyard turf
+            WispGhost(
+                x=620.0, y=DEFAULT_FLOOR_Y - 76.0,
+                patrol_min_x=570.0, patrol_max_x=680.0,
+                speed=-1.3, float_amplitude=8.0, float_speed=0.08,
+                wisp_cycle=140, wisp_offset=30, wisp_mode="low",
+            ),
+            # 3. Rotating LaserGhost sentry guarding the middle terrace
+            LaserGhost(
+                x=960.0, y=DEFAULT_FLOOR_Y - 84.0,
+                patrol_min_x=900.0, patrol_max_x=1030.0,
+                speed=1.4, float_amplitude=8.0, float_speed=0.08,
+                laser_length=85.0, laser_rotation_speed=0.038, laser_initial_angle=0.0,
+            ),
+            # 4. High hovering ghost before the sanctuary (walk/slide under)
+            Ghost(
+                x=1420.0, y=DEFAULT_FLOOR_Y - 86.0,
+                patrol_min_x=1360.0, patrol_max_x=1490.0,
+                speed=-1.3, float_amplitude=8.0, float_speed=0.08,
+            ),
+        ],
+        monsters=[
+            # Corpse Demon 1: Ambushes from the cross tombstone at x=520, accelerates into sprint
+            QuyNhapTrang(
+                x=520.0, y=DEFAULT_FLOOR_Y - 32.0,
+                trigger_dist=170.0, emerge_speed=1.6,
+                base_speed=1.4, max_speed=4.8, acceleration=0.04,
+            ),
+            # Corpse Demon 2: Ambushes from tombstone at x=1220, vaults over Pit 3 across to Hoá!
+            QuyNhapTrang(
+                x=1220.0, y=DEFAULT_FLOOR_Y - 32.0,
+                trigger_dist=180.0, emerge_speed=1.8,
+                base_speed=1.6, max_speed=5.2, acceleration=0.05,
+            ),
+        ],
+        items=[
+            WarmthItem(x=229.0, y=DEFAULT_FLOOR_Y - 86.0),   # Atop Tombstone 1
+            WarmthItem(x=395.0, y=DEFAULT_FLOOR_Y - 85.0),   # Airborne over Pit 1
+            WarmthItem(x=650.0, y=DEFAULT_FLOOR_Y - 28.0),   # Rewarding ground item between hazards
+            WarmthItem(x=1095.0, y=DEFAULT_FLOOR_Y - 85.0),  # Airborne over Pit 3
+            WarmthItem(x=1430.0, y=DEFAULT_FLOOR_Y - 28.0),  # Beneath high ghost 4
+            WarmthItem(x=1620.0, y=DEFAULT_FLOOR_Y - 28.0),  # Final garlic before sanctuary
+        ],
+        goal=GoalFlag(x=1720.0, y=DEFAULT_FLOOR_Y - 88.0),
+        floor_y=DEFAULT_FLOOR_Y,
+        max_steps=1500,
+    )
+
+
+def _build_level_7() -> LevelConfig:
+    """Level 7 (Cataclysm of the Undead): Master challenge stage combining all entities.
+    Features Jiangshi (Cương Thi) and Corpse Demon (Quỷ Nhập Tràng) ambushes (each tied to a separate tombstone),
+    staggered hellfire chasms, floating stone platforms, counter-rotating laser scissors, and wisp maidens.
+    """
+    return LevelConfig(
+        name="Level 7: Cataclysm of the Undead",
+        obstacles=[
+            # 1. Buddhist stele before first pit
+            Obstacle(x=240.0, y=DEFAULT_FLOOR_Y - 48.0, width=32.0, height=48.0, style="buddhist"),
+            # 2. Granite cross tombstone - Ambush site for Jiangshi 1
+            Obstacle(x=520.0, y=DEFAULT_FLOOR_Y - 58.0, width=32.0, height=58.0, style="cross"),
+            # 3. Buddhist pagoda tombstone - Ambush site for Corpse Demon 1
+            Obstacle(x=960.0, y=DEFAULT_FLOOR_Y - 52.0, width=32.0, height=52.0, style="buddhist"),
+            # 4. Floating stone platform over hellfire zone
+            Obstacle(x=1270.0, y=DEFAULT_FLOOR_Y - 72.0, width=48.0, height=16.0, style="platform"),
+            # 5. Grand Catholic cross - Ambush site for Jiangshi 2
+            Obstacle(x=1680.0, y=DEFAULT_FLOOR_Y - 64.0, width=32.0, height=64.0, style="cross"),
+            # 6. Floating stone platform over second hellfire zone
+            Obstacle(x=1980.0, y=DEFAULT_FLOOR_Y - 74.0, width=48.0, height=16.0, style="platform"),
+            # 7. Buddhist pagoda tombstone - Ambush site for Corpse Demon 2
+            Obstacle(x=2340.0, y=DEFAULT_FLOOR_Y - 56.0, width=32.0, height=56.0, style="buddhist"),
+            # 8. Grand granite monument guarding final stretch
+            Obstacle(x=2720.0, y=DEFAULT_FLOOR_Y - 68.0, width=32.0, height=68.0, style="cross"),
+        ],
+        pits=[
+            Pit(x_start=370.0, x_end=440.0),                                       # 70px normal pit
+            Pit(x_start=730.0, x_end=810.0, has_fire=True, fire_offset=0),         # 80px hellfire pit
+            Pit(x_start=1140.0, x_end=1220.0, has_fire=True, fire_offset=75),     # 80px hellfire pit (opposite phase)
+            Pit(x_start=1440.0, x_end=1510.0),                                     # 70px pit under laser scissors
+            Pit(x_start=1810.0, x_end=1895.0, has_fire=True, fire_offset=30),     # 85px hellfire chasm
+            Pit(x_start=2470.0, x_end=2550.0, has_fire=True, fire_offset=90),     # 80px hellfire pit before sanctuary
+        ],
+        ghosts=[
+            # 1. Low skimming ground ghost before Pit 1
+            Ghost(
+                x=310.0, y=DEFAULT_FLOOR_Y - 40.0,
+                patrol_min_x=260.0, patrol_max_x=360.0,
+                speed=1.5, float_amplitude=7.0, float_speed=0.09,
+            ),
+            # 2. Sweeping clockwise LaserGhost
+            LaserGhost(
+                x=660.0, y=DEFAULT_FLOOR_Y - 110.0,
+                patrol_min_x=610.0, patrol_max_x=710.0,
+                speed=-1.2, float_amplitude=6.0, float_speed=0.06,
+                laser_length=85.0, laser_rotation_speed=0.038, laser_initial_angle=0.0,
+            ),
+            # 3. High Sky Wisp Maiden over Hellfire Pit 2
+            WispGhost(
+                x=770.0, y=DEFAULT_FLOOR_Y - 130.0,
+                patrol_min_x=730.0, patrol_max_x=820.0,
+                speed=1.3, float_amplitude=8.0, float_speed=0.08,
+                wisp_cycle=130, wisp_offset=0, wisp_mode="high",
+            ),
+            # 4. Low Ground Wisp Maiden casting rolling turf flames
+            WispGhost(
+                x=1050.0, y=DEFAULT_FLOOR_Y - 72.0,
+                patrol_min_x=990.0, patrol_max_x=1110.0,
+                speed=-1.3, float_amplitude=7.0, float_speed=0.08,
+                wisp_cycle=140, wisp_offset=40, wisp_mode="low",
+            ),
+            # 5. Counter-rotating Laser Scissors 1 (Clockwise)
+            LaserGhost(
+                x=1380.0, y=DEFAULT_FLOOR_Y - 115.0,
+                patrol_min_x=1340.0, patrol_max_x=1420.0,
+                speed=1.1, float_amplitude=6.0, float_speed=0.06,
+                laser_length=85.0, laser_rotation_speed=0.035, laser_initial_angle=0.0,
+            ),
+            # 6. Counter-rotating Laser Scissors 2 (Counter-Clockwise)
+            LaserGhost(
+                x=1500.0, y=DEFAULT_FLOOR_Y - 115.0,
+                patrol_min_x=1460.0, patrol_max_x=1540.0,
+                speed=-1.1, float_amplitude=6.0, float_speed=0.06,
+                laser_length=85.0, laser_rotation_speed=-0.035, laser_initial_angle=3.14,
+            ),
+            # 7. Alternating Wisp Maiden between chasms
+            WispGhost(
+                x=1760.0, y=DEFAULT_FLOOR_Y - 95.0,
+                patrol_min_x=1710.0, patrol_max_x=1810.0,
+                speed=1.4, float_amplitude=8.0, float_speed=0.08,
+                wisp_cycle=130, wisp_offset=25, wisp_mode="alternating",
+            ),
+            # 8. Fast twitcher demon ghost over grass
+            Ghost(
+                x=2140.0, y=DEFAULT_FLOOR_Y - 42.0,
+                patrol_min_x=2070.0, patrol_max_x=2210.0,
+                speed=-1.7, float_amplitude=9.0, float_speed=0.10,
+            ),
+            # 9. Clockwise LaserGhost guarding the final pit
+            LaserGhost(
+                x=2510.0, y=DEFAULT_FLOOR_Y - 118.0,
+                patrol_min_x=2470.0, patrol_max_x=2560.0,
+                speed=1.2, float_amplitude=7.0, float_speed=0.07,
+                laser_length=90.0, laser_rotation_speed=0.04, laser_initial_angle=1.57,
+            ),
+            # 10. Sky Wisp Maiden raining fire
+            WispGhost(
+                x=2620.0, y=DEFAULT_FLOOR_Y - 130.0,
+                patrol_min_x=2580.0, patrol_max_x=2670.0,
+                speed=-1.3, float_amplitude=8.0, float_speed=0.08,
+                wisp_cycle=135, wisp_offset=60, wisp_mode="high",
+            ),
+            # 11. High hovering sentry before sanctuary
+            Ghost(
+                x=2820.0, y=DEFAULT_FLOOR_Y - 86.0,
+                patrol_min_x=2760.0, patrol_max_x=2880.0,
+                speed=-1.3, float_amplitude=8.0, float_speed=0.08,
+            ),
+        ],
+        monsters=[
+            # Monster 1: Jiangshi (Cương Thi) ambushes from Cross Tombstone at x=520
+            CuongThi(
+                x=520.0, y=DEFAULT_FLOOR_Y - 32.0,
+                trigger_dist=190.0, hop_speed_x=2.5,
+                hop_force_y=-5.6, pause_duration=16,
+            ),
+            # Monster 2: Corpse Demon (Quỷ Nhập Tràng) ambushes from Buddhist Tombstone at x=960, vaults Pit 3
+            QuyNhapTrang(
+                x=960.0, y=DEFAULT_FLOOR_Y - 32.0,
+                trigger_dist=180.0, emerge_speed=1.8,
+                base_speed=1.5, max_speed=5.0, acceleration=0.045,
+            ),
+            # Monster 3: Agile Jiangshi (Cương Thi) ambushes from Cross Tombstone at x=1680, vaults Pit 4
+            CuongThi(
+                x=1680.0, y=DEFAULT_FLOOR_Y - 32.0,
+                trigger_dist=200.0, hop_speed_x=2.8,
+                hop_force_y=-5.8, pause_duration=13,
+            ),
+            # Monster 4: Berserk Corpse Demon (Quỷ Nhập Tràng) ambushes from Tombstone at x=2340, vaults Pit 6
+            QuyNhapTrang(
+                x=2340.0, y=DEFAULT_FLOOR_Y - 32.0,
+                trigger_dist=190.0, emerge_speed=1.9,
+                base_speed=1.6, max_speed=5.4, acceleration=0.05,
+            ),
+        ],
+        items=[
+            WarmthItem(x=249.0, y=DEFAULT_FLOOR_Y - 86.0),   # Atop Tombstone 1
+            WarmthItem(x=405.0, y=DEFAULT_FLOOR_Y - 85.0),   # Airborne over Pit 1
+            WarmthItem(x=650.0, y=DEFAULT_FLOOR_Y - 28.0),   # Ground reward before Hellfire Pit 2
+            WarmthItem(x=969.0, y=DEFAULT_FLOOR_Y - 88.0),   # Atop Tombstone 3
+            WarmthItem(x=1290.0, y=DEFAULT_FLOOR_Y - 110.0), # Perched atop Floating Stone Platform 1
+            WarmthItem(x=1850.0, y=DEFAULT_FLOOR_Y - 88.0),  # Airborne over Hellfire Chasm 5
+            WarmthItem(x=2000.0, y=DEFAULT_FLOOR_Y - 112.0), # Perched atop Floating Stone Platform 2
+            WarmthItem(x=2730.0, y=DEFAULT_FLOOR_Y - 105.0), # Atop Monument 8 before sanctuary
+        ],
+        goal=GoalFlag(x=2950.0, y=DEFAULT_FLOOR_Y - 88.0),
+        floor_y=DEFAULT_FLOOR_Y,
+        max_steps=10000,
+    )
+
+
 LEVEL_BUILDERS: Dict[int, Callable[[], LevelConfig]] = {
     1: _build_level_1,
     2: _build_level_2,
     3: _build_level_3,
     4: _build_level_4,
     5: _build_level_5,
+    6: _build_level_6,
+    7: _build_level_7,
 }
 
 
@@ -362,6 +592,7 @@ def create_env(level_id: int = 1) -> GameEnvironment:
         pits=cfg_level.pits,
         goal=cfg_level.goal,
         ghosts=cfg_level.ghosts,
+        monsters=cfg_level.monsters if cfg_level.monsters is not None else [],
         items=cfg_level.items,
         floor_y=cfg_level.floor_y,
         max_steps=cfg_level.max_steps,

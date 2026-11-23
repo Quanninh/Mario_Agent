@@ -12,13 +12,13 @@
 ### 1.1 Project Objective & Story
 The goal of this project is to develop an autonomous AI agent that learns to play a custom 2D platformer through **interaction and experience**, rather than manually programmed rules.
 
-- **Story**: Hoá wakes up late on a freezing night in the middle of a graveyard near his house. Terrified and cold, he must navigate his way home—jumping over tall tombstones and open grave pits, dodging diverse ghosts (base hovering ghosts, sweeping laser specters, and soaring wisp maidens), and collecting **Warding Garlic Bulbs (*Củ Tỏi Trừ Tà*)** along the way until he reaches the sanctuary of the illuminated **Khuê Văn Các** pavilion.
-- **Learning Process**: Initially, the agent knows nothing and acts randomly. Over hundreds of episodes, it receives rewards (moving closer to sanctuary, collecting garlic bulbs, reaching the pavilion) and penalties (falling into grave pits, touching ghosts, laser/fire hits, stalling) to learn an optimal navigation policy.
+- **Story**: Hoá wakes up late on a freezing night in the middle of a graveyard near his house. Terrified and cold, he must navigate his way home—jumping over tall tombstones, floating stone platforms, and open grave pits, dodging diverse ghosts (base hovering ghosts, sweeping laser specters, soaring wisp maidens), evading ancient grave ambushes (**Quỷ Nhập Tràng** and **Cương Thi**), and collecting **Warding Garlic Bulbs (*Củ Tỏi Trừ Tà*)** along the way until he reaches the sanctuary of the illuminated **Khuê Văn Các** pavilion.
+- **Learning Process**: Initially, the agent knows nothing and acts randomly. Over hundreds of episodes, it receives rewards (moving closer to sanctuary, collecting garlic bulbs, reaching the pavilion) and penalties (falling into grave pits, touching ghosts, monsters, laser/fire hits, stalling) to learn an optimal navigation policy.
 
 ### 1.2 Core Problem Formulation (Markov Decision Process)
 - **Agent**: Hoá, observing the nearby surroundings and choosing discrete actions.
-- **Environment**: A 2D midnight graveyard platformer with tall tombstones, open grave pits (with periodic hellfire), hovering ghosts, laser ghosts, wisp maidens, collectible warding garlic bulbs, and the Khuê Văn Các pavilion as the finish line.
-- **State ($S$)**: Discretized representations of Hoá's position, altitude, grounded status, double jump availability, crouching state, and relative distance to nearby tombstones, pits, pit fire phases, ghosts, and the goal.
+- **Environment**: A 2D midnight graveyard platformer with tall tombstones, floating stone platforms, open grave pits (with periodic hellfire), hovering ghosts, laser ghosts, wisp maidens, grave ambush monsters (Corpse Demon and Jiangshi), collectible warding garlic bulbs, and the Khuê Văn Các pavilion as the finish line.
+- **State ($S$)**: Discretized representations of Hoá's position, altitude, grounded status, double jump availability, crouching state, and relative distance to nearby tombstones, pits, pit fire phases, ghosts, monsters, and the goal.
 - **Action ($A$)**: 6 discrete decisions (`Stay`, `Left`, `Jump`, `Right`, `Right + Jump`, `Crouch`).
 - **Reward ($R$)**: Feedback reinforcing forward progress, garlic item collection, and reaching home while penalizing traps, ghost collisions, or stalling.
 - **Algorithm**: **Tabular Q-Learning** with a Q-Table storing $Q(s, a)$ values updated via Temporal Difference (TD) learning and an $\epsilon$-greedy exploration strategy.
@@ -67,7 +67,7 @@ The system executes across 4 high-level phases during each step and episode:
 ```text
 Mario_Agent/
 ├── core/            # Base interfaces (Environment, Agent, Discretizer, Reward)
-├── env/             # Pygame 2D graveyard environment, entities & 5 level layouts
+├── env/             # Pygame 2D graveyard environment, entities & 7 level layouts
 ├── discretizer/     # Continuous-to-discrete state mapping
 ├── rewards/         # Pluggable reward strategies (Sparse, Dense, Balanced)
 ├── agent/           # Q-Learning agent (Q-Table & Epsilon-Greedy policy)
