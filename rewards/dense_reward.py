@@ -1,5 +1,5 @@
 from typing import Optional
-from core.base_env import RawState, GameEvents
+from core.base_env import Action, RawState, GameEvents
 from core.interfaces import BaseRewardStrategy
 
 
@@ -22,7 +22,8 @@ class DenseRewardStrategy(BaseRewardStrategy):
         monster_penalty: Optional[float] = None,
         obstacle_penalty: float = -2.0,
         item_bonus: float = 30.0,
-        idle_penalty: float = 0.0,
+        idle_penalty: float = -0.15,
+        jump_penalty: float = -0.75,
         timeout_penalty: float = -40.0,
     ):
         self.progress_mult = progress_mult
@@ -37,6 +38,7 @@ class DenseRewardStrategy(BaseRewardStrategy):
         self.obstacle_penalty = obstacle_penalty
         self.item_bonus = item_bonus
         self.idle_penalty = idle_penalty
+        self.jump_penalty = jump_penalty
         self.timeout_penalty = timeout_penalty
 
     def calculate_reward(
@@ -69,6 +71,8 @@ class DenseRewardStrategy(BaseRewardStrategy):
             reward += self.obstacle_penalty
         if events.collected_item:
             reward += self.item_bonus
+        if prev_state.is_grounded and action in (Action.JUMP, Action.RIGHT_JUMP):
+            reward += self.jump_penalty
         if abs(events.dx) < 0.05:
             reward += self.idle_penalty
         is_hazard_death = (

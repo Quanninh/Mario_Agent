@@ -19,7 +19,7 @@ class SparseRewardStrategy(BaseRewardStrategy):
         laser_penalty: Optional[float] = None,
         wisp_penalty: Optional[float] = None,
         monster_penalty: Optional[float] = None,
-        item_bonus: float = 30.0,
+        item_bonus: float = 10.0,
     ):
         self.goal_bonus = goal_bonus
         self.death_penalty = death_penalty

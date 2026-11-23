@@ -1,3 +1,4 @@
+from typing import Optional
 from core.base_env import Action, RawState, GameEvents
 from core.interfaces import BaseRewardStrategy
 
@@ -25,10 +26,13 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         obstacle_penalty: float = -3.0,
         item_bonus: float = 30.0,
         step_penalty: float = -0.1,
-        unnecessary_jump_penalty: float = -25.0,
+        unnecessary_jump_penalty: float = -1.5,
+        stall_penalty: float = 0.0,
         timeout_penalty: float = -50.0,
-        vision_range: float = 48.0,
-        high_ghost_y_threshold: float = 260.0,
+        vision_range: float = 80.0,
+        ghost_height: float = 28.0,
+        ghost_clearance_margin: float = 4.0,
+        jump_penalty: Optional[float] = None,
     ):
         self.weight_progress = weight_progress
         self.weight_regress = weight_regress
@@ -42,10 +46,15 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         self.obstacle_penalty = obstacle_penalty
         self.item_bonus = item_bonus
         self.step_penalty = step_penalty
-        self.unnecessary_jump_penalty = unnecessary_jump_penalty
+        self.unnecessary_jump_penalty = (
+            jump_penalty if jump_penalty is not None else unnecessary_jump_penalty
+        )
+        self.jump_penalty = self.unnecessary_jump_penalty
+        self.stall_penalty = stall_penalty
         self.timeout_penalty = timeout_penalty
         self.vision_range = vision_range
-        self.high_ghost_y_threshold = high_ghost_y_threshold
+        self.ghost_height = ghost_height
+        self.ghost_clearance_margin = ghost_clearance_margin
 
     def calculate_reward(
         self,
@@ -55,7 +64,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         events: GameEvents,
         done: bool,
     ) -> float:
-        # 1. Asymmetric horizontal progress shaping
+        # 1. Symmetric horizontal progress / regression shaping
         if events.dx > 0.0:
             reward = self.weight_progress * events.dx
         else:
@@ -101,8 +110,8 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         reward += self.step_penalty
 
         # 10. Unnecessary Jump Penalty
-        # Fires ONLY when grounded, jumping, and no obstacle, pit, or low ghost within vision_range
-        # High ghosts (above Hoá's head clearance) do NOT exempt jumping (discourages jumping up into high ghosts)
+        # Fires ONLY when grounded, jumping, and no obstacle, pit, or low/eye-level ghost within vision_range
+        # A ghost with overhead clearance (safe to walk under) does NOT exempt jumping
         if prev_state.is_grounded and action in (Action.JUMP, Action.RIGHT_JUMP):
             obs_far = (
                 prev_state.dist_to_obstacle < 0.0
@@ -115,19 +124,24 @@ class BalancedRewardStrategy(BaseRewardStrategy):
             dist_ghost = getattr(prev_state, "dist_to_ghost", -1.0)
             ghost_y = getattr(prev_state, "ghost_y", 0.0)
             player_y = getattr(prev_state, "player_y", getattr(prev_state, "mario_y", 288.0))
-            ghost_height = 28.0
-            clearance_margin = 8.0
-            is_overhead = (ghost_y + ghost_height) <= (player_y - clearance_margin)
+
+            ghost_overhead_cleared = (
+                ghost_y > 0.0
+                and (ghost_y + self.ghost_height) <= (player_y - self.ghost_clearance_margin)
+            )
             low_ghost_near = (
                 0.0 <= dist_ghost <= self.vision_range
-                and not is_overhead
+                and not ghost_overhead_cleared
             )
             laser_near = 0.0 <= getattr(prev_state, "dist_to_laser", -1.0) <= self.vision_range
             wisp_near = 0.0 <= getattr(prev_state, "dist_to_wisp", -1.0) <= self.vision_range
             monster_near = 0.0 <= getattr(prev_state, "dist_to_monster", -1.0) <= self.vision_range
             if obs_far and pit_far and not low_ghost_near and not laser_near and not wisp_near and not monster_near:
                 reward += self.unnecessary_jump_penalty
-                reward -= events.dx * self.weight_progress
+
+        # 11. Stall Penalty (standing still without hitting an obstacle)
+        if abs(events.dx) < 1e-6 and not events.hit_obstacle:
+            reward += self.stall_penalty
 
         # 12. Timeout Penalty (Ensure deaths are never penalized as timeouts)
         is_hazard_death = (

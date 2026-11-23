@@ -28,13 +28,13 @@ def resolve_agent_class(
     checkpoint_path: Optional[Union[str, Path]] = None,
 ) -> Type[BaseAgent]:
     """
-    Determines whether to instantiate TabularQAgent or HybridAgent.
+    Determines whether to instantiate TabularQAgent or HybridQSARSAAgent.
     Supports explicit CLI flags ('tabular'/'tabular_q', 'hybrid'/'hybrid_agent') and auto-detection.
     """
     clean_type = agent_type.strip().lower() if agent_type else "auto"
 
     if clean_type in ("hybrid", "hybridagent", "hybrid_agent", "hybrid_q_sarsa", "sarsa"):
-        return HybridAgent
+        return HybridQSARSAAgent
 
     if clean_type in ("tabular", "tabularqagent", "tabular_q", "q_learning", "q"):
         return TabularQAgent
@@ -42,11 +42,11 @@ def resolve_agent_class(
     # Auto-detection mode: inspect checkpoint filename and serialized contents
     if checkpoint_path:
         path = Path(checkpoint_path)
-        stem = path.stem.lower()
+        parts = [p.lower() for p in path.parts]
 
-        # Filename hints
-        if "hybrid" in stem or "sarsa" in stem:
-            return HybridAgent
+        # Directory / Filename hints
+        if any("hybrid" in p or "sarsa" in p for p in parts):
+            return HybridQSARSAAgent
 
         # Serialized metadata inspection
         if path.exists():
@@ -54,20 +54,27 @@ def resolve_agent_class(
                 try:
                     with open(path, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                    if isinstance(data, dict) and ("beta" in data or "mode" in data):
-                        return HybridAgent
+                    if isinstance(data, dict) and ("beta" in data or "mode" in data or ("metadata" in data and "hybrid" in str(data["metadata"]))):
+                        return HybridQSARSAAgent
                 except Exception:
                     pass
             elif path.suffix == ".pkl":
                 try:
                     with open(path, "rb") as f:
                         data = pickle.load(f)
-                    if isinstance(data, dict) and ("beta" in data or "mode" in data):
-                        return HybridAgent
+                    if isinstance(data, dict) and ("beta" in data or "mode" in data or "agent_type" in data):
+                        return HybridQSARSAAgent
                 except Exception:
                     pass
 
     return TabularQAgent
+
+
+def make_agent_instance(agent_cls: Type[BaseAgent], hybrid_mode: str = "expected") -> BaseAgent:
+    """Helper to instantiate agent class with hybrid mode if applicable."""
+    if issubclass(agent_cls, HybridQSARSAAgent):
+        return agent_cls(mode=hybrid_mode)
+    return agent_cls()
 
 
 def resolve_checkpoint_path(
@@ -77,61 +84,79 @@ def resolve_checkpoint_path(
     level: int = 1,
     explicit_path: Optional[str] = None,
     agent_type: Optional[str] = None,
+    hybrid_mode: str = "expected",
 ) -> Path:
-    """Finds the checkpoint file path based on mode, reward, variant, level, and agent type with graceful fallbacks."""
+    """Finds the checkpoint file path based on mode, reward, variant, level, agent type, and hybrid mode with graceful fallbacks."""
     if explicit_path is not None:
         return Path(explicit_path)
 
-    # If hybrid agent is explicitly requested, check for hybrid checkpoints first
-    if agent_type and agent_type.lower() in ("hybrid", "hybridagent", "hybrid_agent", "sarsa"):
-        p_hybrid = Path("checkpoints") / "hybrid_q_sarsa.pkl"
-        if p_hybrid.exists():
-            return p_hybrid
-        p_hybrid_json = Path("checkpoints") / "hybrid_q_sarsa.json"
-        if p_hybrid_json.exists():
-            return p_hybrid_json
+    clean_agent = (agent_type or "auto").strip().lower()
+    if clean_agent in ("hybrid", "hybridagent", "hybrid_agent", "sarsa"):
+        agent_tags = [f"hybrid_{hybrid_mode}", "hybrid"]
+    elif clean_agent in ("tabular", "tabularqagent", "tabular_q", "q"):
+        agent_tags = ["tabular"]
+    else:
+        # Auto: check hybrid tag first, then tabular
+        agent_tags = [f"hybrid_{hybrid_mode}", "tabular", "hybrid"]
 
+    # 1. Search in checkpoints/<agent_tag>/<mode>_<reward>/
+    for tag in agent_tags:
+        tagged_dir = Path("checkpoints") / tag / f"{mode}_{reward}"
+        if mode == "separate":
+            candidates = [
+                tagged_dir / f"q_table_lvl{level}_{variant}.json",
+                tagged_dir / f"q_table_lvl{level}_{variant}.pkl",
+                tagged_dir / f"q_table_lvl{level}_best.json" if variant == "best" else None,
+                tagged_dir / f"q_table_lvl{level}_best.pkl" if variant == "best" else None,
+            ]
+        else:
+            candidates = [
+                tagged_dir / f"q_table_{variant}.json",
+                tagged_dir / f"q_table_{variant}.pkl",
+                tagged_dir / f"q_table_lvl{level}_{variant}.json",
+                tagged_dir / f"q_table_lvl{level}_{variant}.pkl",
+            ]
+        for c in candidates:
+            if c is not None and c.exists():
+                return c
+
+    # 2. Search in legacy non-tagged directory: checkpoints/<mode>_<reward>/
+    legacy_dir = Path("checkpoints") / f"{mode}_{reward}"
     if mode == "separate":
-        # 1. Prefer checkpoints/separate_<reward>/q_table_lvl<N>_<variant>.json
-        p_sep = Path("checkpoints") / f"separate_{reward}" / f"q_table_lvl{level}_{variant}.json"
-        if p_sep.exists():
-            return p_sep
-        p_sep_pkl = Path("checkpoints") / f"separate_{reward}" / f"q_table_lvl{level}_{variant}.pkl"
-        if p_sep_pkl.exists():
-            return p_sep_pkl
-        p_lvl = Path("checkpoints") / f"q_table_level_{level}_{variant}.json"
-        if p_lvl.exists():
-            return p_lvl
-        p_lvl_pkl = Path("checkpoints") / f"q_table_level_{level}_{variant}.pkl"
-        if p_lvl_pkl.exists():
-            return p_lvl_pkl
-        return p_sep
+        legacy_candidates = [
+            legacy_dir / f"q_table_lvl{level}_{variant}.json",
+            legacy_dir / f"q_table_lvl{level}_{variant}.pkl",
+        ]
+    else:
+        legacy_candidates = [
+            legacy_dir / f"q_table_{variant}.json",
+            legacy_dir / f"q_table_{variant}.pkl",
+            legacy_dir / f"q_table_lvl{level}_{variant}.json",
+            legacy_dir / f"q_table_lvl{level}_{variant}.pkl",
+        ]
+    for c in legacy_candidates:
+        if c.exists():
+            return c
 
-    # Curriculum mode:
-    # 1. Prefer curriculum_<reward>/q_table_<variant>.json
-    p1 = Path("checkpoints") / f"curriculum_{reward}" / f"q_table_{variant}.json"
-    if p1.exists():
-        return p1
+    # 3. Search in root checkpoints/
+    root_candidates = [
+        Path("checkpoints") / f"q_table_{variant}.json",
+        Path("checkpoints") / f"q_table_{variant}.pkl",
+        Path("checkpoints") / f"q_table_level_{level}_{variant}.json",
+        Path("checkpoints") / f"q_table_level_{level}_{variant}.pkl",
+        Path("checkpoints") / "hybrid_q_sarsa.pkl",
+        Path("checkpoints") / "hybrid_q_sarsa.json",
+    ]
+    for c in root_candidates:
+        if c.exists():
+            return c
 
-    # 2. Fallback to root checkpoints/q_table_<variant>.json
-    p2 = Path("checkpoints") / f"q_table_{variant}.json"
-    if p2.exists():
-        return p2
-
-    # 3. Fallback to .pkl
-    p3 = Path("checkpoints") / f"curriculum_{reward}" / f"q_table_{variant}.pkl"
-    if p3.exists():
-        return p3
-
-    p4 = Path("checkpoints") / f"q_table_{variant}.pkl"
-    if p4.exists():
-        return p4
-
-    p5 = Path("checkpoints") / f"q_table_level_{level}_{variant}.json"
-    if p5.exists():
-        return p5
-
-    return p1
+    # 4. Default expected path when nothing exists yet
+    primary_tag = agent_tags[0]
+    primary_dir = Path("checkpoints") / primary_tag / f"{mode}_{reward}"
+    if mode == "separate":
+        return primary_dir / f"q_table_lvl{level}_{variant}.json"
+    return primary_dir / f"q_table_{variant}.json"
 
 
 def load_agent_policy(
@@ -141,18 +166,27 @@ def load_agent_policy(
     variant: str,
     level: int = 1,
     explicit_path: Optional[str] = None,
+    agent_type: Optional[str] = None,
+    hybrid_mode: str = "expected",
 ) -> Path:
-    """Loads checkpoint into agent policy, reporting state count and agent architecture."""
-    cp_path = resolve_checkpoint_path(mode, reward, variant, level, explicit_path)
+    """Loads checkpoint into agent policy, reporting state count and agent architecture with uninitialized warnings."""
+    cp_path = resolve_checkpoint_path(
+        mode, reward, variant, level, explicit_path, agent_type, hybrid_mode
+    )
     if cp_path.exists():
         agent.load(str(cp_path))
-        arch_name = "HybridAgent" if isinstance(agent, HybridAgent) else "TabularQAgent"
-        print(
-            f"[AI Player] Loaded {mode.upper()} {reward.upper()} [{variant.upper()}] "
-            f"({arch_name}) from {cp_path} ({len(agent.q_table)} states)."
-        )
+        arch_name = "HybridAgent" if isinstance(agent, (HybridAgent, HybridQSARSAAgent)) else "TabularQAgent"
+        if len(agent.q_table) == 0:
+            print(
+                f"[AI Player] Warning: Loaded '{cp_path}' but Q-table has 0 states (empty/uninitialized policy)."
+            )
+        else:
+            print(
+                f"[AI Player] Loaded {mode.upper()} {reward.upper()} [{variant.upper()}] "
+                f"({arch_name}) from {cp_path} ({len(agent.q_table)} states)."
+            )
     else:
-        print(f"[AI Player] Note: Checkpoint '{cp_path}' not found. Policy is uninitialized.")
+        print(f"[AI Player] Note: Checkpoint '{cp_path}' not found. Policy is uninitialized (0 states).")
     agent.set_mode(training=False)
     return cp_path
 
@@ -165,6 +199,13 @@ def parse_args() -> argparse.Namespace:
         default="auto",
         choices=["auto", "tabular", "hybrid", "tabular_q", "hybrid_agent"],
         help="Agent architecture to use: 'tabular' (TabularQAgent), 'hybrid' (HybridAgent), or 'auto' (default: 'auto')",
+    )
+    parser.add_argument(
+        "--hybrid-mode",
+        type=str,
+        default="expected",
+        choices=["expected", "linear", "hazard_gated"],
+        help="Target calculation mode for Hybrid agent: 'expected', 'linear', or 'hazard_gated' (default: 'expected')",
     )
     parser.add_argument(
         "--mode",
@@ -213,6 +254,7 @@ def play_autonomous(
     checkpoint_path: Optional[str] = None,
     level_id: int = 1,
     agent_type: str = "auto",
+    hybrid_mode: str = "expected",
     mode: str = "curriculum",
     reward: str = "balanced",
     variant: str = "best",
@@ -227,26 +269,29 @@ def play_autonomous(
     current_reward = reward
     current_variant = variant
     current_agent_choice = agent_type
+    current_hybrid_mode = hybrid_mode
     explicit_checkpoint = checkpoint_path
 
     discretizer = MarioStateDiscretizer()
 
     # Determine initial checkpoint and agent class
     initial_cp = resolve_checkpoint_path(
-        current_mode, current_reward, current_variant, current_level, explicit_checkpoint, current_agent_choice
+        current_mode, current_reward, current_variant, current_level, explicit_checkpoint, current_agent_choice, current_hybrid_mode
     )
     agent_cls = resolve_agent_class(current_agent_choice, initial_cp)
-    agent: BaseAgent = agent_cls()
+    agent: BaseAgent = make_agent_instance(agent_cls, current_hybrid_mode)
 
     def reload_policy() -> Path:
         nonlocal agent
         target_cp = resolve_checkpoint_path(
-            current_mode, current_reward, current_variant, current_level, explicit_checkpoint, current_agent_choice
+            current_mode, current_reward, current_variant, current_level, explicit_checkpoint, current_agent_choice, current_hybrid_mode
         )
         target_cls = resolve_agent_class(current_agent_choice, target_cp)
         if not isinstance(agent, target_cls):
-            agent = target_cls()
-        return load_agent_policy(agent, current_mode, current_reward, current_variant, current_level, explicit_checkpoint)
+            agent = make_agent_instance(target_cls, current_hybrid_mode)
+        return load_agent_policy(
+            agent, current_mode, current_reward, current_variant, current_level, explicit_checkpoint, current_agent_choice, current_hybrid_mode
+        )
 
     reload_policy()
 
@@ -254,7 +299,11 @@ def play_autonomous(
     cfg = get_level(current_level)
     items_total = len(getattr(env, "items", []))
 
-    agent_display_name = "HybridAgent (Hybrid Q-SARSA)" if isinstance(agent, HybridAgent) else "TabularQAgent (Pure Q-Learning)"
+    agent_display_name = (
+        f"HybridAgent (Hybrid Q-SARSA: {current_hybrid_mode})"
+        if isinstance(agent, (HybridAgent, HybridQSARSAAgent))
+        else "TabularQAgent (Pure Q-Learning)"
+    )
 
     print("\n" + "=" * 70)
     print(f"[AI Player] Playing Level {current_level}: {cfg.name}")
@@ -368,13 +417,17 @@ def play_autonomous(
 
         # Agent architecture toggle (H or A)
         if just_pressed(pygame.K_h) or just_pressed(pygame.K_a):
-            if isinstance(agent, HybridAgent):
+            if isinstance(agent, (HybridAgent, HybridQSARSAAgent)):
                 current_agent_choice = "tabular"
                 agent = TabularQAgent()
             else:
                 current_agent_choice = "hybrid"
-                agent = HybridAgent()
-            agent_display_name = "HybridAgent (Hybrid Q-SARSA)" if isinstance(agent, HybridAgent) else "TabularQAgent (Pure Q-Learning)"
+                agent = HybridQSARSAAgent(mode=current_hybrid_mode)
+            agent_display_name = (
+                f"HybridAgent (Hybrid Q-SARSA: {current_hybrid_mode})"
+                if isinstance(agent, (HybridAgent, HybridQSARSAAgent))
+                else "TabularQAgent (Pure Q-Learning)"
+            )
             print(f"\n[AI Player] Switched Agent Architecture live: {agent_display_name}")
             reload_policy()
             raw_state = env.reset()
@@ -389,11 +442,15 @@ def play_autonomous(
         # Pause toggle (Space)
         if just_pressed(pygame.K_SPACE):
             paused = not paused
-            agent_tag = "HYBRID" if isinstance(agent, HybridAgent) else "TABULAR"
+            agent_tag_str = (
+                f"HYBRID ({current_hybrid_mode})"
+                if isinstance(agent, (HybridAgent, HybridQSARSAAgent))
+                else "TABULAR"
+            )
             caption = (
                 f"Hoá's Midnight Escape | Lvl {current_level} | "
                 f"{current_mode.upper()}-{current_reward.upper()} [{current_variant.upper()}] | "
-                f"Agent: {agent_tag} | Step: {steps} | Items: {items_collected}/{items_total} | "
+                f"Agent: {agent_tag_str} | Step: {steps} | Items: {items_collected}/{items_total} | "
                 f"Act: {action_name}{' | [PAUSED]' if paused else ''}"
             )
             pygame.display.set_caption(caption)
@@ -429,11 +486,15 @@ def play_autonomous(
         action_name = ACTION_NAMES.get(action, str(action))
 
         # Update caption with telemetry
-        agent_tag = "HYBRID" if isinstance(agent, HybridAgent) else "TABULAR"
+        agent_tag_str = (
+            f"HYBRID ({current_hybrid_mode})"
+            if isinstance(agent, (HybridAgent, HybridQSARSAAgent))
+            else "TABULAR"
+        )
         caption = (
             f"Hoá's Midnight Escape | Lvl {current_level} | "
             f"{current_mode.upper()}-{current_reward.upper()} [{current_variant.upper()}] | "
-            f"Agent: {agent_tag} | Step: {steps} | Items: {items_collected}/{items_total} | "
+            f"Agent: {agent_tag_str} | Step: {steps} | Items: {items_collected}/{items_total} | "
             f"Act: {action_name}"
         )
         pygame.display.set_caption(caption)
@@ -495,6 +556,7 @@ def main() -> None:
         checkpoint_path=args.checkpoint,
         level_id=args.level,
         agent_type=args.agent,
+        hybrid_mode=args.hybrid_mode,
         mode=args.mode,
         reward=args.reward,
         variant=args.variant,

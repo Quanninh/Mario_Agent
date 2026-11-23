@@ -1,2 +1,0 @@
-global_episode,level_episode,level_id,total_reward,steps,max_x_reached,progress_pct,obstacle_hits,items_collected,items_total,epsilon,won,outcome,rolling_win_rate_50
-1,1,1,-224.22,800,556.0,78.33,39,0,0,0.997,False,timeout,0.0

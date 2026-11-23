@@ -34,6 +34,8 @@ class MarioStateDiscretizer(BaseDiscretizer):
         mario_height: Optional[float] = None,
         ghost_high_threshold: float = 60.0,
         obs_close_threshold: float = 45.0,
+        ghost_height: float = 28.0,
+        ghost_clearance_margin: float = 4.0,
         laser_threat_distance: float = 55.0,
         wisp_threat_distance: float = 65.0,
         monster_threat_distance: float = 75.0,
@@ -44,6 +46,8 @@ class MarioStateDiscretizer(BaseDiscretizer):
         self.player_height = mario_height if mario_height is not None else player_height
         self.ghost_high_threshold = ghost_high_threshold
         self.obs_close_threshold = obs_close_threshold
+        self.ghost_height = ghost_height
+        self.ghost_clearance_margin = ghost_clearance_margin
         self.laser_threat_distance = laser_threat_distance
         self.wisp_threat_distance = wisp_threat_distance
         self.monster_threat_distance = monster_threat_distance
@@ -108,10 +112,15 @@ class MarioStateDiscretizer(BaseDiscretizer):
             ghost_dist_bin = 3  # OVERLAP (dist_ghost == 0.0, horizontally above/underneath)
 
         # 7. Ghost Altitude Bin (0: Low/None - jump over, 1: High - walk/crouch under)
-        if ghost_dist_bin != 0 and ghost_y > 0.0 and ghost_y < (self.floor_y - self.ghost_high_threshold):
-            ghost_alt_bin = 1  # HIGH (hovering high above ground -> walk under)
+        # Evaluates player-relative overhead clearance: ghost_y + ghost_height <= player_y - margin
+        if (
+            ghost_dist_bin != 0
+            and ghost_y > 0.0
+            and (ghost_y + self.ghost_height) <= (player_y - self.ghost_clearance_margin)
+        ):
+            ghost_alt_bin = 1  # HIGH (hovering safely overhead -> walk under)
         else:
-            ghost_alt_bin = 0  # LOW / NONE (hovering low -> jump over)
+            ghost_alt_bin = 0  # LOW / NONE (hovering low / eye-level -> jump over)
 
         # 8. Rotating Laser Proximity Bin (0: Safe, 1: Immediate Danger)
         dist_laser = getattr(raw_state, "dist_to_laser", -1.0)
