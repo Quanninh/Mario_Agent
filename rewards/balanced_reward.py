@@ -24,10 +24,9 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         obstacle_penalty: float = -3.0,
         item_bonus: float = 30.0,
         step_penalty: float = -0.1,
-        unnecessary_jump_penalty: float = -15.0,
-        stall_penalty: float = 0.0,
+        unnecessary_jump_penalty: float = -25.0,
         timeout_penalty: float = -50.0,
-        vision_range: float = 80.0,
+        vision_range: float = 48.0,
         high_ghost_y_threshold: float = 260.0,
     ):
         self.weight_progress = weight_progress
@@ -42,7 +41,6 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         self.item_bonus = item_bonus
         self.step_penalty = step_penalty
         self.unnecessary_jump_penalty = unnecessary_jump_penalty
-        self.stall_penalty = stall_penalty
         self.timeout_penalty = timeout_penalty
         self.vision_range = vision_range
         self.high_ghost_y_threshold = high_ghost_y_threshold
@@ -119,10 +117,6 @@ class BalancedRewardStrategy(BaseRewardStrategy):
             if obs_far and pit_far and not low_ghost_near and not laser_near and not wisp_near:
                 reward += self.unnecessary_jump_penalty
                 reward -= events.dx * self.weight_progress
-
-        # 11. Stall Penalty (standing still or backtracking without hitting an obstacle)
-        if abs(events.dx) < 1e-6 and not events.hit_obstacle:
-            reward += self.stall_penalty
 
         # 12. Timeout Penalty (Ensure deaths are never penalized as timeouts)
         is_hazard_death = (
