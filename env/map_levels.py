@@ -1152,17 +1152,28 @@ LEVEL_BUILDERS: Dict[int, Callable[[], LevelConfig]] = {
 }
 
 
-def get_level(level_id: int) -> LevelConfig:
-    """Return a fresh LevelConfig for the requested level_id."""
+def get_level(level_id: int, seed: Optional[int] = None) -> LevelConfig:
+    """
+    Return a LevelConfig for the requested level_id.
+    If seed is provided (for Levels 1-5), synthesizes a procedural fair instance.
+    If seed is None, returns the handcrafted default curriculum stage.
+    """
+    if seed is not None and 1 <= level_id <= 5:
+        from .level_generator import LevelGenerator
+        return LevelGenerator.generate(level_id=level_id, seed=seed)
+
     if level_id not in LEVEL_BUILDERS:
         available = list(LEVEL_BUILDERS.keys())
         raise ValueError(f"Unknown level_id={level_id}. Available levels: {available}")
     return LEVEL_BUILDERS[level_id]()
 
 
-def create_env(level_id: int = 1) -> GameEnvironment:
-    """Build a GameEnvironment configured with the chosen level."""
-    cfg_level = get_level(level_id)
+def create_env(level_id: int = 1, seed: Optional[int] = None) -> GameEnvironment:
+    """
+    Build a GameEnvironment configured with the chosen level.
+    Accepts an optional seed for fair procedural blind testing on Levels 1-5.
+    """
+    cfg_level = get_level(level_id, seed=seed)
     return GameEnvironment(
         obstacles=cfg_level.obstacles,
         pits=cfg_level.pits,

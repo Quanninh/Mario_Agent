@@ -178,17 +178,18 @@ class GameEnvironment(BaseEnvironment):
         # Vertical Movement (Jump + Gravity) & Y-Axis Collision
         # -----------------------------------------------------
         if action in (Action.JUMP, Action.RIGHT_JUMP) and not self.player.is_crouching:
-            # God Mode grants a 35% higher leap impulse to clear colossal abysses
-            jump_impulse = self.JUMP_FORCE * 1.35 if getattr(self, "god_mode", False) else self.JUMP_FORCE
+            # RULE / GUARDRAIL: DO NOT UNCOMMENT OR BOOST JUMP FORCE IN GOD MODE:
+            # # jump_impulse = self.JUMP_FORCE * 1.35 if getattr(self, "god_mode", False) else self.JUMP_FORCE
+            # God Mode MUST strictly preserve standard JUMP_FORCE so level playability / human reach testing remains 100% fair.
 
             if self.player.is_grounded:
                 # 1. First ground jump: take off and ENABLE double jump for mid-air!
-                self.player.vy = jump_impulse
+                self.player.vy = self.JUMP_FORCE
                 self.player.is_grounded = False
                 self.player.can_double_jump = True
             elif self.player.can_double_jump or getattr(self, "god_mode", False):
                 # 2. Mid-air double jump (and infinite airborne flutter leaps in God Mode!)
-                self.player.vy = jump_impulse * self.DOUBLE_JUMP_RATIO
+                self.player.vy = self.JUMP_FORCE * self.DOUBLE_JUMP_RATIO
                 if not getattr(self, "god_mode", False):
                     self.player.can_double_jump = False
             

@@ -294,5 +294,22 @@ Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Dow
 - **God Mode Testing Mode (`env.god_mode`)**:
   - Toggleable in human play via `[G]`; renders a golden halo above the `"Hoá"` player label and a `[GOD MODE: INVINCIBLE]` top-left HUD banner.
   - Prevents death from ghosts, lasers, flame jets, and monsters; bounces Hoá back up if falling into pits (`player.vy = -10.0`).
-- **Comprehensive Headless Test Suite**:
-  - 20 unit tests in `tests/test_env.py` covering all 7 curriculum stages, deterministic resets, collisions, double jump mechanics, GraveMonster AI, and headless graphics rendering.
+  - **Strict Jump Playability Rule**: Ground and mid-air jump impulses in God Mode remain strictly unboosted (`JUMP_FORCE = -13.0`) so human testers can reliably verify whether jumps and gaps are physically reachable for normal players and RL agents.
+
+### 5.10 Procedural Level Generator & Fair Blind Evaluation Dataset (Phase 5 — Complete)
+- **Dedicated Generator Architecture (`env/level_generator.py`)**:
+  - Implements `LevelGenerator` following SOLID / Single Responsibility Principles.
+  - Dynamic procedural layout generator for Levels 1 through 5, accepting an explicit `seed: int` parameter.
+  - Generates 100% fair, physically solvable levels using cursor-based placement (`cursor_x`) with strict invariant bounds:
+    - **Level 1**: Static tombstones only (`Obstacle`), 0 pits, 0 ghosts. Tombstone heights $\le 60\text{px}$ (single jump max height $\approx 105.6\text{px}$).
+    - **Level 2**: Tombs + Pits (`Pit`). Pit widths bounded to $[65\text{px}, 85\text{px}]$ with run-ups $\ge 150\text{px}$ (well within single jump reach of $128\text{px}$).
+    - **Level 3**: Tombs + Pits + Warmth items (`WarmthItem`) + standard patrol Ghosts (`Ghost`) with safe wave amplitudes.
+    - **Level 4**: Level 3 elements + rotating laser specters (`LaserGhost`) with safe traversal intervals.
+    - **Level 5**: Level 4 elements + multi-tier sinusoidal Wisp Maidens (`WispGhost`) with bounded wave amplitude and safe clearances.
+- **Modular Level Integration (`env/map_levels.py`)**:
+  - `get_level(level_id, seed=None)` and `create_env(level_id, seed=None)` automatically delegate to `LevelGenerator.generate(level_id, seed)` when `seed` is provided, while preserving backward compatibility with static handcrafted levels when `seed=None`.
+- **Zero-Disk-Overhead Dataset Philosophy**:
+  - Training pipeline can generate thousands of distinct maps on the fly (`seed = random.randint(0, 99999)`).
+  - Evaluation uses fixed holdout seeds (e.g. `TEST_SEEDS = range(90000, 90100)`) for fair blind testing, preventing memorization and evaluating true generalization.
+- **Expanded Automated Test Suite (`tests/test_env.py`)**:
+  - 24 automated unit tests verifying all curriculum stages, God Mode standard jump invariants, procedural reproducibility, seed divergence, and curriculum entity constraints.
