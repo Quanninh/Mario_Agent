@@ -8,7 +8,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
     Formulation:
         r = r_progress(dx) + r_goal * I(goal) + r_pit * I(pit) + r_ghost * I(ghost)
             + r_obstacle * I(hit) + r_item * I(item) + r_step
-            + r_unnecessary_jump + r_stall + r_timeout
+            + r_unnecessary_jump + r_timeout
     """
 
     def __init__(
