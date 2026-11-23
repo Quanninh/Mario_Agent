@@ -27,6 +27,8 @@ def make_raw_state(
     dist_to_laser: float = -1.0,
     dist_to_wisp: float = -1.0,
     wisp_dir: int = 0,
+    dist_to_monster: float = -1.0,
+    monster_y: float = 0.0,
     dist_to_goal: float = 500.0,
 ) -> RawState:
     return RawState(
@@ -47,6 +49,8 @@ def make_raw_state(
         dist_to_laser=dist_to_laser,
         dist_to_wisp=dist_to_wisp,
         wisp_dir=wisp_dir,
+        dist_to_monster=dist_to_monster,
+        monster_y=monster_y,
         dist_to_goal=dist_to_goal,
     )
 
@@ -75,7 +79,7 @@ class TestDiscretizer(unittest.TestCase):
         )
         state = self.discretizer.discretize(raw)
         self.assertIsInstance(state, tuple)
-        self.assertEqual(len(state), 11)
+        self.assertEqual(len(state), 12)
         self.assertTrue(all(isinstance(x, int) for x in state))
 
     def test_legacy_attribute_compatibility(self) -> None:
@@ -91,7 +95,7 @@ class TestDiscretizer(unittest.TestCase):
             ghost_y = 0.0
 
         state = self.discretizer.discretize(LegacyState())
-        self.assertEqual(len(state), 11)
+        self.assertEqual(len(state), 12)
 
     def test_ghost_dist_and_alt_bins(self) -> None:
         # Low ghost (jump over)
@@ -151,6 +155,16 @@ class TestDiscretizer(unittest.TestCase):
         s_wisp_far = self.discretizer.discretize(raw_wisp_far)
         self.assertEqual(s_wisp_far[8], 0)  # wisp_bin: SAFE
 
+        # Monster approaching
+        raw_mon_near = make_raw_state(dist_to_monster=50.0)
+        s_mon_near = self.discretizer.discretize(raw_mon_near)
+        self.assertEqual(s_mon_near[11], 1)  # monster_bin: 1
+
+        # Monster far / none
+        raw_mon_far = make_raw_state(dist_to_monster=150.0)
+        s_mon_far = self.discretizer.discretize(raw_mon_far)
+        self.assertEqual(s_mon_far[11], 0)  # monster_bin: 0
+
 
 class TestRewards(unittest.TestCase):
     def setUp(self) -> None:
@@ -181,6 +195,11 @@ class TestRewards(unittest.TestCase):
         ev_pit = GameEvents(dx=4.0, fell_in_pit=True)
         r_pit = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_pit, True)
         self.assertAlmostEqual(r_pit, -71.1)
+
+        # Death by monster: MUST be severely penalized
+        ev_mon = GameEvents(dx=4.0, hit_monster=True)
+        r_mon = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_mon, True)
+        self.assertAlmostEqual(r_mon, -71.1)
 
         # Warmth item collection bonus
         ev_item = GameEvents(dx=4.0, collected_item=True)

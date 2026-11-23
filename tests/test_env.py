@@ -2,7 +2,7 @@ import random
 import unittest
 
 from core import Action, GameEvents
-from env import GameEnvironment, Ghost, GoalFlag, LEVEL_BUILDERS, Pit, WarmthItem, create_env
+from env import GameEnvironment, Ghost, LaserGhost, GoalFlag, LEVEL_BUILDERS, Pit, WarmthItem, create_env
 
 class TestGameEnvironment(unittest.TestCase):
     """Automated headless tests for Hoá's Midnight Escape environment."""
@@ -178,8 +178,8 @@ class TestGameEnvironment(unittest.TestCase):
         self.assertEqual(env.player.vx, env.WALK_SPEED)
         state, _, _ = env.step(Action.CROUCH)
         self.assertTrue(state.is_crouching)
-        # Velocity should be WALK_SPEED * SLIDE_FRICTION (3.28)
-        self.assertAlmostEqual(env.player.vx, env.WALK_SPEED * env.SLIDE_FRICTION, places=2)
+        # Velocity should match initial boosted slide speed
+        self.assertAlmostEqual(env.player.vx, env.SLIDE_INITIAL_SPEED, places=2)
 
     def test_pit_fire_phases_and_bounding_box(self) -> None:
         """Pits with fire follow dormant (0) -> warning (1) -> active flame (2) cycles."""
@@ -242,10 +242,10 @@ class TestGameEnvironment(unittest.TestCase):
 
     def test_ghost_laser_lethal_collision(self) -> None:
         """Walking or jumping into a ghost's rotating laser beam must trigger hit_laser and end episode."""
-        level_id = next(lvl for lvl, builder in LEVEL_BUILDERS.items() if any(getattr(g, "has_laser", False) or hasattr(g, "get_laser_segment") for g in builder().ghosts))
+        level_id = next(lvl for lvl, builder in LEVEL_BUILDERS.items() if any(isinstance(g, LaserGhost) for g in builder().ghosts))
         env = create_env(level_id=level_id)
         env.reset()
-        laser_ghost = next(g for g in env.ghosts if getattr(g, "has_laser", False) or hasattr(g, "get_laser_segment"))
+        laser_ghost = next(g for g in env.ghosts if isinstance(g, LaserGhost))
 
         seg = laser_ghost.get_laser_segment(env.step_count)
         self.assertIsNotNone(seg)
@@ -294,6 +294,159 @@ class TestGameEnvironment(unittest.TestCase):
         renderer._draw_tombstone(canvas, tomb_cross, camera_x=0.0)
         renderer._draw_tombstone(canvas, tomb_buddhist, camera_x=0.0)
         renderer._draw_tombstone(canvas, platform, camera_x=0.0)
+
+    def test_level_7_elements_and_single_monster_per_grave(self) -> None:
+        """Level 7 combines all entities, exceeds Level 5 difficulty, and ensures 1 monster per grave."""
+        from env.entities import CuongThi, QuyNhapTrang, LaserGhost, WispGhost, Obstacle
+        cfg7 = LEVEL_BUILDERS[7]()
+        self.assertEqual(cfg7.name, "Level 7: Cataclysm of the Undead")
+        self.assertGreater(len(cfg7.obstacles), 5)
+        self.assertGreater(len(cfg7.pits), 4)
+        self.assertGreater(len(cfg7.ghosts), 8)
+        self.assertGreater(len(cfg7.items), 6)
+        self.assertIsNotNone(cfg7.monsters)
+        self.assertEqual(len(cfg7.monsters), 4)
+
+        # Confirm all entity types are present
+        has_cuong_thi = any(isinstance(m, CuongThi) for m in cfg7.monsters)
+        has_quy_nhap_trang = any(isinstance(m, QuyNhapTrang) for m in cfg7.monsters)
+        has_laser = any(isinstance(g, LaserGhost) for g in cfg7.ghosts)
+        has_wisp = any(isinstance(g, WispGhost) for g in cfg7.ghosts)
+        has_fire_pit = any(p.has_fire for p in cfg7.pits)
+        has_platform = any(o.style == "platform" for o in cfg7.obstacles)
+
+        self.assertTrue(has_cuong_thi)
+        self.assertTrue(has_quy_nhap_trang)
+        self.assertTrue(has_laser)
+        self.assertTrue(has_wisp)
+        self.assertTrue(has_fire_pit)
+        self.assertTrue(has_platform)
+
+        # Constraint check: Exactly one monster per tombstone obstacle
+        grave_coords = [m._start_x for m in cfg7.monsters]
+        self.assertEqual(len(grave_coords), len(set(grave_coords)), "Every monster must have a distinct grave coordinate!")
+        obstacle_xs = [o.x for o in cfg7.obstacles]
+        for gx in grave_coords:
+            self.assertIn(gx, obstacle_xs, f"Ambush origin {gx} must match an existing obstacle tombstone!")
+
+    def test_cuong_thi_hopping_and_pit_vault(self) -> None:
+        """CuongThi pauses on ground, hops leftward, and automatically vaults pits."""
+        from env.entities import CuongThi, Pit, GraveMonsterState
+        ct = CuongThi(x=200.0, y=288.0, trigger_dist=150.0, hop_speed_x=2.5, hop_force_y=-5.5, pause_duration=5)
+        pit = Pit(x_start=140.0, x_end=190.0)
+        floor_y = 320.0
+
+        # Trigger emergence
+        ct.update(player_x=100.0, floor_y=floor_y, pits=[pit])
+        self.assertEqual(ct.state, GraveMonsterState.EMERGING)
+
+        # Fast forward emergence to ACTIVE
+        for _ in range(50):
+            ct.update(player_x=100.0, floor_y=floor_y, pits=[pit])
+
+        self.assertEqual(ct.state, GraveMonsterState.ACTIVE)
+
+        # Step through hops and verify vaulting
+        vaulted = False
+        for _ in range(60):
+            ct.update(player_x=100.0, floor_y=floor_y, pits=[pit])
+            if not ct._is_grounded and ct.y < floor_y - ct.height:
+                vaulted = True
+                break
+        self.assertTrue(vaulted)
+
+    def test_cuong_thi_renderer_all_states_headless(self) -> None:
+        """GameRenderer draws CuongThi in dormant, emerging, and hopping charge states without error."""
+        import pygame
+        from env.entities import CuongThi, GraveMonsterState
+        from env.game_renderer import GameRenderer
+
+        renderer = GameRenderer()
+        canvas = pygame.Surface((800, 400))
+        ct = CuongThi(x=200.0, y=288.0)
+
+        # 1. Dormant omen on grave
+        self.assertEqual(ct.state, GraveMonsterState.DORMANT)
+        renderer._draw_grave_monster(canvas, ct, camera_x=0.0, step_count=10, floor_y=320.0)
+
+        # 2. Emerging state
+        ct.state = GraveMonsterState.EMERGING
+        renderer._draw_grave_monster(canvas, ct, camera_x=0.0, step_count=20, floor_y=320.0)
+
+        # 3. Active hopping charge (airborne hop)
+        ct.state = GraveMonsterState.ACTIVE
+        ct._is_grounded = False
+        renderer._draw_grave_monster(canvas, ct, camera_x=0.0, step_count=30, floor_y=320.0)
+
+        # 4. Active standing pause on ground (draped talisman)
+        ct._is_grounded = True
+        renderer._draw_grave_monster(canvas, ct, camera_x=0.0, step_count=35, floor_y=320.0)
+
+    def test_level_8_marathon_architecture_and_sentry_monsters(self) -> None:
+        """Level 8 features 7,200px length, multiple slide tunnels, and sentry monsters on wide platforms."""
+        from env.entities import CuongThi, QuyNhapTrang, LaserGhost, WispGhost
+        cfg8 = LEVEL_BUILDERS[8]()
+        self.assertEqual(cfg8.name, "Level 8: The Celestial Purgatory")
+        self.assertGreater(cfg8.goal.x, 7000.0)
+        self.assertGreaterEqual(len(cfg8.obstacles), 40)
+        self.assertGreaterEqual(len(cfg8.pits), 10)
+        self.assertGreaterEqual(len(cfg8.monsters), 10)
+        self.assertGreaterEqual(len(cfg8.ghosts), 15)
+
+        # Check for hanging slide tunnels (y=0.0, height=296.0)
+        slide_tunnels = [obs for obs in cfg8.obstacles if obs.y == 0.0 and obs.height == 320.0 - 24.0]
+        self.assertGreaterEqual(len(slide_tunnels), 4)
+
+        # Check platform sentries
+        platform_sentries = [m for m in cfg8.monsters if m.patrol_min_x is not None]
+        self.assertGreaterEqual(len(platform_sentries), 3)
+
+        # Check that platform sentry boundaries match wide platforms
+        for sentry in platform_sentries:
+            catwalk = sentry.patrol_max_x - sentry.patrol_min_x
+            self.assertGreaterEqual(catwalk, 100.0)
+
+    def test_god_mode_super_jump(self) -> None:
+        """God Mode grants higher jump velocity and infinite mid-air leaps."""
+        env = GameEnvironment(obstacles=[], pits=[], ghosts=[], items=[])
+        env.reset()
+        env.god_mode = True
+
+        # First ground jump: boosted by 1.35x
+        env.step(Action.JUMP)
+        self.assertAlmostEqual(env.player.vy, env.JUMP_FORCE * 1.35 + env.GRAVITY, places=2)
+
+        # In mid-air: infinite leaps allowed
+        for _ in range(5):
+            env.step(Action.JUMP)
+            self.assertTrue(env.player.vy < 0.0)
+
+    def test_monster_specific_death_attribution(self) -> None:
+        """Killed by CuongThi sets monster_type='cuong_thi'; QuyNhapTrang sets 'quy_nhap_trang'."""
+        from env.entities import CuongThi, QuyNhapTrang, GraveMonsterState
+        # Test CuongThi death
+        ct = CuongThi(x=100.0, y=320.0 - 32.0)
+        ct.state = GraveMonsterState.ACTIVE
+        env = GameEnvironment(obstacles=[], pits=[], ghosts=[], items=[], monsters=[ct])
+        env.reset()
+        env.player.x = 100.0
+        env.player.y = 320.0 - 32.0
+        _, events, done = env.step(Action.STAY)
+        self.assertTrue(done)
+        self.assertTrue(events.hit_monster)
+        self.assertEqual(events.monster_type, "cuong_thi")
+
+        # Test QuyNhapTrang death
+        qnt = QuyNhapTrang(x=100.0, y=320.0 - 32.0)
+        qnt.state = GraveMonsterState.ACTIVE
+        env2 = GameEnvironment(obstacles=[], pits=[], ghosts=[], items=[], monsters=[qnt])
+        env2.reset()
+        env2.player.x = 100.0
+        env2.player.y = 320.0 - 32.0
+        _, events2, done2 = env2.step(Action.STAY)
+        self.assertTrue(done2)
+        self.assertTrue(events2.hit_monster)
+        self.assertEqual(events2.monster_type, "quy_nhap_trang")
 
 if __name__ == "__main__":
     unittest.main()

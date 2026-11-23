@@ -6,15 +6,17 @@
 
 ## 1. Scope & Algorithm Rules
 - **Tabular Q-Learning ONLY**: Do **not** add PyTorch, TensorFlow, Stable-Baselines3, or DQN code unless explicitly requested as a post-submission extension.
-- **Keep State Space Compact**: Use local vision (nearest upcoming obstacle, pit, ghost, goal). Never pass raw pixel arrays or full lists of all level entities into the Q-table.
-- **No Redundant Physics Variables**: Do **not** add `velocity_x` to the player entity or `RawState` (horizontal movement has no sliding inertia).
+- **Keep State Space Compact**: Use local vision (nearest upcoming obstacle, pit, fire phase, ghost, garlic item, goal). Never pass raw pixel arrays or full lists of all level entities into the Q-table.
+- **Physical Kinematics**: Horizontal movement is discrete input-driven except during **momentum crouch slides** (`Action.CROUCH`), where `velocity_x` undergoes friction deceleration ($v_{x, t} = v_{x, t-1} \cdot 0.82$). Keep continuous state space compact when passing to the discretizer.
 
 ## 2. SOLID & Clean Code Rules
 - **Respect `core/` Contracts**: High-level modules (`training/`, `evaluation/`) must depend on interfaces in `core/` (`BaseEnvironment`, `BaseAgent`, `BaseDiscretizer`, `BaseRewardStrategy`), never concrete classes.
 - **Do Not Break Shared Interfaces Silently**: Any change to `RawState`, `GameEvents`, or `Action` in `core/base_env.py` must be documented and synced with the team.
+- **Clean Inheritance Over Dummy Flags**: Never add unused dummy boolean flags (e.g. `has_laser`) to base classes; use proper object-oriented inheritance (`LaserGhost`, `WispGhost`) and type checks (`isinstance()`).
 - **Single Responsibility**:
   - `env/entities.py` holds data & hitbox geometry only (no Pygame rendering, no RL logic).
-  - `env/game_env.py` (`GameEnvironment`) handles physics, collisions, and rendering only (no reward formulas, no Q-table logic).
+  - `env/game_env.py` (`GameEnvironment`) handles physics, collisions, and state extraction only (no reward formulas, no Q-table logic, no surface rendering).
+  - `env/game_renderer.py` (`GameRenderer`) encapsulates all Pygame graphics, camera tracking, HUD, and banners.
   - `env/map_levels.py` holds level definitions via `LEVEL_BUILDERS` registry (Open/Closed Principle).
 - **Keep It Simple (KISS)**: Avoid redundant parameters (e.g., use `DEFAULT_FLOOR_Y` constant instead of threading `floor_y` through every builder) and unnecessary state variables.
 

@@ -1,11 +1,100 @@
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple, Dict
+from dataclasses import dataclass
 import math
 import pygame
 
-from .entities import Ghost, LaserGhost, WispGhost, WillOWisp, GoalFlag, Obstacle, Pit, Player, WarmthItem
+from .entities import (
+    Ghost, LaserGhost, WispGhost, WillOWisp, GoalFlag, Obstacle, Pit, Player, WarmthItem,
+    GraveMonster, GraveMonsterState, QuyNhapTrang, CuongThi
+)
 if TYPE_CHECKING:
     from core.base_env import GameEvents
     from .game_env import GameEnvironment
+
+
+@dataclass
+class SkyConfig:
+    """Configuration for level-specific night sky atmospheric progression (SOLID Data-driven design)."""
+    sky_style: str            # 'classic_navy' or 'dithered_purple'
+    has_moon: bool            # Whether a moon is present
+    moon_type: str            # 'none', 'pale_yellow', 'blood_red', 'blood_eye'
+    has_clouds: bool          # Whether drifting and framing clouds are enabled
+    stars_style: str          # 'classic' or 'pixel_art'
+    base_sky_color: Tuple[int, int, int] = (15, 21, 45)
+
+
+SKY_CONFIGS_BY_LEVEL: Dict[int, SkyConfig] = {
+    # Level 1: Night sky only (deep navy & stars, no moon, no clouds)
+    1: SkyConfig(
+        sky_style="classic_navy",
+        has_moon=False,
+        moon_type="none",
+        has_clouds=False,
+        stars_style="classic",
+        base_sky_color=(15, 21, 45),
+    ),
+    # Level 2: Moon appears (peaceful pale yellow moon, navy sky, classic stars)
+    2: SkyConfig(
+        sky_style="classic_navy",
+        has_moon=True,
+        moon_type="pale_yellow",
+        has_clouds=False,
+        stars_style="classic",
+        base_sky_color=(15, 21, 45),
+    ),
+    # Level 3: Moon turns crimson red (omen of rising undead danger)
+    3: SkyConfig(
+        sky_style="classic_navy",
+        has_moon=True,
+        moon_type="blood_red",
+        has_clouds=False,
+        stars_style="classic",
+        base_sky_color=(15, 21, 45),
+    ),
+    # Level 4: Sky shifts to mysterious dithered purple twilight (branch aesthetic)
+    4: SkyConfig(
+        sky_style="dithered_purple",
+        has_moon=True,
+        moon_type="blood_red",
+        has_clouds=False,
+        stars_style="pixel_art",
+        base_sky_color=(16, 10, 24),
+    ),
+    # Level 5: Ominous drifting and framing scroll clouds gather across the night sky
+    5: SkyConfig(
+        sky_style="dithered_purple",
+        has_moon=True,
+        moon_type="blood_red",
+        has_clouds=True,
+        stars_style="pixel_art",
+        base_sky_color=(16, 10, 24),
+    ),
+    # Level 6+: The Blood Moon awakens and opens the ancient All-Seeing Eye with dark roots
+    6: SkyConfig(
+        sky_style="dithered_purple",
+        has_moon=True,
+        moon_type="blood_eye",
+        has_clouds=True,
+        stars_style="pixel_art",
+        base_sky_color=(16, 10, 24),
+    ),
+    7: SkyConfig(
+        sky_style="dithered_purple",
+        has_moon=True,
+        moon_type="blood_eye",
+        has_clouds=True,
+        stars_style="pixel_art",
+        base_sky_color=(16, 10, 24),
+    ),
+    8: SkyConfig(
+        sky_style="dithered_purple",
+        has_moon=True,
+        moon_type="blood_eye",
+        has_clouds=True,
+        stars_style="pixel_art",
+        base_sky_color=(16, 10, 24),
+    ),
+}
 
 class GameRenderer:
     """Handles all Pygame window management, camera scrolling, and 2D rendering."""
@@ -147,6 +236,50 @@ class GameRenderer:
     COLOR_EYE_PUPIL_BG = (226, 210, 170)
     COLOR_EYE_RUNE = (34, 26, 24)
 
+    # Quỷ Nhập Tràng (Corpse Demon) & Ambush Rupture Palette
+    COLOR_QUY_SKIN = (185, 195, 202)            # Ashen pale undead skin
+    COLOR_QUY_SKIN_SHADOW = (130, 142, 152)     # Sunken flesh shadow
+    COLOR_QUY_EYE_RED = (255, 20, 20)           # Blazing crimson red eyes
+    COLOR_QUY_EYE_CORE = (255, 220, 220)        # Piercing specular eye pupil
+    COLOR_QUY_MOUTH = (35, 10, 15)              # Shrieking cavernous dark mouth
+    COLOR_QUY_TEETH = (240, 240, 230)           # Sharp bared teeth
+    COLOR_QUY_HAIR = (12, 12, 18)               # Pitch black wild hair
+    COLOR_QUY_HAIR_HIGHLIGHT = (45, 48, 62)     # Hair strand sheen
+    COLOR_QUY_ROBE_WHITE = (235, 240, 248)      # Tattered white funeral shroud
+    COLOR_QUY_ROBE_MID = (175, 188, 202)        # Shroud fold midtone
+    COLOR_QUY_ROBE_SHADOW = (118, 132, 148)     # Deep cloth shadow
+    COLOR_QUY_DUST = (165, 150, 135)            # Kicked-up running dirt dust
+    COLOR_TOMB_RUPTURE = (22, 15, 12)           # Dark breach crater at tomb base
+    COLOR_TOMB_DIRT = (55, 42, 32)              # Bursting grave earth clods
+    COLOR_TALISMAN_PAPER = (245, 215, 70)       # Flying yellow joss paper
+
+    # Cương Thi (Jiangshi / Hopping Vampire) Palette
+    COLOR_JIANGSHI_ROBE_DARK = (24, 34, 58)      # Qing imperial navy court robe base
+    COLOR_JIANGSHI_ROBE_MID = (38, 54, 90)       # Navy robe midtone
+    COLOR_JIANGSHI_ROBE_LIGHT = (68, 92, 142)    # Robe sleeve highlight fold
+    COLOR_JIANGSHI_SKIRT_DARK = (18, 24, 40)     # Inner dark undertunic skirt
+    COLOR_JIANGSHI_HAT_BLACK = (18, 18, 24)      # Black trim on mandarin hat
+    COLOR_JIANGSHI_HAT_RED = (215, 35, 35)       # Prominent ceremonial red mandarin hat body
+    COLOR_JIANGSHI_HAT_RED_BRIGHT = (245, 65, 65)# Vibrant highlight on red hat dome
+    COLOR_JIANGSHI_HAT_RED_DARK = (150, 22, 25)  # Deep shadow on red hat brim
+    COLOR_JIANGSHI_HAT_BUTTON = (255, 220, 75)   # Imperial golden top crown jewel
+    COLOR_JIANGSHI_BRAID = (15, 15, 20)          # Trailing braided queue hair
+    COLOR_JIANGSHI_RIBBON = (45, 150, 75)        # Jade green ribbon securing braid
+    COLOR_JIANGSHI_BADGE_BG = (32, 42, 68)       # Chest Mandarin square (Bổ tử) background
+    COLOR_JIANGSHI_BADGE_GOLD = (245, 210, 65)   # Chest badge golden embroidered motif
+    COLOR_JIANGSHI_SKIN = (165, 195, 215)        # Pale undead blue-cyan skin and fingers
+    COLOR_JIANGSHI_SKIN_SHD = (110, 138, 160)    # Cold sunken facial and arm shadow
+    COLOR_JIANGSHI_CLAWS = (165, 195, 215)       # Pale cyan fingers matching arm skin
+    COLOR_JIANGSHI_EYE_RED = (255, 30, 30)       # Burning scarlet red eye
+    COLOR_JIANGSHI_EYE_CORE = (255, 230, 230)    # Piercing white specular eye pupil
+    COLOR_JIANGSHI_BEAM = (255, 45, 65)          # Piercing crimson horizontal gaze laser beam
+    COLOR_JIANGSHI_SHOES = (22, 22, 28)          # Traditional black cloth official shoes
+    COLOR_JIANGSHI_SOLES = (235, 235, 235)       # White layered cloth shoe soles
+    COLOR_WISP_CYAN_FLAME = (61, 245, 202)       # Hovering spirit wisp flame
+    COLOR_WISP_CYAN_CORE = (210, 255, 245)       # Luminous flame core
+    COLOR_BURST_PINK_GLOW = (255, 180, 200)      # Upward burst energetic glow
+    COLOR_BURST_WHITE_CORE = (255, 250, 255)     # Searing core burst rays
+
     # Traditional Vietnamese Scroll Clouds (Luminous Standout Vân Mây Palette)
     COLOR_CLOUD_OUTLINE = (32, 18, 42)        # Deep midnight plum border (high-contrast separation)
     COLOR_CLOUD_BORDER = (32, 18, 42)         # Backwards-compatible alias
@@ -230,6 +363,7 @@ class GameRenderer:
         self._screen: Optional[pygame.Surface] = None
         self._canvas: Optional[pygame.Surface] = None
         self._sky_surface: Optional[pygame.Surface] = None
+        self._cached_sky_key: Optional[Tuple[str, float]] = None
         self._clock: Optional[pygame.time.Clock] = None
         self._font: Optional[pygame.font.Font] = None
 
@@ -277,6 +411,10 @@ class GameRenderer:
         for wisp in env.wisps:
             self._draw_wisp(canvas, wisp, camera_x, env.step_count)
 
+        # Draw Grave Monsters (ambush ground ruptures, emergence, and charges)
+        for monster in env.monsters:
+            self._draw_grave_monster(canvas, monster, camera_x, env.step_count, env.floor_y)
+
         # Track newly collected garlic items for collection burst animation (Image 2)
         if env.step_count == 0:
             self._prev_collected_ids = set()
@@ -305,7 +443,7 @@ class GameRenderer:
         self._draw_ground_fog(canvas, camera_x, env.step_count, env.floor_y)
 
         # Draw player
-        self._draw_player(canvas, env.player, camera_x, env.step_count)
+        self._draw_player(canvas, env.player, camera_x, env.step_count, god_mode=getattr(env, "god_mode", False))
 
         # Draw dynamic ambient lantern light casting forward onto the graveyard
         self._draw_lantern_light(canvas, env.player, camera_x, env.step_count)
@@ -424,11 +562,26 @@ class GameRenderer:
             )
         elif events.hit_wisp:
             self.show_overlay(
-                title="INCINERATED!",
+                title="SPIRITED AWAY!",
                 subtitle="Consumed by a wandering will-o'-the-wisp!",
-                color=(80, 220, 255),  # Spectral cyan
+                color=self.COLOR_WISP_HAIR_CYAN,  # Spectral cyan
                 duration_ms=3000,
             )
+        elif events.hit_monster:
+            if getattr(events, "monster_type", None) == "cuong_thi":
+                self.show_overlay(
+                    title="CURSED BY JIANGSHI!",
+                    subtitle="Cương Thi ambushed you from the grave!",
+                    color=(185, 75, 255),  # Occult talisman purple
+                    duration_ms=3000,
+                )
+            else:
+                self.show_overlay(
+                    title="DEVOURED BY CORPSE DEMON!",
+                    subtitle="Quỷ Nhập Tràng ambushed you from the grave!",
+                    color=(255, 30, 30),  # Blazing blood red
+                    duration_ms=3000,
+                )
         elif events.fell_in_pit:
             self.show_overlay(
                 title="GAME OVER",
@@ -446,31 +599,66 @@ class GameRenderer:
 
     
 
+    def _get_sky_config(self, env: "GameEnvironment") -> SkyConfig:
+        """Retrieves the SkyConfig matching the environment's level_id or level_name (SOLID Open/Closed)."""
+        level_id = getattr(env, "level_id", None)
+        if level_id is not None and level_id in SKY_CONFIGS_BY_LEVEL:
+            return SKY_CONFIGS_BY_LEVEL[level_id]
+
+        # Fallback inspection of level_name (e.g. 'Level 2: ...')
+        level_name = getattr(env, "level_name", "")
+        for lvl in range(1, 9):
+            if f"Level {lvl}" in level_name:
+                return SKY_CONFIGS_BY_LEVEL[lvl]
+
+        # Default to full Blood Moon awakening theme (Level 8 aesthetic)
+        return SKY_CONFIGS_BY_LEVEL[8]
+
     # ------------------------------------------
     # Drawing Helpers (Midnight Graveyard Theme)
     # ------------------------------------------
     def _draw_background(self, canvas: pygame.Surface, env: "GameEnvironment", camera_x: float) -> None:
-        # 1. 16-bit dithered pixel-art night sky gradient
-        canvas.blit(self._get_sky_surface(env.floor_y), (0, 0))
+        sky_cfg = self._get_sky_config(env)
 
-        # 2. Twinkling retro pixel-art stars matching reference aesthetic
-        self._draw_stars(canvas, env.step_count)
+        # 1. Background Sky Surface (Classic flat navy vs 16-bit dithered purple)
+        canvas.blit(self._get_sky_surface(env.floor_y, sky_cfg), (0, 0))
 
-        # Distant drifting traditional scroll clouds across the night sky
-        self._draw_sky_clouds(canvas, camera_x, env.step_count)
+        # 2. Stars (Classic simple pixel stars vs full retro twinkle stars)
+        if sky_cfg.stars_style == "classic":
+            self._draw_classic_stars(canvas, env.step_count)
+        else:
+            self._draw_stars(canvas, env.step_count)
 
-        # Upper framing clouds behind the Blood Moon
-        moon_cx, moon_cy = self.canvas_width - 130.0, 82.0
-        self._draw_scroll_cloud(canvas, moon_cx - 58, moon_cy - 28, scale=0.85, flip_h=False, step_count=env.step_count, phase=0.5)
-        self._draw_scroll_cloud(canvas, moon_cx + 55, moon_cy - 22, scale=0.88, flip_h=True, step_count=env.step_count, phase=1.5)
+        # 3. Drifting sky clouds (Level 5+)
+        if sky_cfg.has_clouds:
+            self._draw_sky_clouds(canvas, camera_x, env.step_count)
 
-        # Sacred Crimson Blood Moon with Gnarled Tree & All-Seeing Eye (Reference Art)
-        self._draw_blood_moon(canvas, moon_cx, moon_cy, env.step_count)
+        # 4. Moon (Level 2+: pale yellow, Level 3-5: blood red, Level 6+: blood eye)
+        if sky_cfg.has_moon:
+            moon_cx, moon_cy = self.canvas_width - 130.0, 82.0
+            if sky_cfg.moon_type == "blood_eye":
+                # Upper framing clouds behind the Blood Moon
+                if sky_cfg.has_clouds:
+                    self._draw_scroll_cloud(canvas, moon_cx - 58, moon_cy - 28, scale=0.85, flip_h=False, step_count=env.step_count, phase=0.5)
+                    self._draw_scroll_cloud(canvas, moon_cx + 55, moon_cy - 22, scale=0.88, flip_h=True, step_count=env.step_count, phase=1.5)
+                # Sacred Crimson Blood Moon with Gnarled Tree & All-Seeing Eye
+                self._draw_blood_moon(canvas, moon_cx, moon_cy, env.step_count)
+                # Foreground ornamental scroll clouds framing the Blood Moon
+                if sky_cfg.has_clouds:
+                    self._draw_moon_clouds(canvas, moon_cx, moon_cy, env.step_count)
+            elif sky_cfg.moon_type == "blood_red":
+                if sky_cfg.has_clouds:
+                    self._draw_scroll_cloud(canvas, moon_cx - 58, moon_cy - 28, scale=0.85, flip_h=False, step_count=env.step_count, phase=0.5)
+                    self._draw_scroll_cloud(canvas, moon_cx + 55, moon_cy - 22, scale=0.88, flip_h=True, step_count=env.step_count, phase=1.5)
+                # Ominous Red Moon (spherical shaded crimson moon without the awakened eye)
+                self._draw_classic_moon(canvas, moon_cx, moon_cy, moon_theme="blood_red")
+                if sky_cfg.has_clouds:
+                    self._draw_moon_clouds(canvas, moon_cx, moon_cy, env.step_count)
+            else:
+                # Classic pale yellow moon (from original Hoá's Midnight Escape design)
+                self._draw_classic_moon(canvas, moon_cx, moon_cy, moon_theme="pale_yellow")
 
-        # Foreground ornamental scroll clouds framing the Blood Moon
-        self._draw_moon_clouds(canvas, moon_cx, moon_cy, env.step_count)
-
-        # Graveyard soil & dark grass trim
+        # 5. Graveyard soil & dark grass trim
         pygame.draw.rect(
             canvas,
             self.COLOR_SOIL,
@@ -478,13 +666,14 @@ class GameRenderer:
         )
         pygame.draw.rect(canvas, self.COLOR_GRASS, (0, env.floor_y, self.canvas_width, 6))
 
-        # Carve out open grave pits and render flame hazards
+        # 6. Carve out open grave pits and render flame hazards
+        pit_bg_color = sky_cfg.base_sky_color
         for pit in env.pits:
             pit_x = pit.x_start - camera_x
             pit_w = pit.x_end - pit.x_start
             pygame.draw.rect(
                 canvas,
-                self.COLOR_SKY,
+                pit_bg_color,
                 (pit_x, env.floor_y, pit_w, self.canvas_height - env.floor_y),
             )
 
@@ -654,11 +843,25 @@ class GameRenderer:
             pygame.draw.rect(canvas, self.COLOR_FLAME_EMBER, (ex, ey, es, es))
             pygame.draw.rect(canvas, self.COLOR_FLAME_YELLOW, (ex + 1, ey + 1, max(1, es - 1), max(1, es - 1)))
 
-    def _get_sky_surface(self, floor_y: float) -> pygame.Surface:
-        """Retrieves or lazily builds the cached 16-bit dithered retro night sky gradient surface."""
-        if self._sky_surface is None:
-            self._sky_surface = self._build_dithered_sky(floor_y)
+    def _get_sky_surface(self, floor_y: float, sky_cfg: Optional[SkyConfig] = None) -> pygame.Surface:
+        """Retrieves or lazily builds the cached sky surface (supports classic navy & dithered purple)."""
+        style = sky_cfg.sky_style if sky_cfg is not None else "dithered_purple"
+        key = (style, floor_y)
+
+        if self._sky_surface is None or self._cached_sky_key != key:
+            if style == "classic_navy":
+                self._sky_surface = self._build_classic_navy_sky()
+            else:
+                self._sky_surface = self._build_dithered_sky(floor_y)
+            self._cached_sky_key = key
+
         return self._sky_surface
+
+    def _build_classic_navy_sky(self) -> pygame.Surface:
+        """Renders the authentic clean flat deep navy sky matching Level 1 & 2 original aesthetic."""
+        sky_surf = pygame.Surface((self.canvas_width, self.canvas_height), depth=24)
+        sky_surf.fill((15, 21, 45))  # Deep classic midnight navy
+        return sky_surf
 
     def _build_dithered_sky(self, floor_y: float) -> pygame.Surface:
         """Pre-renders an authentic 16-bit dithered pixel-art night sky matching the reference image."""
@@ -705,6 +908,77 @@ class GameRenderer:
 
         del px_array
         return sky_surf
+
+    def _draw_classic_stars(self, canvas: pygame.Surface, step_count: int) -> None:
+        """Renders classic pixel pinprick stars matching the original Level 1 & 2 artwork."""
+        classic_star_coords = [
+            (68, 75),
+            (145, 115),
+            (225, 62),
+            (265, 140),
+            (315, 95),
+            (405, 70),
+            (465, 145),
+            (505, 110),
+            (585, 58),
+            (640, 128),
+            (735, 102),
+        ]
+        for i, (sx, sy) in enumerate(classic_star_coords):
+            twinkle = math.sin(step_count * 0.15 + i * 1.8)
+            # Subtle gentle twinkle between crisp white and soft light cyan
+            color = (255, 255, 255) if twinkle > 0.0 else (210, 220, 250)
+            sz = 2 if (i % 3 == 0 and twinkle > 0.4) else 1
+            pygame.draw.rect(canvas, color, (sx, sy, sz, sz))
+
+    def _draw_classic_moon(
+        self,
+        canvas: pygame.Surface,
+        moon_cx: float,
+        moon_cy: float,
+        moon_theme: str = "pale_yellow",
+    ) -> None:
+        """
+        Renders a clean spherical moon (Level 2: pale yellow, Level 3-5: ominous blood red).
+        Features subtle crater detailing and smooth atmospheric edge shading.
+        """
+        r = 28.0
+
+        if moon_theme == "pale_yellow":
+            c_base = (245, 240, 200)      # Luminous pale yellow (matching screenshot)
+            c_mid = (255, 250, 218)       # Bright moonlit face
+            c_shd = (218, 210, 172)       # Soft crater shadow
+            c_crater = (205, 198, 160)    # Subtle crater indentations
+            c_aura = (245, 240, 200, 35)  # Faint moonlight halo
+        else:  # 'blood_red'
+            c_base = (175, 28, 34)        # Ominous crimson red
+            c_mid = (210, 48, 52)         # Vibrant scarlet red highlight
+            c_shd = (125, 20, 26)         # Deep crimson shadow
+            c_crater = (105, 16, 22)      # Dark crater pockets
+            c_aura = (175, 28, 34, 45)    # Blood haze halo
+
+        # 1. Subtle soft atmospheric aura ring
+        aura_surf = pygame.Surface((int(r * 2 + 16), int(r * 2 + 16)), pygame.SRCALPHA)
+        pygame.draw.circle(aura_surf, c_aura, (int(r + 8), int(r + 8)), int(r + 6))
+        canvas.blit(aura_surf, (int(moon_cx - r - 8), int(moon_cy - r - 8)))
+
+        # 2. Main moon sphere
+        pygame.draw.circle(canvas, c_base, (int(moon_cx), int(moon_cy)), int(r))
+
+        # 3. Crescent shading (inner sphere offset towards top-left)
+        pygame.draw.circle(canvas, c_mid, (int(moon_cx - 3), int(moon_cy - 3)), int(r - 5))
+
+        # 4. Subtle stylized pixel-art crater indentations
+        craters = [
+            (-7, -6, 3),
+            (5, -9, 2),
+            (8, 7, 3),
+            (-9, 8, 4),
+            (2, 4, 2),
+        ]
+        for rel_x, rel_y, cr_r in craters:
+            pygame.draw.circle(canvas, c_shd, (int(moon_cx + rel_x), int(moon_cy + rel_y)), cr_r)
+            pygame.draw.circle(canvas, c_crater, (int(moon_cx + rel_x + 1), int(moon_cy + rel_y + 1)), max(1, cr_r - 1))
 
     def _draw_stars(self, canvas: pygame.Surface, step_count: int) -> None:
         """Renders authentic retro pixel-art stars (twinkle sparkle crosses, glowing squares, and pinprick dots)."""
@@ -1063,27 +1337,40 @@ class GameRenderer:
             pygame.draw.line(canvas, self.COLOR_TOMB_GRANITE_HI, (step2_x, int(step2_y)), (step2_x + step2_w - 1, int(step2_y)))
             pygame.draw.line(canvas, self.COLOR_TOMB_GRANITE_SHD, (step2_x, int(step2_y + step2_h - 1)), (step2_x + step2_w - 1, int(step2_y + step2_h - 1)))
 
-        elif obs.style == "platform":
+        elif obs.style == "hanging" or (obs.y <= 10.0 and obs.height > 100.0):
             # ----------------------------------------------------
-            # Floating Stone Platform (Mario-style Stone Block)
-            # Weathered masonry block with top stone bevel, mortise
-            # joints, and subtle moss accents.
+            # 3) BIA ĐÁ / CUỐN THƯ TREO TỪ TRÊN CAO (OVERHEAD HANGING STONE TABLETS)
+            # Suspended by heavy iron chains from overhead stone rafters.
+            # Cloud pediment, carved sword & scholar's brush, and central chữ "Tâm" (心).
             # ----------------------------------------------------
-            ix, iy, iw, ih = int(x), int(y), int(w), int(h)
-            # Body
-            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (ix, iy, iw, ih))
-            # 3D bevel highlights: top and left
-            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (ix, iy), (ix + iw - 1, iy), 2)
-            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (ix, iy), (ix, iy + ih - 1))
-            # 3D bevel shadows: bottom and right
-            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (ix, iy + ih - 1), (ix + iw - 1, iy + ih - 1), 2)
-            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (ix + iw - 1, iy), (ix + iw - 1, iy + ih - 1))
-            # Stone masonry brick seam
-            mid_seam_x = ix + iw // 2
-            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_SHD, (mid_seam_x, iy + 3), (mid_seam_x, iy + ih - 3))
-            # Weathered moss dots
-            pygame.draw.circle(canvas, self.COLOR_TOMB_MOSS, (ix + 4, iy + 3), 1)
-            pygame.draw.circle(canvas, self.COLOR_TOMB_MOSS, (ix + iw - 5, iy + ih - 4), 1)
+            if obs.y <= 10.0:
+                self._draw_hanging_stone_tablet(canvas, int(x), int(y), int(w), int(h))
+            else:
+                self._draw_standing_stone_tablet(canvas, int(x), int(y), int(w), int(h))
+
+        elif obs.style == "tablet":
+            # ----------------------------------------------------
+            # 4) BIA ĐÁ / CUỐN THƯ ĐỨNG ĐẤT (STANDING STONE TABLET MONUMENT)
+            # Placed firmly on the ground with stepping top slab, cloud pediment,
+            # relief panel "Lưỡng Long Chầu Sen", and lotus pedestal base.
+            # ----------------------------------------------------
+            self._draw_standing_stone_tablet(canvas, int(x), int(y), int(w), int(h))
+
+        elif obs.style == "pillar":
+            # ----------------------------------------------------
+            # 2) CỘT TRỤ ĐÁ TỪ ĐẤT LÊN (TALL STONE PILLARS)
+            # Towering stone column stretching from deep abyss up into the sky.
+            # Multi-tier curved pagoda roofs, lantern window, and carved floral vines.
+            # ----------------------------------------------------
+            self._draw_stone_pillar(canvas, int(x), int(y), int(w), int(h))
+
+        elif obs.style in ("platform", "altar"):
+            # ----------------------------------------------------
+            # 1) BỆ ĐÁ ĐỂ ĐỨNG (STONE PLATFORMS / STEPPING BLOCKS)
+            # Weathered stone altar with top bevel slab, carved dragon/lotus
+            # relief panel, and stepped lotus pedestal (chân quỳ đài sen).
+            # ----------------------------------------------------
+            self._draw_stone_platform(canvas, int(x), int(y), int(w), int(h))
 
         else:
             # ----------------------------------------------------
@@ -1204,6 +1491,625 @@ class GameRenderer:
             pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_SHD, (int(x), int(y + h - 3), int(w), 3))
             pygame.draw.circle(canvas, self.COLOR_TOMB_MOSS, (int(x + 3), int(y + h - 2)), 1)
             pygame.draw.circle(canvas, self.COLOR_TOMB_MOSS, (int(x + w - 4), int(y + h - 2)), 1)
+
+    def _draw_hanging_stone_tablet(self, canvas: pygame.Surface, x: int, y: int, w: int, h: int) -> None:
+        """
+        Renders an authentic Overhead Hanging Stone Tablet / Edict (Bia đá / Cuốn thư treo từ trên cao)
+        matching Image 3 ("Lưỡng Long Chầu Sen"):
+        - Top horizontal stone rafter beam spanning across ceiling.
+        - Heavy vertical iron chains with interlocking metallic links.
+        - Ornate cloud pediment crowning the stela.
+        - Full carved relief panel featuring central Blooming Lotus (Hoa Sen Nở Rộ)
+          flanked by Twin Cloud Dragons (Lưỡng Long Uốn Lượn Chầu Sen) with dorsal spines,
+          whiskers, sharp talons, and swirling clouds.
+        - Stepped moulded frame with indented/chamfered corners.
+        - Chừa đúng 24px sát sàn để Hoá trượt (slide) bên dưới.
+        """
+        cx = x + w // 2
+
+        # 1. Top horizontal stone rafter beam spanning across ceiling
+        beam_h = 14
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (x - 6, y, w + 12, beam_h))
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x - 6, y), (x + w + 5, y), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x - 6, y + beam_h - 1), (x + w + 5, y + beam_h - 1), 2)
+
+        # 2. Heavy iron suspension chains
+        chain_drop = min(75, max(30, int(h * 0.25)))
+        chain_bottom = y + beam_h + chain_drop
+        chain_xs = [x + 18, x + w - 18]
+        if w >= 120:
+            chain_xs = [x + 14, cx - int(w * 0.22), cx + int(w * 0.22), x + w - 14]
+
+        for ch_x in chain_xs:
+            for c_y in range(y + beam_h, chain_bottom, 8):
+                pygame.draw.rect(canvas, (40, 46, 54), (ch_x - 3, c_y, 6, 7), border_radius=2)
+                pygame.draw.rect(canvas, (95, 110, 125), (ch_x - 3, c_y, 6, 7), 1, border_radius=2)
+                pygame.draw.line(canvas, (180, 205, 225), (ch_x - 1, c_y + 1), (ch_x - 1, c_y + 3))
+
+        # 3. Cloud Pediment Eaves crowning the tablet
+        ped_h = 16
+        ped_top = chain_bottom
+        ped_pts = [
+            (x + 2, ped_top + ped_h),
+            (x + 8, ped_top + 4),
+            (cx - int(w * 0.22), ped_top + 2),
+            (cx, ped_top),
+            (cx + int(w * 0.22), ped_top + 2),
+            (x + w - 8, ped_top + 4),
+            (x + w - 2, ped_top + ped_h),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_MID, ped_pts)
+        pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, ped_pts, 2)
+        pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (x + 8, ped_top + 6), 3, 1)
+        pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (x + w - 8, ped_top + 6), 3, 1)
+
+        # 4. Main Stone Tablet Body
+        body_y = ped_top + ped_h
+        body_h = (y + h) - body_y
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (x, body_y, w, body_h))
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x, body_y), (x, body_y + body_h - 1), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x + w - 1, body_y), (x + w - 1, body_y + body_h - 1), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x, y + h - 1), (x + w - 1, y + h - 1), 2)
+
+        # 5. Phù Điêu "Lưỡng Long Chầu Sen" (Image 3) carved on the face
+        rf_pad_x = 6
+        rf_pad_y = 6
+        rf_x = x + rf_pad_x
+        rf_y = body_y + rf_pad_y
+        rf_w = w - rf_pad_x * 2
+        rf_h = body_h - rf_pad_y * 2 - 4
+
+        if rf_w >= 50 and rf_h >= 40:
+            # Deep cavity background
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_DEEP, (rf_x, rf_y, rf_w, rf_h))
+            pygame.draw.rect(canvas, (28, 34, 44), (rf_x + 2, rf_y + 2, rf_w - 4, rf_h - 4))
+
+            # Notched Moulded Frame with Indented Corners
+            notch = 5
+            poly_pts = [
+                (rf_x + notch, rf_y),
+                (rf_x + rf_w - notch, rf_y),
+                (rf_x + rf_w, rf_y + notch),
+                (rf_x + rf_w, rf_y + rf_h - notch),
+                (rf_x + rf_w - notch, rf_y + rf_h),
+                (rf_x + notch, rf_y + rf_h),
+                (rf_x, rf_y + rf_h - notch),
+                (rf_x, rf_y + notch),
+            ]
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_SHD, poly_pts, 2)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (rf_x + notch, rf_y), (rf_x + rf_w - notch, rf_y), 2)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (rf_x, rf_y + notch), (rf_x, rf_y + rf_h - notch), 2)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (rf_x + notch, rf_y + rf_h), (rf_x + rf_w - notch, rf_y + rf_h), 2)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (rf_x + rf_w, rf_y + notch), (rf_x + rf_w, rf_y + rf_h - notch), 2)
+
+            p_cy = rf_y + rf_h // 2
+
+            # 5A. Central Blooming Lotus Flower (Hoa sen nở rộ)
+            lot_y = p_cy + 2
+            # Calyx arc
+            pygame.draw.arc(canvas, self.COLOR_TOMB_STONE_HI, (cx - 12, lot_y + 3, 24, 10), 3.14, 6.28, 2)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_MID, (cx - 8, lot_y + 9), (cx + 8, lot_y + 9), 2)
+
+            # Flared outer petals
+            p_out_l = [(cx - 2, lot_y + 5), (cx - 12, lot_y), (cx - 14, lot_y - 8), (cx - 6, lot_y - 3)]
+            p_out_r = [(cx + 2, lot_y + 5), (cx + 12, lot_y), (cx + 14, lot_y - 8), (cx + 6, lot_y - 3)]
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_SHD, p_out_l)
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_SHD, p_out_r)
+            pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, p_out_l, 1)
+            pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, p_out_r, 1)
+
+            # Inner petals
+            p_in_l = [(cx - 2, lot_y + 4), (cx - 8, lot_y - 6), (cx - 9, lot_y - 14), (cx - 3, lot_y - 5)]
+            p_in_r = [(cx + 2, lot_y + 4), (cx + 8, lot_y - 6), (cx + 9, lot_y - 14), (cx + 3, lot_y - 5)]
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_MID, p_in_l)
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_MID, p_in_r)
+            pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, p_in_l, 1)
+            pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, p_in_r, 1)
+
+            # Center tall petal
+            p_cen = [(cx - 4, lot_y + 4), (cx - 5, lot_y - 8), (cx, lot_y - 18), (cx + 5, lot_y - 8), (cx + 4, lot_y + 4)]
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_MID, p_cen)
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_HI, p_cen, 1)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (cx, lot_y - 16), (cx, lot_y + 3), 1)
+
+            # 5B. Flanking Twin Dragons (Lưỡng Long)
+            def draw_dragon(flip: bool):
+                def tx(offset: float) -> int:
+                    return int(cx + offset if flip else cx - offset)
+
+                head_x = tx(22)
+                head_y = p_cy - 7
+                snout_x = tx(16)
+
+                # Jaws
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (head_x, head_y - 3), (snout_x, head_y - 2), 2)
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (head_x, head_y + 2), (snout_x, head_y + 1), 2)
+                pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_DEEP, (min(head_x, snout_x), head_y - 1, abs(head_x - snout_x), 3))
+
+                # Eye & Antler Horns
+                pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (tx(22), head_y - 3), 2)
+                pygame.draw.circle(canvas, (255, 245, 180), (tx(22), head_y - 3), 1)
+                horn_pts = [(tx(24), head_y - 4), (tx(30), head_y - 12), (tx(34), head_y - 14)]
+                pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, horn_pts, 2)
+                # Whisker
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (snout_x, head_y + 1), (tx(24), head_y + 8), 1)
+
+                # Sinuous Scaly Dragon Body (S-curve coils)
+                body_nodes = [
+                    (tx(24), head_y - 1),
+                    (tx(30), p_cy - 12),
+                    (tx(38), p_cy - 14),
+                    (tx(46), p_cy - 9),
+                    (tx(50), p_cy - 1),
+                    (tx(48), p_cy + 8),
+                    (tx(40), p_cy + 13),
+                    (tx(30), p_cy + 12),
+                    (tx(22), p_cy + 15),
+                ]
+                for i in range(len(body_nodes) - 1):
+                    p1, p2 = body_nodes[i], body_nodes[i + 1]
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, p1, p2, 5)
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_MID, p1, p2, 3)
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, p1, p2, 1)
+
+                # Dorsal spine fin spikes
+                for i in range(1, len(body_nodes) - 1):
+                    bx, by = body_nodes[i]
+                    s_dy = -3 if by <= p_cy else 3
+                    s_dx = (2 if flip else -2)
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (bx, by), (bx + s_dx, by + s_dy), 2)
+
+                # Foreleg reaching towards lotus
+                f_elbow = (tx(32), p_cy - 3)
+                f_paw = (tx(20), p_cy + 2)
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_MID, (tx(32), p_cy - 10), f_elbow, 3)
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, f_elbow, f_paw, 2)
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, f_paw, (tx(16), p_cy + 1), 1)
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, f_paw, (tx(17), p_cy + 4), 1)
+
+                # Swirling cloud puffs
+                for ox, oy, r in [(34, -15, 4), (52, 0, 3), (26, 12, 3)]:
+                    cx_c = tx(ox)
+                    pygame.draw.arc(canvas, self.COLOR_TOMB_STONE_HI, (cx_c - r, p_cy + oy - r, r * 2, r * 2), 0.5, 4.5, 1)
+
+            draw_dragon(flip=False)
+            draw_dragon(flip=True)
+
+            # 5C. Vertical Floral Border Strips
+            b_w = 5
+            for bx in (rf_x + 2, rf_x + rf_w - b_w - 2):
+                for by in range(rf_y + 8, rf_y + rf_h - 10, 8):
+                    pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (bx + b_w // 2, by + 3), 1)
+                    pygame.draw.arc(canvas, self.COLOR_TOMB_STONE_SHD, (bx, by, b_w, 6), 0, 3.14, 1)
+
+        # 6. Bottom stepped bracket
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x, y + h - 3), (x + w - 1, y + h - 3), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x, y + h - 1), (x + w - 1, y + h - 1), 2)
+        pygame.draw.circle(canvas, self.COLOR_TOMB_MOSS, (x + 6, y + h - 3), 1)
+        pygame.draw.circle(canvas, self.COLOR_TOMB_MOSS, (x + w - 7, y + h - 3), 1)
+
+    def _draw_standing_stone_tablet(self, canvas: pygame.Surface, x: int, y: int, w: int, h: int) -> None:
+        """
+        Renders an authentic Standing Stone Tablet / Stele Monument (Bia đá / Cuốn thư đứng đất)
+        matching Image 3 ("Lưỡng Long Chầu Sen") placed firmly on the ground:
+        - Top horizontal stepping stone slab & cloud pediment cornice (flat solid platform for Hoá to land/leap).
+        - Central recessed cavity panel with chamfered notched frame.
+        - Exquisite carved relief of Blooming Lotus (Hoa Sen Nở Rộ) flanked by Twin Cloud Dragons
+          (Lưỡng Long Uốn Lượn Chầu Sen) dynamically scaled to tablet dimensions.
+        - Stepped lotus pedestal base (chân quỳ đài sen) sitting firmly on ground.
+        """
+        cx = x + w // 2
+
+        # 1. Top Stepping Slab (Flat solid stone platform with 3D bevels)
+        slab_h = min(12, max(8, int(h * 0.14)))
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (x, y, w, slab_h))
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x, y), (x + w - 1, y), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x, y), (x, y + slab_h - 1), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x + w - 1, y), (x + w - 1, y + slab_h - 1), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x, y + slab_h - 1), (x + w - 1, y + slab_h - 1), 1)
+
+        # 2. Cloud Pediment Cornice (Mái trán bia cuốn mây)
+        corn_h = min(10, max(6, int(h * 0.11)))
+        corn_top = y + slab_h
+        corn_pts = [
+            (x + 2, corn_top + corn_h),
+            (x + 6, corn_top + 2),
+            (cx - int(w * 0.22), corn_top),
+            (cx, corn_top + 2),
+            (cx + int(w * 0.22), corn_top),
+            (x + w - 6, corn_top + 2),
+            (x + w - 2, corn_top + corn_h),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_SHD, corn_pts)
+        pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, corn_pts, 1)
+
+        # 3. Stepped Lotus Pedestal Base (Chân quỳ đài sen sitting on ground)
+        base_h = min(14, max(10, int(h * 0.16)))
+        base_y = y + h - base_h
+        # Foundation slab
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_SHD, (x - 2, base_y + base_h // 2, w + 4, base_h - base_h // 2))
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x - 2, base_y + base_h // 2), (x + w + 1, base_y + base_h // 2), 1)
+        # Upper moulded plinth with arched cutout legs
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (x, base_y, w, base_h // 2))
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x, base_y), (x + w - 1, base_y), 1)
+        pygame.draw.arc(canvas, self.COLOR_TOMB_STONE_DEEP, (cx - 10, base_y + 1, 20, base_h // 2 + 2), 0.0, 3.14, 2)
+
+        # 4. Main Stele Body
+        body_y = corn_top + corn_h
+        body_h = base_y - body_y
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (x, body_y, w, body_h))
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x, body_y), (x, body_y + body_h - 1), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x + w - 1, body_y), (x + w - 1, body_y + body_h - 1), 2)
+
+        # 5. Framed Relief Panel ("Lưỡng Long Chầu Sen")
+        rf_pad_x = 5
+        rf_pad_y = 4
+        rf_x = x + rf_pad_x
+        rf_y = body_y + rf_pad_y
+        rf_w = w - rf_pad_x * 2
+        rf_h = body_h - rf_pad_y * 2
+
+        if rf_w >= 36 and rf_h >= 20:
+            # Cavity background
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_DEEP, (rf_x, rf_y, rf_w, rf_h))
+            pygame.draw.rect(canvas, (28, 34, 44), (rf_x + 2, rf_y + 2, rf_w - 4, rf_h - 4))
+
+            # Notched chamfered frame
+            notch = 4
+            poly_pts = [
+                (rf_x + notch, rf_y),
+                (rf_x + rf_w - notch, rf_y),
+                (rf_x + rf_w, rf_y + notch),
+                (rf_x + rf_w, rf_y + rf_h - notch),
+                (rf_x + rf_w - notch, rf_y + rf_h),
+                (rf_x + notch, rf_y + rf_h),
+                (rf_x, rf_y + rf_h - notch),
+                (rf_x, rf_y + notch),
+            ]
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_SHD, poly_pts, 1)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (rf_x + notch, rf_y), (rf_x + rf_w - notch, rf_y), 1)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (rf_x, rf_y + notch), (rf_x, rf_y + rf_h - notch), 1)
+
+            p_cy = rf_y + rf_h // 2
+            scale_w = min(1.0, rf_w / 100.0)
+            scale_h = min(1.0, rf_h / 46.0)
+
+            # Central Blooming Lotus Flower
+            lot_y = p_cy + int(2 * scale_h)
+            cal_w = max(14, int(20 * scale_w))
+            pygame.draw.arc(canvas, self.COLOR_TOMB_STONE_HI, (cx - cal_w // 2, lot_y + 1, cal_w, max(6, int(8 * scale_h))), 3.14, 6.28, 2)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_MID, (cx - cal_w // 3, lot_y + 6), (cx + cal_w // 3, lot_y + 6), 1)
+
+            # Lotus Petals
+            pet_w = int(10 * scale_w)
+            pet_h = int(12 * scale_h)
+            p_out_l = [(cx - 2, lot_y + 3), (cx - pet_w, lot_y), (cx - pet_w - 2, lot_y - pet_h // 2), (cx - pet_w // 2, lot_y - 2)]
+            p_out_r = [(cx + 2, lot_y + 3), (cx + pet_w, lot_y), (cx + pet_w + 2, lot_y - pet_h // 2), (cx + pet_w // 2, lot_y - 2)]
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_SHD, p_out_l)
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_SHD, p_out_r)
+            pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, p_out_l, 1)
+            pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, p_out_r, 1)
+
+            # Center tall petal
+            p_cen = [(cx - 3, lot_y + 2), (cx - 4, lot_y - int(6 * scale_h)), (cx, lot_y - int(14 * scale_h)), (cx + 4, lot_y - int(6 * scale_h)), (cx + 3, lot_y + 2)]
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_MID, p_cen)
+            pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_HI, p_cen, 1)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (cx, lot_y - int(12 * scale_h)), (cx, lot_y + 1), 1)
+
+            # Flanking Twin Dragons (Lưỡng Long)
+            def draw_dragon(flip: bool):
+                def tx(offset: float) -> int:
+                    val = int(offset * scale_w)
+                    return int(cx + val if flip else cx - val)
+
+                def ty(offset: float) -> int:
+                    return int(p_cy + offset * scale_h)
+
+                head_x = tx(22)
+                head_y = ty(-5)
+                snout_x = tx(16)
+
+                # Jaws
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (head_x, head_y - 2), (snout_x, head_y - 1), 1)
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (head_x, head_y + 2), (snout_x, head_y + 1), 1)
+
+                # Eye & Antler Horns
+                pygame.draw.circle(canvas, (255, 245, 180), (tx(20), head_y - 2), 1)
+                horn_pts = [(tx(22), head_y - 3), (tx(27), ty(-10)), (tx(31), ty(-12))]
+                pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, horn_pts, 1)
+
+                # Dragon Body (S-curve coils)
+                body_nodes = [
+                    (tx(22), head_y),
+                    (tx(27), ty(-9)),
+                    (tx(35), ty(-11)),
+                    (tx(42), ty(-6)),
+                    (tx(45), ty(0)),
+                    (tx(42), ty(7)),
+                    (tx(34), ty(10)),
+                    (tx(26), ty(9)),
+                    (tx(20), ty(12)),
+                ]
+                for i in range(len(body_nodes) - 1):
+                    p1, p2 = body_nodes[i], body_nodes[i + 1]
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, p1, p2, 4)
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_MID, p1, p2, 2)
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, p1, p2, 1)
+
+                # Foreleg reaching towards lotus
+                f_elbow = (tx(28), ty(-2))
+                f_paw = (tx(18), ty(2))
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_MID, (tx(28), ty(-7)), f_elbow, 2)
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, f_elbow, f_paw, 1)
+
+            draw_dragon(flip=False)
+            draw_dragon(flip=True)
+
+    def _draw_stone_pillar(self, canvas: pygame.Surface, x: int, y: int, w: int, h: int) -> None:
+        """
+        Renders a Towering Stone Pillar / Pagoda Lantern Spire (Cột trụ đá từ đất lên)
+        matching Image 1 (Unified single pillar aesthetic):
+        - Multi-tier curved pagoda roofs (chóp tháp đá) with lotus finial peak and flared upturned eaves.
+        - Square lantern window chamber with circular carved emblem.
+        - Slender vertical stone shaft with continuous flowing floral vine reliefs (chrysanthemum stem & rosettes).
+        - Stepped base pedestal with arched 'chân quỳ' cutout legs and plinth.
+        Adapts gracefully to all pillar heights (tall summits, medium columns, and stepped pillars).
+        """
+        cx = x + w // 2
+        is_tall = h >= 85
+        is_medium = 45 <= h < 85
+
+        if is_tall:
+            roofs_h = 24
+            lan_h = 16
+            capital_h = roofs_h + lan_h
+            base_h = min(18, max(12, int(h * 0.12)))
+        elif is_medium:
+            roofs_h = 14
+            lan_h = 10
+            capital_h = roofs_h + lan_h
+            base_h = 10
+        else:
+            # Short stepping pillar (h < 45): molded lotus cornice capital
+            roofs_h = 0
+            lan_h = 0
+            capital_h = min(8, h // 3)
+            base_h = min(8, h // 3)
+
+        shaft_top = y + capital_h
+        shaft_h = h - capital_h - base_h
+        shaft_w = max(16, min(w - 6, 28))
+        shaft_x = cx - shaft_w // 2
+
+        # 1. Top Pagoda Spire & Lantern Chamber (or Molded Lotus Capital)
+        if is_tall:
+            # A. Lotus finial peak (Búp sen trên đỉnh)
+            pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (cx, y + 2), 2)
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (cx - 2, y + 4, 4, 3))
+
+            # B. 3-Tier Miniature Pagoda Roofs with Upturned Flared Eaves
+            max_rw = min(w - 6, 24)
+            roof_specs = [
+                (y + 7, min(14, max_rw - 6), 5),   # Tier 1: small top roof
+                (y + 13, min(18, max_rw - 2), 5),  # Tier 2: mid roof
+                (y + 19, max_rw, 6),               # Tier 3: broad flared lower roof
+            ]
+            for ry, rw, rh in roof_specs:
+                tip_offset = min(2, (w // 2) - rw // 2 - 1)
+                r_pts = [
+                    (cx - rw // 2 - tip_offset, ry + rh - 1),  # upturned left tip
+                    (cx - rw // 4, ry),                        # left crest
+                    (cx + rw // 4, ry),                        # right crest
+                    (cx + rw // 2 + tip_offset, ry + rh - 1),  # upturned right tip
+                    (cx + rw // 2, ry + rh),
+                    (cx - rw // 2, ry + rh),
+                ]
+                pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_MID, r_pts)
+                pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, r_pts[:4], 1)
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (cx - rw // 2, ry + rh), (cx + rw // 2, ry + rh), 1)
+
+                if ry < y + 18:
+                    pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_DEEP, (cx - rw // 4, ry + rh, rw // 2, 2))
+
+            # C. Square Lantern Chamber (Hộp đèn lồng)
+            lan_y = y + roofs_h + 1
+            lan_w = min(shaft_w + 4, 22)
+            lan_x = cx - lan_w // 2
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (lan_x, lan_y, lan_w, lan_h))
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_HI, (lan_x, lan_y, lan_w, 2))
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_DEEP, (lan_x + 2, lan_y + 2, lan_w - 4, lan_h - 4))
+            pygame.draw.rect(canvas, (26, 32, 42), (lan_x + 3, lan_y + 3, lan_w - 6, lan_h - 6))
+
+            # Circular carved emblem inside lantern window
+            m_cy = lan_y + lan_h // 2
+            m_rad = min(5, lan_h // 2 - 2)
+            pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (cx, m_cy), m_rad, 1)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (cx - m_rad + 2, m_cy), (cx + m_rad - 2, m_cy))
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (cx, m_cy - m_rad + 2), (cx, m_cy + m_rad - 2))
+
+            # Collar band under lantern
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_HI, (shaft_x - 2, shaft_top - 2, shaft_w + 4, 2))
+
+        elif is_medium:
+            # 2-Tier Compact Pagoda Roof
+            max_rw = min(w - 6, 22)
+            pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (cx, y + 2), 2)
+            roof_specs_med = [
+                (y + 4, min(14, max_rw - 4), 4),
+                (y + 9, max_rw, 5),
+            ]
+            for ry, rw, rh in roof_specs_med:
+                tip_offset = min(2, (w // 2) - rw // 2 - 1)
+                r_pts = [
+                    (cx - rw // 2 - tip_offset, ry + rh - 1),
+                    (cx - rw // 4, ry),
+                    (cx + rw // 4, ry),
+                    (cx + rw // 2 + tip_offset, ry + rh - 1),
+                    (cx + rw // 2, ry + rh),
+                    (cx - rw // 2, ry + rh),
+                ]
+                pygame.draw.polygon(canvas, self.COLOR_TOMB_STONE_MID, r_pts)
+                pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, r_pts[:4], 1)
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (cx - rw // 2, ry + rh), (cx + rw // 2, ry + rh), 1)
+
+            # Compact Lantern Chamber
+            lan_y = y + roofs_h
+            lan_w = min(shaft_w + 2, 20)
+            lan_x = cx - lan_w // 2
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (lan_x, lan_y, lan_w, lan_h))
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_HI, (lan_x, lan_y, lan_w, 2))
+            pygame.draw.rect(canvas, (26, 32, 42), (lan_x + 2, lan_y + 2, lan_w - 4, lan_h - 4))
+            pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (cx, lan_y + lan_h // 2), 2)
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_HI, (shaft_x - 1, shaft_top - 2, shaft_w + 2, 2))
+
+        else:
+            # Short Stepping Pillar: Molded lotus capital slab
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (x, y, w, capital_h))
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x, y), (x + w - 1, y), 2)
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x, y + capital_h - 1), (x + w - 1, y + capital_h - 1))
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_HI, (shaft_x - 1, shaft_top - 2, shaft_w + 2, 2))
+
+        # 2. Main Vertical Column Shaft with Continuous Flowing Carved Vine
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (shaft_x, shaft_top, shaft_w, shaft_h))
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (shaft_x, shaft_top), (shaft_x, shaft_top + shaft_h - 1), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (shaft_x + shaft_w - 1, shaft_top), (shaft_x + shaft_w - 1, shaft_top + shaft_h - 1), 2)
+
+        # Recessed inner framed niche
+        n_pad = 3
+        nx, ny = shaft_x + n_pad, shaft_top + 2
+        nw, nh = shaft_w - n_pad * 2, shaft_h - 4
+        if nw >= 6 and nh >= 8:
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_DEEP, (nx, ny, nw, nh))
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_SHD, (nx + 1, ny + 1, nw - 2, nh - 2))
+            pygame.draw.rect(canvas, (32, 38, 48), (nx + 2, ny + 2, nw - 4, nh - 4))
+
+            if nh >= 14:
+                # Continuous S-curve floral vine (dây leo cúc đá thời Lý uốn lượn liên tục)
+                vine_pts = []
+                for vy in range(ny + 4, ny + nh - 4, 3):
+                    wave_x = cx + int(2.5 * math.sin((vy - ny) * 0.25))
+                    vine_pts.append((wave_x, vy))
+
+                if len(vine_pts) >= 2:
+                    pygame.draw.lines(canvas, self.COLOR_TOMB_STONE_HI, False, vine_pts, 1)
+
+                # Flower nodes and leaf tendrils along the vine
+                for vy in range(ny + 10, ny + nh - 8, 16):
+                    wave_x = cx + int(2.5 * math.sin((vy - ny) * 0.25))
+                    # Carved flower rosette
+                    pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (wave_x, vy), 2)
+                    pygame.draw.circle(canvas, (245, 235, 170), (wave_x, vy), 1)
+                    # Small delicate leaves
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_SHD, (wave_x, vy), (wave_x - 3, vy - 2))
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_SHD, (wave_x, vy), (wave_x + 3, vy + 2))
+            else:
+                # Compact single flower rosette for short pillars
+                p_cy = ny + nh // 2
+                pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (cx, p_cy), 3)
+                pygame.draw.circle(canvas, (245, 235, 170), (cx, p_cy), 1)
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_SHD, (cx - 4, p_cy), (cx + 4, p_cy))
+
+        # Subtle moss dots
+        if shaft_h >= 24:
+            pygame.draw.circle(canvas, self.COLOR_TOMB_MOSS, (shaft_x + 2, shaft_top + 14), 1)
+            pygame.draw.circle(canvas, self.COLOR_TOMB_MOSS, (shaft_x + shaft_w - 3, shaft_top + min(32, shaft_h - 4)), 1)
+
+        # 3. Stepped Base Pedestal with Arched Legs (Chân quỳ đài sen)
+        base_y = y + h - base_h
+        # Upper stepped collar
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_HI, (shaft_x - 2, base_y, shaft_w + 4, 2))
+        # Flared plinth with arched legs
+        plinth_w = shaft_w + 6
+        plinth_x = cx - plinth_w // 2
+        plinth_h = max(4, base_h - 4)
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (plinth_x, base_y + 2, plinth_w, plinth_h), border_radius=2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (plinth_x, base_y + 2), (plinth_x + plinth_w - 1, base_y + 2))
+        # Center arch cutout
+        if plinth_h >= 5:
+            arch_w = max(6, plinth_w // 2)
+            pygame.draw.arc(canvas, self.COLOR_TOMB_STONE_DEEP, (cx - arch_w // 2, base_y + plinth_h - 4, arch_w, 5), 0, 3.14, 2)
+        # Bottom foundation slab sitting flush on ground (y + h)
+        slab_h = min(4, base_h // 2)
+        slab_y = y + h - slab_h
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (plinth_x - 2, slab_y, plinth_w + 4, slab_h))
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (plinth_x - 2, slab_y), (plinth_x + plinth_w + 1, slab_y))
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (plinth_x - 2, y + h - 1), (plinth_x + plinth_w + 1, y + h - 1), 2)
+
+    def _draw_stone_platform(self, canvas: pygame.Surface, x: int, y: int, w: int, h: int) -> None:
+        """
+        Renders a Carved Stone Platform / Stepping Altar (Bệ đá để đứng)
+        matching Panel 1 of reference art:
+        - Heavy horizontal stone slab with bevel highlights and brick seams.
+        - Front framed relief panel with carved lotus flower & cloud dragon motifs.
+        - Stepped lotus pedestal base (chân quỳ đài sen).
+        If an obstacle is vertically elongated (h > w or h >= 48 and w <= 44), it automatically
+        renders with the unified tall stone pillar style (Image 1 / Panel 2) to eliminate plain grey columns.
+        """
+        if h > w or (h >= 48 and w <= 44):
+            self._draw_stone_pillar(canvas, x, y, w, h)
+            return
+
+        cx = x + w // 2
+
+        # 1. Top Stepping Slab
+        slab_h = min(14, max(8, h // 3)) if h >= 24 else h
+        pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (x, y, w, slab_h))
+        # 3D bevels
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x, y), (x + w - 1, y), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (x, y), (x, y + slab_h - 1))
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x, y + slab_h - 1), (x + w - 1, y + slab_h - 1), 2)
+        pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x + w - 1, y), (x + w - 1, y + slab_h - 1))
+
+        # Masonry stone brick seams along the top slab
+        if w >= 40:
+            for sx in (x + w // 3, x + 2 * w // 3):
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_SHD, (sx, y + 2), (sx, y + slab_h - 2))
+
+        # 2. If platform is tall (h >= 20): Render Altar Face Panel & Lotus Base
+        if h >= 20:
+            base_h = min(10, max(6, h // 5))
+            panel_y = y + slab_h
+            panel_h = h - slab_h - base_h
+
+            # Outer framed face
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_DEEP, (x + 2, panel_y, w - 4, panel_h))
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_SHD, (x + 3, panel_y + 1, w - 6, panel_h - 2))
+
+            # Carved Central Lotus / Dragon Relief (Hoa sen đá / phù điêu rồng mây)
+            if panel_h >= 10:
+                p_cy = panel_y + panel_h // 2
+                if w >= 48:
+                    # Broad blooming lotus relief with flanking cloud curls
+                    pygame.draw.ellipse(canvas, self.COLOR_TOMB_STONE_HI, (cx - 10, p_cy - 4, 20, 8))
+                    pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_MID, (cx, p_cy), 3)
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (cx, p_cy - 3), (cx, p_cy + 3))
+                    if w >= 64:
+                        pygame.draw.arc(canvas, self.COLOR_TOMB_STONE_HI, (cx - 20, p_cy - 4, 8, 8), 0.5, 3.14, 1)
+                        pygame.draw.arc(canvas, self.COLOR_TOMB_STONE_HI, (cx + 12, p_cy - 4, 8, 8), 0.0, 2.6, 1)
+                else:
+                    # Narrow block (e.g. w=32 on staircase steps): central carved lotus rosette
+                    pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (cx, p_cy), min(4, panel_h // 2 - 1))
+                    pygame.draw.circle(canvas, (245, 235, 170), (cx, p_cy), 1)
+                    pygame.draw.line(canvas, self.COLOR_TOMB_STONE_HI, (cx - 6, p_cy), (cx + 6, p_cy))
+
+            # 3. Stepped Lotus Pedestal Base (Chân quỳ cánh sen)
+            base_y = y + h - base_h
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_HI, (x + 1, base_y, w - 2, 2))
+            pygame.draw.rect(canvas, self.COLOR_TOMB_STONE_MID, (x, base_y + 2, w, base_h - 2))
+            pygame.draw.line(canvas, self.COLOR_TOMB_STONE_DEEP, (x, y + h - 1), (x + w - 1, y + h - 1), 2)
+
+            # Lotus petal notches along bottom pedestal
+            for ptx in range(x + 5, x + w - 5, 8):
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_SHD, (ptx, base_y + 2), (ptx + 2, base_y + base_h - 2))
+        else:
+            # Low stepping disc (Round lotus stone block)
+            for petal_x in range(x + 4, x + w - 4, 8):
+                pygame.draw.line(canvas, self.COLOR_TOMB_STONE_SHD, (petal_x, y + 3), (petal_x, y + slab_h - 2))
+                pygame.draw.circle(canvas, self.COLOR_TOMB_STONE_HI, (petal_x, y + 3), 1)
+
+        # Weathered moss accents
+        pygame.draw.circle(canvas, self.COLOR_TOMB_MOSS, (x + 4, y + 3), 1)
+        pygame.draw.circle(canvas, self.COLOR_TOMB_MOSS, (x + w - 5, y + 3), 1)
 
     def _draw_ghost(self, canvas: pygame.Surface, ghost: Ghost, camera_x: float, step_count: int = 0) -> None:
         if isinstance(ghost, LaserGhost):
@@ -1673,6 +2579,565 @@ class GameRenderer:
                 if (step_count + gx) % 2 == 0:
                     pygame.draw.rect(canvas, (255, 215, 60), (x + gx * 3, y + r - 1, 2, 2))
 
+    def _draw_grave_monster(
+        self,
+        canvas: pygame.Surface,
+        monster: GraveMonster,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders grave ambush ruptures and monster entities with dynamic facing direction."""
+        surface_y = getattr(monster, "platform_y", None)
+        active_floor_y = surface_y if surface_y is not None else floor_y
+
+        # 0. If dormant and CuongThi, render the talisman seal on the grave & hovering spirit flames
+        if monster.state == GraveMonsterState.DORMANT:
+            if isinstance(monster, CuongThi):
+                self._draw_cuong_thi_tomb_omen(canvas, monster, camera_x, step_count, active_floor_y)
+            return
+
+        # 1. If emerging or active, draw the ruptured earth crater at the foot of the ambush tombstone
+        if monster.state in (GraveMonsterState.EMERGING, GraveMonsterState.ACTIVE):
+            self._draw_tomb_rupture(canvas, monster._start_x, camera_x, step_count, active_floor_y)
+
+        # 2. Render the monster sprite with facing direction reversal
+        if monster.is_alive:
+            facing_right = getattr(monster, "facing_dir", -1.0) > 0
+
+            if not facing_right:
+                # Default: moving left -> render directly onto canvas
+                if isinstance(monster, QuyNhapTrang):
+                    self._draw_quy_nhap_trang(canvas, monster, camera_x, step_count, active_floor_y)
+                elif isinstance(monster, CuongThi):
+                    self._draw_cuong_thi(canvas, monster, camera_x, step_count, active_floor_y)
+            else:
+                # Moving right -> render into transparent surface and flip horizontally!
+                orig_x = monster.x - camera_x
+                orig_y = monster.y
+                offset_x = 40.0
+                offset_y = 25.0
+                surf_w = int(monster.width + 2 * offset_x)
+                surf_h = int(monster.height + 2 * offset_y)
+                temp_surf = pygame.Surface((surf_w, surf_h), pygame.SRCALPHA)
+
+                # Temporarily center monster in temp_surf
+                old_x, old_y = monster.x, monster.y
+                monster.x = offset_x
+                monster.y = offset_y
+
+                if isinstance(monster, QuyNhapTrang):
+                    self._draw_quy_nhap_trang(temp_surf, monster, 0.0, step_count, offset_y + monster.height)
+                elif isinstance(monster, CuongThi):
+                    self._draw_cuong_thi(temp_surf, monster, 0.0, step_count, offset_y + monster.height)
+
+                monster.x, monster.y = old_x, old_y
+
+                # Horizontal flip: instantly points all features, arms, eyes & robes to the right!
+                flipped_surf = pygame.transform.flip(temp_surf, True, False)
+                canvas.blit(flipped_surf, (int(orig_x - offset_x), int(orig_y - offset_y)))
+
+    def _draw_tomb_rupture(
+        self,
+        canvas: pygame.Surface,
+        start_x: float,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders the ruptured earth breach crater at the foot of the tombstone."""
+        gx = start_x - camera_x
+        gy = floor_y
+
+        if gx < -80 or gx > self.canvas_width + 80:
+            return
+
+        # Dark jagged breach hole in the ground
+        pygame.draw.ellipse(canvas, self.COLOR_TOMB_RUPTURE, (int(gx - 4), int(gy - 4), 32, 10))
+
+        # Broken soil chunks splayed outward
+        pygame.draw.polygon(canvas, self.COLOR_TOMB_DIRT, [
+            (int(gx - 6), int(gy)), (int(gx + 2), int(gy - 5)), (int(gx + 6), int(gy))
+        ])
+        pygame.draw.polygon(canvas, self.COLOR_TOMB_DIRT, [
+            (int(gx + 18), int(gy)), (int(gx + 24), int(gy - 4)), (int(gx + 30), int(gy))
+        ])
+
+        # Bursting earth debris & flying talismans
+        for di in range(5):
+            dist_phase = (step_count * 0.5 + di * 13) % 22
+            d_dir = -1.0 if di % 2 == 0 else 1.0
+            dx = int(gx + 12 + d_dir * (dist_phase * 1.1 + di * 2))
+            dy = int(gy - (dist_phase * 1.3) + (di * 2))
+            if dy < gy + 2:
+                pygame.draw.rect(canvas, self.COLOR_TOMB_DIRT, (dx, dy, 2, 2))
+
+        # Flying yellow joss paper talismans
+        for ti in range(3):
+            t_phase = step_count * 0.15 + ti * 2.1
+            tx = int(gx + 4 + ti * 10 + math.sin(t_phase) * 8)
+            ty = int(gy - 8 - (ti * 8) + math.cos(t_phase) * 4)
+            pygame.draw.rect(canvas, self.COLOR_TALISMAN_PAPER, (tx, ty, 4, 5))
+            pygame.draw.line(canvas, (180, 20, 20), (tx + 1, ty + 1), (tx + 3, ty + 3), 1)
+
+    def _draw_quy_nhap_trang(
+        self,
+        canvas: pygame.Surface,
+        monster: QuyNhapTrang,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders the authentic Corpse Demon (Quỷ Nhập Tràng) matching Reference Art:
+        - Glowing red eyes with intense crimson specular aura.
+        - Wild black hair streaming back like dark flames.
+        - Ragged white funeral robe flapping violently in the wind.
+        - Predatory forward crouch sprint with outstretched claws.
+        - Kicking up dust clouds while charging.
+        """
+        x = monster.x - camera_x
+        y = monster.y
+        w, h = monster.width, monster.height
+        cx = x + w / 2.0
+        cy = y + h / 2.0
+
+        if x < -60 or x > self.canvas_width + 60:
+            return
+
+        is_emerging = monster.state == GraveMonsterState.EMERGING
+
+        # ----------------------------------------------------
+        # 1. State: BURSTING OUT (Rising smoothly from grave hole)
+        # ----------------------------------------------------
+        if is_emerging:
+            # Dirt spray behind the emerging body
+            spray_surf = pygame.Surface((int(w + 20), int(h + 20)), pygame.SRCALPHA)
+            for i in range(5):
+                sp_x = int(10 + math.sin(step_count * 0.4 + i) * 12)
+                sp_y = int(h - (i * 4))
+                pygame.draw.rect(spray_surf, (52, 42, 34, 140), (sp_x, sp_y, 3, 3))
+            canvas.blit(spray_surf, (cx - (w + 20) / 2, y))
+
+            # Torso & White Funeral Robe rising up
+            robe_pts = [
+                (cx - 5, y + 10),
+                (cx + 5, y + 10),
+                (cx + 8, y + h - 2),
+                (cx + 3, y + h - 6),
+                (cx - 2, y + h - 2),
+                (cx - 7, y + h - 5),
+            ]
+            pygame.draw.polygon(canvas, self.COLOR_QUY_ROBE_WHITE, robe_pts)
+            pygame.draw.line(canvas, self.COLOR_QUY_ROBE_SHADOW, (cx - 1, y + 12), (cx - 1, y + h - 4), 1)
+
+            # Shrieking Ashen Head
+            head_x = int(cx)
+            head_y = int(y + 6)
+            pygame.draw.circle(canvas, self.COLOR_QUY_SKIN, (head_x, head_y), 5)
+            # Wide open shrieking mouth
+            pygame.draw.ellipse(canvas, self.COLOR_QUY_MOUTH, (head_x - 2, head_y + 1, 4, 4))
+            pygame.draw.line(canvas, self.COLOR_QUY_TEETH, (head_x - 1, head_y + 2), (head_x + 1, head_y + 2), 1)
+
+            # Glowing piercing red eyes
+            pygame.draw.rect(canvas, self.COLOR_QUY_EYE_RED, (head_x - 3, head_y - 1, 2, 2))
+            pygame.draw.rect(canvas, self.COLOR_QUY_EYE_RED, (head_x + 1, head_y - 1, 2, 2))
+            pygame.draw.rect(canvas, self.COLOR_QUY_EYE_CORE, (head_x - 2, head_y - 1, 1, 1))
+            pygame.draw.rect(canvas, self.COLOR_QUY_EYE_CORE, (head_x + 2, head_y - 1, 1, 1))
+
+            # Wild hair billowing straight UP into the sky!
+            for hi in range(5):
+                wave_up = math.sin(step_count * 0.35 + hi * 1.1) * 3
+                h_start = (head_x - 4 + hi * 2, head_y - 3)
+                h_mid = (head_x - 6 + hi * 3 + int(wave_up), head_y - 12)
+                h_tip = (head_x - 8 + hi * 4 + int(wave_up * 1.5), head_y - 20)
+                pygame.draw.lines(canvas, self.COLOR_QUY_HAIR, False, [h_start, h_mid, h_tip], 2)
+
+            # Dangling clawed arms
+            pygame.draw.line(canvas, self.COLOR_QUY_ROBE_WHITE, (cx - 5, y + 11), (cx - 9, y + 20), 2)
+            pygame.draw.line(canvas, self.COLOR_QUY_ROBE_WHITE, (cx + 5, y + 11), (cx + 9, y + 20), 2)
+            pygame.draw.circle(canvas, self.COLOR_QUY_SKIN, (int(cx - 9), int(y + 21)), 2)
+            pygame.draw.circle(canvas, self.COLOR_QUY_SKIN, (int(cx + 9), int(y + 21)), 2)
+            return
+
+        # ----------------------------------------------------
+        # 2. State: FRENZIED CHARGE (Sprinting Low Towards the Left)
+        # ----------------------------------------------------
+        run_cycle = step_count * 0.45
+        leg_stride = math.sin(run_cycle) * 5
+
+        # Dust cloud kicking up behind running bare feet
+        for di in range(3):
+            dust_phase = (step_count * 0.3 + di * 4) % 12
+            dust_x = int(cx + 10 + di * 5 + dust_phase * 1.2)
+            dust_y = int(y + h - 2 - (dust_phase * 0.4))
+            dust_surf = pygame.Surface((8, 8), pygame.SRCALPHA)
+            pygame.draw.circle(dust_surf, (165, 150, 135, int(120 - dust_phase * 9)), (4, 4), int(3 + dust_phase * 0.3))
+            canvas.blit(dust_surf, (dust_x, dust_y))
+
+        # Ethereal soul wisp trails drifting behind her head and back
+        for si in range(2):
+            trail_offset = 12 + si * 14
+            wisp_wave = math.sin(step_count * 0.2 + si * 2.0) * 4
+            sw_surf = pygame.Surface((8, 8), pygame.SRCALPHA)
+            pygame.draw.circle(sw_surf, (180, 220, 245, 65), (4, 4), 3)
+            pygame.draw.circle(sw_surf, (255, 255, 255, 90), (4, 4), 1)
+            canvas.blit(sw_surf, (int(cx + trail_offset), int(cy - 4 + wisp_wave)))
+
+        # Bare Running Legs (striding aggressively)
+        foot_f_x = int(cx - 4 - leg_stride)
+        foot_f_y = int(y + h - 1)
+        foot_b_x = int(cx + 4 + leg_stride)
+        foot_b_y = int(y + h - 1 + max(0, -leg_stride))
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN_SHADOW, (int(cx + 2), int(y + h - 10)), (foot_b_x, foot_b_y), 2)
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN, (int(cx - 2), int(y + h - 10)), (foot_f_x, foot_f_y), 2)
+
+        # White Funeral Robe Flapping Violently Backwards
+        cloth_wave_1 = math.sin(step_count * 0.4) * 3
+        cloth_wave_2 = math.cos(step_count * 0.45) * 4
+        robe_pts = [
+            (cx - 6, y + 10),                            # Robe neck front
+            (cx + 3, y + 9),                             # Robe shoulder back
+            (cx + 16 + int(cloth_wave_1), y + 14),       # Upper flapping sleeve trail
+            (cx + 18 + int(cloth_wave_2), y + 22),       # Trailing tattered hem 1
+            (cx + 12 + int(cloth_wave_1), y + h - 4),    # Trailing tattered hem 2
+            (cx + 4, y + h - 6),                         # Lower hem center
+            (cx - 3, y + h - 5),                         # Lower hem front
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_QUY_ROBE_WHITE, robe_pts)
+        pygame.draw.polygon(canvas, self.COLOR_QUY_ROBE_MID, robe_pts, 1)
+        # Ragged shadow folds inside the flowing dress
+        pygame.draw.line(canvas, self.COLOR_QUY_ROBE_SHADOW, (cx - 2, y + 12), (cx + 10 + int(cloth_wave_1), y + 18), 1)
+        pygame.draw.line(canvas, self.COLOR_QUY_ROBE_SHADOW, (cx, y + 16), (cx + 8 + int(cloth_wave_2), y + 24), 1)
+
+        # Torso angled forward aggressively into the sprint
+        pygame.draw.line(canvas, self.COLOR_QUY_ROBE_WHITE, (cx + 1, y + 9), (cx - 6, y + 16), 4)
+
+        # Outstretched Hungry Clawed Arms (reaching leftward to snatch Hoá)
+        # Back arm
+        pygame.draw.line(canvas, self.COLOR_QUY_ROBE_MID, (cx - 2, y + 11), (cx - 10, y + 14), 2)
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN, (cx - 10, y + 14), (cx - 16, y + 13), 2)
+        # Front arm (thrust straight forward)
+        pygame.draw.line(canvas, self.COLOR_QUY_ROBE_WHITE, (cx - 4, y + 12), (cx - 12, y + 16), 3)
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN, (cx - 12, y + 16), (cx - 18, y + 16), 2)
+        # Sharp predatory claw fingers
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN_SHADOW, (cx - 18, y + 16), (cx - 21, y + 14), 1)
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN_SHADOW, (cx - 18, y + 16), (cx - 22, y + 16), 1)
+        pygame.draw.line(canvas, self.COLOR_QUY_SKIN_SHADOW, (cx - 18, y + 16), (cx - 21, y + 18), 1)
+
+        # Ashen shrieking head (thrust forward)
+        head_x = int(cx - 6)
+        head_y = int(y + 8)
+        pygame.draw.circle(canvas, self.COLOR_QUY_SKIN, (head_x, head_y), 5)
+        # Shrieking open mouth with bared teeth
+        pygame.draw.ellipse(canvas, self.COLOR_QUY_MOUTH, (head_x - 4, head_y + 1, 4, 3))
+        pygame.draw.rect(canvas, self.COLOR_QUY_TEETH, (head_x - 3, head_y + 1, 2, 1))
+
+        # Glowing Blood-Red Eyes with intense crimson specular glint
+        eye_aura = pygame.Surface((8, 6), pygame.SRCALPHA)
+        pygame.draw.circle(eye_aura, (255, 20, 20, 95), (4, 3), 3)
+        canvas.blit(eye_aura, (head_x - 7, head_y - 3))
+
+        pygame.draw.rect(canvas, self.COLOR_QUY_EYE_RED, (head_x - 4, head_y - 1, 2, 2))
+        pygame.draw.rect(canvas, self.COLOR_QUY_EYE_CORE, (head_x - 3, head_y - 1, 1, 1))
+
+        # Long wild jet-black hair streaming back in the wind like dark flames!
+        for hi in range(5):
+            hair_wave = math.sin(step_count * 0.35 + hi * 0.9) * 4
+            h_start = (head_x + 1, head_y - 3 + hi)
+            h_mid = (head_x + 9 + hi * 2, head_y - 2 + int(hair_wave))
+            h_end = (head_x + 18 + hi * 3, head_y - 4 + int(hair_wave * 1.4))
+            pygame.draw.lines(canvas, self.COLOR_QUY_HAIR, False, [h_start, h_mid, h_end], 2)
+            pygame.draw.line(canvas, self.COLOR_QUY_HAIR_HIGHLIGHT, (h_mid[0] - 2, h_mid[1]), (h_end[0] - 4, h_end[1]), 1)
+
+    def _draw_cuong_thi_tomb_omen(
+        self,
+        canvas: pygame.Surface,
+        monster: CuongThi,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders the dormant Jiangshi grave omen matching Reference Art Panel 1:
+        - Yellow Taoist paper talisman pasted in the center of the headstone.
+        - Three ethereal cyan spirit flames / wisps hovering in orbit around the grave.
+        """
+        gx = monster._start_x - camera_x
+        if gx < -80 or gx > self.canvas_width + 80:
+            return
+
+        head_cx = int(gx + 16)
+        tomb_face_y = int(floor_y - 34)
+
+        # 1. Yellow Taoist paper talisman pasted on headstone stele
+        tal_w, tal_h = 8, 16
+        tal_x = head_cx - tal_w // 2
+        tal_y = tomb_face_y - tal_h // 2
+        pygame.draw.rect(canvas, self.COLOR_TALISMAN_PAPER, (tal_x, tal_y, tal_w, tal_h))
+        pygame.draw.rect(canvas, (210, 180, 45), (tal_x, tal_y, tal_w, tal_h), 1)
+        # Red cinnabar Taoist warding runes
+        pygame.draw.line(canvas, (190, 25, 25), (tal_x + 3, tal_y + 2), (tal_x + 4, tal_y + 2), 1)
+        pygame.draw.line(canvas, (190, 25, 25), (tal_x + 3, tal_y + 4), (tal_x + 3, tal_y + 13), 1)
+        pygame.draw.line(canvas, (190, 25, 25), (tal_x + 1, tal_y + 7), (tal_x + 6, tal_y + 7), 1)
+        pygame.draw.line(canvas, (190, 25, 25), (tal_x + 2, tal_y + 10), (tal_x + 5, tal_y + 10), 1)
+
+        # 2. Three ethereal cyan spirit flames floating around the tombstone
+        flame_configs = [
+            (-6, -48, 0.09, 0.12, 3.0, 4.0),   # Flame 1: hovering top-left
+            (16, -62, 0.08, 0.14, 4.0, 5.0),   # Flame 2: hovering top-center
+            (36, -34, 0.10, 0.11, 3.0, 3.5),   # Flame 3: floating near mid-right
+        ]
+        for fx_off, fy_off, sx_speed, sy_speed, ax, ay in flame_configs:
+            fx = int(gx + fx_off + math.sin(step_count * sx_speed) * ax)
+            fy = int(floor_y + fy_off + math.cos(step_count * sy_speed) * ay)
+
+            # Ethereal cyan aura
+            aura_surf = pygame.Surface((18, 20), pygame.SRCALPHA)
+            pygame.draw.circle(aura_surf, (61, 245, 202, 60), (9, 10), 8)
+            canvas.blit(aura_surf, (fx - 9, fy - 10))
+
+            # Flickering teardrop flame polygon
+            f_tip = (fx, fy - 7)
+            f_left = (fx - 4, fy)
+            f_right = (fx + 4, fy)
+            f_bottom = (fx, fy + 4)
+            pygame.draw.polygon(canvas, self.COLOR_WISP_CYAN_FLAME, [f_tip, f_right, f_bottom, f_left])
+
+            # Bright white-cyan incandescent flame core
+            pygame.draw.circle(canvas, self.COLOR_WISP_CYAN_CORE, (fx, fy), 2)
+            pygame.draw.circle(canvas, (255, 255, 255), (fx, fy - 1), 1)
+
+            # Rising spirit ember spark
+            spark_y = fy - 8 - int((step_count * 0.4 + fx_off) % 8)
+            pygame.draw.rect(canvas, self.COLOR_WISP_CYAN_CORE, (fx + (1 if (step_count // 4) % 2 else -1), spark_y, 1, 1))
+
+    def _draw_cuong_thi(
+        self,
+        canvas: pygame.Surface,
+        monster: CuongThi,
+        camera_x: float,
+        step_count: int,
+        floor_y: float,
+    ) -> None:
+        """Renders the authentic Jiangshi (Cương Thi) matching Reference Art:
+        - Emerging: Ground rupture, upward pink-white energy blast rays, flying talismans, rising stiff Qing court robe.
+        - Hopping Charge: Stiff arms held forward with midnight claws, official mandarin hat, trailing queue braid with green ribbon,
+          fluttering forehead yellow talisman, exposed glowing crimson eye with forward laser gaze beam, and donut smoke rings.
+        """
+        x = monster.x - camera_x
+        y = monster.y
+        w, h = monster.width, monster.height
+        cx = x + w / 2.0
+        cy = y + h / 2.0
+
+        if x < -80 or x > self.canvas_width + 80:
+            return
+
+        is_emerging = monster.state == GraveMonsterState.EMERGING
+
+        # ----------------------------------------------------
+        # 1. State: BURSTING OUT (Panel 2)
+        # ----------------------------------------------------
+        if is_emerging:
+            # A. Radiant upward pink-white energetic burst rays
+            for ray_i in range(9):
+                ray_angle = math.radians(-135 + ray_i * 11 + math.sin(step_count * 0.4 + ray_i) * 3)
+                ray_len = 28 + (ray_i % 3) * 8 + int(math.sin(step_count * 0.5 + ray_i * 1.5) * 4)
+                r_tip_x = int(cx + math.cos(ray_angle) * ray_len)
+                r_tip_y = int(y + h * 0.6 + math.sin(ray_angle) * ray_len)
+                pygame.draw.line(canvas, self.COLOR_BURST_PINK_GLOW, (int(cx), int(y + h * 0.6)), (r_tip_x, r_tip_y), 3)
+                pygame.draw.line(canvas, self.COLOR_BURST_WHITE_CORE, (int(cx), int(y + h * 0.6)), (r_tip_x, r_tip_y), 1)
+
+            # B. Flying yellow paper talismans swirling upward
+            for ti in range(4):
+                t_phase = step_count * 0.18 + ti * 1.8
+                tx = int(cx + (ti - 1.5) * 12 + math.sin(t_phase) * 10)
+                ty = int(y + 6 - ti * 6 + math.cos(t_phase) * 5)
+                pygame.draw.rect(canvas, self.COLOR_TALISMAN_PAPER, (tx, ty, 4, 6))
+                pygame.draw.line(canvas, (180, 20, 20), (tx + 1, ty + 1), (tx + 3, ty + 4), 1)
+
+            # C. Rising stiff body in Qing imperial navy robe
+            robe_w = 14
+            robe_rect = (int(cx - robe_w // 2), int(y + 11), robe_w, int(h - 13))
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_ROBE_DARK, robe_rect)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_ROBE_MID, (robe_rect[0] + 2, robe_rect[1], robe_w - 4, robe_rect[3]))
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_LIGHT, (int(cx), int(y + 11)), (int(cx), int(y + h - 2)), 1)
+
+            # Chest Mandarin square rank badge (Bổ tử)
+            badge_rect = (int(cx - 4), int(y + 14), 8, 7)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_BG, badge_rect)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_GOLD, badge_rect, 1)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_GOLD, (int(cx - 2), int(y + 16), 4, 3))
+
+            # Outstretched arms held stiffly forward (pale cyan skin & fingers)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_MID, (cx - 4, y + 13), (cx - 14, y + 17), 4)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_DARK, (cx + 2, y + 13), (cx - 8, y + 17), 4)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 14, y + 17), (cx - 18, y + 17), 2)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 8, y + 17), (cx - 12, y + 17), 2)
+            # Pale cyan fingers matching arms
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 18, y + 17), (cx - 21, y + 17), 1)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 12, y + 17), (cx - 15, y + 17), 1)
+
+            # Head & Prominent Red Official Mandarin Hat
+            head_x, head_y = int(cx), int(y + 6)
+            pygame.draw.circle(canvas, self.COLOR_JIANGSHI_SKIN, (head_x, head_y), 5)
+            # Vibrant Red Hat Brim & Crown
+            hat_brim_rect = (head_x - 7, head_y - 6, 14, 3)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_HAT_RED_DARK, hat_brim_rect)
+            hat_dome_rect = (head_x - 5, head_y - 10, 10, 5)
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_HAT_RED, hat_dome_rect)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_HAT_RED_BRIGHT, (head_x - 4, head_y - 9), (head_x + 3, head_y - 9), 1)
+            # Imperial gold button / jewel on top
+            pygame.draw.circle(canvas, self.COLOR_JIANGSHI_HAT_BUTTON, (head_x, head_y - 10), 2)
+
+            # Forehead yellow talisman hanging straight down over the face
+            tal_rect = (head_x - 3, head_y - 4, 6, 11)
+            pygame.draw.rect(canvas, self.COLOR_TALISMAN_PAPER, tal_rect)
+            pygame.draw.line(canvas, (190, 20, 20), (head_x, head_y - 2), (head_x, head_y + 5), 1)
+            # Red glowing eyes visible at talisman edges
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_RED, (head_x - 4, head_y - 2, 2, 2))
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_RED, (head_x + 2, head_y - 2, 2, 2))
+            return
+
+        # ----------------------------------------------------
+        # 2. State: HOPPING CHARGE (Panel 3)
+        # ----------------------------------------------------
+        # A. Expanding donut smoke / dust rings on ground
+        for ri in range(3):
+            ring_age = (step_count * 0.45 + ri * 6) % 18
+            ring_x = int(cx + 8 + ri * 9 + ring_age * 1.1)
+            ring_y = int(floor_y - 5)
+            ring_rad = int(3 + ring_age * 0.4)
+            ring_alpha = max(0, int(150 - ring_age * 8))
+            if ring_rad > 2 and ring_alpha > 0:
+                ring_surf = pygame.Surface((ring_rad * 2 + 4, ring_rad * 2 + 4), pygame.SRCALPHA)
+                pygame.draw.circle(ring_surf, (175, 160, 145, ring_alpha), (ring_rad + 2, ring_rad + 2), ring_rad, 2)
+                canvas.blit(ring_surf, (ring_x - ring_rad - 2, ring_y - ring_rad - 2))
+
+        # B. Stiff legs held together in black cloth shoes with white soles
+        leg_y = y + h - 10
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_SKIRT_DARK, (int(cx - 3), int(leg_y), 6, 7))
+        shoe_y = int(y + h - 4)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_SHOES, (int(cx - 5), shoe_y, 4, 3))
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_SHOES, (int(cx), shoe_y, 4, 3))
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SOLES, (int(cx - 5), shoe_y + 3), (int(cx - 2), shoe_y + 3), 1)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SOLES, (int(cx), shoe_y + 3), (int(cx + 3), shoe_y + 3), 1)
+
+        # C. Qing navy court robe & chest rank badge
+        robe_top = int(y + 10)
+        robe_h = int(h - 18)
+        robe_pts = [
+            (cx - 4, robe_top),
+            (cx + 4, robe_top),
+            (cx + 7, robe_top + robe_h),
+            (cx - 5, robe_top + robe_h),
+        ]
+        pygame.draw.polygon(canvas, self.COLOR_JIANGSHI_ROBE_DARK, robe_pts)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_LIGHT, (cx - 1, robe_top), (cx - 1, robe_top + robe_h), 1)
+
+        badge_rect = (int(cx - 4), int(robe_top + 3), 7, 7)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_BG, badge_rect)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_GOLD, badge_rect, 1)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_BADGE_GOLD, (int(cx - 2), int(robe_top + 5), 3, 3))
+
+        # D. Outstretched arms held rigidly straight forward towards the left
+        # Back arm
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_DARK, (cx, y + 11), (cx - 12, y + 11), 3)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN_SHD, (cx - 12, y + 11), (cx - 17, y + 11), 2)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN_SHD, (cx - 17, y + 11), (cx - 21, y + 11), 1)
+        # Front arm
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_MID, (cx - 2, y + 14), (cx - 14, y + 14), 4)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_ROBE_LIGHT, (cx - 2, y + 13), (cx - 14, y + 13), 1)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 14, y + 14), (cx - 20, y + 14), 2)
+        # Pale cyan fingers matching arm color
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 20, y + 13), (cx - 24, y + 12), 1)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 20, y + 14), (cx - 25, y + 14), 1)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_SKIN, (cx - 20, y + 15), (cx - 24, y + 16), 1)
+
+        # E. Head & Prominent Red Official Mandarin Hat
+        head_x = int(cx - 1)
+        head_y = int(y + 7)
+        pygame.draw.circle(canvas, self.COLOR_JIANGSHI_SKIN, (head_x, head_y), 5)
+        hat_brim = (head_x - 6, head_y - 6, 12, 3)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_HAT_RED_DARK, hat_brim)
+        hat_dome = (head_x - 4, head_y - 9, 8, 4)
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_HAT_RED, hat_dome)
+        pygame.draw.line(canvas, self.COLOR_JIANGSHI_HAT_RED_BRIGHT, (head_x - 3, head_y - 9), (head_x + 2, head_y - 9), 1)
+        pygame.draw.circle(canvas, self.COLOR_JIANGSHI_HAT_BUTTON, (head_x, head_y - 9), 2)
+
+        # Check whether the Jiangshi is airborne in a hop or standing paused on the ground
+        is_hopping = not getattr(monster, "_is_grounded", True)
+
+        # F. Trailing braided queue hair with jade-green ribbon
+        ribbon_x = head_x + 5
+        ribbon_y = head_y - 3
+        pygame.draw.rect(canvas, self.COLOR_JIANGSHI_RIBBON, (ribbon_x, ribbon_y, 4, 3))
+        if is_hopping:
+            queue_wave = math.sin(step_count * 0.4) * 2
+            q_pts = [
+                (ribbon_x + 3, ribbon_y + 1),
+                (ribbon_x + 10, ribbon_y + int(queue_wave)),
+                (ribbon_x + 18, ribbon_y + int(queue_wave * 1.5) - 1),
+            ]
+            pygame.draw.lines(canvas, self.COLOR_JIANGSHI_BRAID, False, q_pts, 2)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_RIBBON, (ribbon_x + 3, ribbon_y + 2), (ribbon_x + 11, ribbon_y + 4 + int(queue_wave)), 1)
+        else:
+            q_pts = [
+                (ribbon_x + 3, ribbon_y + 1),
+                (ribbon_x + 6, ribbon_y + 7),
+                (ribbon_x + 8, ribbon_y + 14),
+            ]
+            pygame.draw.lines(canvas, self.COLOR_JIANGSHI_BRAID, False, q_pts, 2)
+            pygame.draw.line(canvas, self.COLOR_JIANGSHI_RIBBON, (ribbon_x + 3, ribbon_y + 2), (ribbon_x + 8, ribbon_y + 7), 1)
+
+        # G. Forehead yellow talisman & Glowing Crimson Eyes
+        if is_hopping:
+            # Fluttering backwards horizontally in the wind while hopping
+            tal_wave = math.sin(step_count * 0.45) * 2
+            tal_pts = [
+                (head_x - 1, head_y - 3),
+                (head_x + 6, head_y - 4 + int(tal_wave)),
+                (head_x + 14, head_y - 5 + int(tal_wave * 1.3)),
+                (head_x + 13, head_y - 1 + int(tal_wave * 1.3)),
+                (head_x + 5, head_y + int(tal_wave)),
+                (head_x - 1, head_y + 1),
+            ]
+            pygame.draw.polygon(canvas, self.COLOR_TALISMAN_PAPER, tal_pts)
+            pygame.draw.lines(canvas, (190, 25, 25), False, [
+                (head_x, head_y - 1),
+                (head_x + 5, head_y - 2 + int(tal_wave)),
+                (head_x + 12, head_y - 3 + int(tal_wave * 1.3))
+            ], 1)
+
+            # Face & eye fully unveiled during hop: glowing crimson red eye
+            eye_x = head_x - 3
+            eye_y = head_y - 1
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_RED, (eye_x, eye_y, 3, 2))
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_CORE, (eye_x + 1, eye_y, 1, 1))
+
+            # Subtle compact eye glow aura (no long laser beam)
+            eye_surf = pygame.Surface((8, 6), pygame.SRCALPHA)
+            pygame.draw.ellipse(eye_surf, (255, 30, 30, 95), (0, 0, 8, 6))
+            canvas.blit(eye_surf, (eye_x - 3, eye_y - 2))
+        else:
+            # When standing on ground: yellow talisman drapes straight down over face
+            tal_sway = math.sin(step_count * 0.15) * 0.8
+            tal_w, tal_h = 6, 12
+            tal_pts = [
+                (head_x - 3, head_y - 4),
+                (head_x + 3, head_y - 4),
+                (head_x + 3 + int(tal_sway), head_y - 4 + tal_h),
+                (head_x - 3 + int(tal_sway), head_y - 4 + tal_h),
+            ]
+            pygame.draw.polygon(canvas, self.COLOR_TALISMAN_PAPER, tal_pts)
+            pygame.draw.polygon(canvas, (210, 180, 45), tal_pts, 1)
+            # Red cinnabar Taoist warding runes
+            pygame.draw.line(canvas, (190, 20, 20), (int(head_x), head_y - 2), (int(head_x + tal_sway), head_y + 6), 1)
+            pygame.draw.line(canvas, (190, 20, 20), (int(head_x - 1), head_y + 2), (int(head_x + 2), head_y + 2), 1)
+
+            # Glowing red eyes visible menacingly at the side edges of the draped talisman
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_RED, (head_x - 4, head_y - 1, 2, 2))
+            pygame.draw.rect(canvas, self.COLOR_JIANGSHI_EYE_CORE, (head_x - 3, head_y - 1, 1, 1))
+
     def _draw_item(
         self,
         canvas: pygame.Surface,
@@ -2113,6 +3578,7 @@ class GameRenderer:
         player: Player,
         camera_x: float,
         step_count: int = 0,
+        god_mode: bool = False,
     ) -> None:
         """Renders Hoá in traditional Vietnamese Áo Ngũ Thân May Kép Đệm Bông, matching Khăn Đóng & Lồng Đèn."""
         x = player.x - camera_x
@@ -2299,6 +3765,27 @@ class GameRenderer:
             tag_x = int(x + w / 2 - tag_text.get_width() / 2)
             tag_y = int(y - 16)  # 14px above player head
 
+            # Golden Celestial Halo Ring when in God Mode
+            if god_mode:
+                halo_cx = int(x + w / 2)
+                bob = math.sin(step_count * 0.12) * 1.5
+                halo_cy = int(tag_y - 6 + bob)
+
+                # 1. Warm golden aura glow
+                aura_surf = pygame.Surface((24, 12), pygame.SRCALPHA)
+                pygame.draw.ellipse(aura_surf, (255, 215, 60, 70), (0, 0, 24, 12))
+                canvas.blit(aura_surf, (halo_cx - 12, halo_cy - 6))
+
+                # 2. Outer golden rim & inner brilliant highlight
+                pygame.draw.ellipse(canvas, (245, 180, 30), (halo_cx - 8, halo_cy - 3, 16, 6), 2)
+                pygame.draw.ellipse(canvas, (255, 240, 130), (halo_cx - 8, halo_cy - 3, 16, 6), 1)
+
+                # 3. Celestial sparkle glint revolving on the ring
+                sparkle_phase = (step_count * 0.18) % (math.pi * 2)
+                sparkle_x = int(halo_cx + math.cos(sparkle_phase) * 7)
+                sparkle_y = int(halo_cy + math.sin(sparkle_phase) * 2)
+                pygame.draw.rect(canvas, (255, 255, 255), (sparkle_x, sparkle_y, 1, 1))
+
             # Draw drop shadow first, then main text on top
             canvas.blit(shadow_text, (tag_x + 1, tag_y + 1))
             canvas.blit(tag_text, (tag_x, tag_y))
@@ -2334,3 +3821,11 @@ class GameRenderer:
             warmth_shadow = self._font.render(warmth_str, True, (10, 10, 20))
             canvas.blit(warmth_shadow, (17, 45))
             canvas.blit(warmth_text, (16, 44))
+
+        # Line 4: God mode status tag in HUD
+        if getattr(env, "god_mode", False):
+            hud_y = 59 if env.items else 44
+            god_hud_text = self._font.render("[GOD MODE: INVINCIBLE]", True, (255, 215, 60))
+            god_hud_shadow = self._font.render("[GOD MODE: INVINCIBLE]", True, (10, 10, 20))
+            canvas.blit(god_hud_shadow, (17, hud_y + 1))
+            canvas.blit(god_hud_text, (16, hud_y))

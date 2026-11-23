@@ -14,13 +14,14 @@ class BalancedRewardStrategy(BaseRewardStrategy):
     def __init__(
         self,
         weight_progress: float = 1.0,
-        weight_regress: float = 1.5,
+        weight_regress: float = 1.0,
         goal_bonus: float = 200.0,
         pit_penalty: float = -75.0,
         ghost_penalty: float = -75.0,
         fire_penalty: float = -75.0,
         laser_penalty: float = -75.0,
         wisp_penalty: float = -75.0,
+        monster_penalty: float = -75.0,
         obstacle_penalty: float = -3.0,
         item_bonus: float = 30.0,
         step_penalty: float = -0.1,
@@ -37,6 +38,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         self.fire_penalty = fire_penalty
         self.laser_penalty = laser_penalty
         self.wisp_penalty = wisp_penalty
+        self.monster_penalty = monster_penalty
         self.obstacle_penalty = obstacle_penalty
         self.item_bonus = item_bonus
         self.step_penalty = step_penalty
@@ -83,6 +85,10 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         if getattr(events, "hit_wisp", False):
             reward += self.wisp_penalty
 
+        # 6c. Grave Monster Death Penalty (Quỷ Nhập Tràng / Cương Thi)
+        if getattr(events, "hit_monster", False):
+            reward += self.monster_penalty
+
         # 7. Tombstone Obstacle Collision Penalty
         if events.hit_obstacle:
             reward += self.obstacle_penalty
@@ -96,7 +102,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
 
         # 10. Unnecessary Jump Penalty
         # Fires ONLY when grounded, jumping, and no obstacle, pit, or low ghost within vision_range
-        # High ghosts (ghost_y < self.high_ghost_y_threshold) do NOT exempt jumping (discourages jumping up into high ghosts)
+        # High ghosts (above Hoá's head clearance) do NOT exempt jumping (discourages jumping up into high ghosts)
         if prev_state.is_grounded and action in (Action.JUMP, Action.RIGHT_JUMP):
             obs_far = (
                 prev_state.dist_to_obstacle < 0.0
@@ -108,13 +114,18 @@ class BalancedRewardStrategy(BaseRewardStrategy):
             )
             dist_ghost = getattr(prev_state, "dist_to_ghost", -1.0)
             ghost_y = getattr(prev_state, "ghost_y", 0.0)
+            player_y = getattr(prev_state, "player_y", getattr(prev_state, "mario_y", 288.0))
+            ghost_height = 28.0
+            clearance_margin = 8.0
+            is_overhead = (ghost_y + ghost_height) <= (player_y - clearance_margin)
             low_ghost_near = (
                 0.0 <= dist_ghost <= self.vision_range
-                and ghost_y >= self.high_ghost_y_threshold
+                and not is_overhead
             )
             laser_near = 0.0 <= getattr(prev_state, "dist_to_laser", -1.0) <= self.vision_range
             wisp_near = 0.0 <= getattr(prev_state, "dist_to_wisp", -1.0) <= self.vision_range
-            if obs_far and pit_far and not low_ghost_near and not laser_near and not wisp_near:
+            monster_near = 0.0 <= getattr(prev_state, "dist_to_monster", -1.0) <= self.vision_range
+            if obs_far and pit_far and not low_ghost_near and not laser_near and not wisp_near and not monster_near:
                 reward += self.unnecessary_jump_penalty
                 reward -= events.dx * self.weight_progress
 
@@ -125,6 +136,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
             or getattr(events, "hit_fire", False)
             or getattr(events, "hit_laser", False)
             or getattr(events, "hit_wisp", False)
+            or getattr(events, "hit_monster", False)
         )
         if done and not events.reached_goal and not is_hazard_death:
             reward += self.timeout_penalty

@@ -21,6 +21,7 @@ class MarioStateDiscretizer(BaseDiscretizer):
         wisp_bin:            3 values (0: Safe/None, 1: Incoming Ahead, 2: Chasing Behind)
         crouch_bin:          2 values (0: Standing, 1: Crouching/Sliding)
         double_jump_bin:     2 values (0: Spent/Unavailable, 1: Armed/Ready)
+        monster_bin:         2 values (0: Safe/None, 1: Threat/Approaching <=75px)
     """
 
     def __init__(
@@ -34,6 +35,7 @@ class MarioStateDiscretizer(BaseDiscretizer):
         obs_close_threshold: float = 45.0,
         laser_threat_distance: float = 55.0,
         wisp_threat_distance: float = 65.0,
+        monster_threat_distance: float = 75.0,
     ):
         self.velocity_threshold = velocity_threshold
         self.high_obstacle_threshold = high_obstacle_threshold
@@ -43,6 +45,7 @@ class MarioStateDiscretizer(BaseDiscretizer):
         self.obs_close_threshold = obs_close_threshold
         self.laser_threat_distance = laser_threat_distance
         self.wisp_threat_distance = wisp_threat_distance
+        self.monster_threat_distance = monster_threat_distance
 
     def discretize(self, raw_state: RawState) -> DiscreteState:
         player_y = getattr(raw_state, "player_y", getattr(raw_state, "mario_y", 0.0))
@@ -129,6 +132,10 @@ class MarioStateDiscretizer(BaseDiscretizer):
         # 11. Mid-Air Double Jump Bin (0: Unavailable/Spent, 1: Ready)
         double_jump_bin = 1 if getattr(raw_state, "can_double_jump", False) else 0
 
+        # 12. Grave Monster Proximity Bin (0: Safe/None, 1: Threat/Approaching <= 75px)
+        dist_monster = getattr(raw_state, "dist_to_monster", -1.0)
+        monster_bin = 1 if (0.0 <= dist_monster <= self.monster_threat_distance) else 0
+
         return (
             grounded_bin,
             vy_bin,
@@ -141,6 +148,7 @@ class MarioStateDiscretizer(BaseDiscretizer):
             wisp_bin,
             crouch_bin,
             double_jump_bin,
+            monster_bin,
         )
 
 

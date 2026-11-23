@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, Optional
 
 class Action:
     """Discrete action space for the Mario agent."""
@@ -36,6 +36,8 @@ class RawState:
     dist_to_laser: float     # Distance to nearest active laser beam ahead (-1 if none)
     dist_to_wisp: float      # Distance to nearest active will-o'-the-wisp projectile ahead
     wisp_dir: int            #  1: Ahead (in front), -1: Behind (chasing from left), 0: None
+    dist_to_monster: float   # Distance to nearest approaching grave monster ahead (-1 if none)
+    monster_y: float         # Y-position of that monster (ground sprint vs airborne hop)
     dist_to_goal: float      # Distance remaining to Hoá's home
 
     
@@ -51,6 +53,8 @@ class GameEvents:
     hit_fire: bool = False        # True if Hoá touched an active flame jet [DIE]
     hit_laser: bool = False       # True if Hoá touched a ghost's eye laser [DIE]
     hit_wisp: bool = False        # True if Hoá touched a will-o'-the-wisp projectile [DIE]
+    hit_monster: bool = False     # True if Hoá touched an emerging or active grave monster [DIE]
+    monster_type: Optional[str] = None  # Specific monster type: "cuong_thi" or "quy_nhap_trang"
     collected_item: bool = False  # True if Hoá collected a warmth item [BONUS]
 
 class BaseEnvironment(ABC):
