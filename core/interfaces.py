@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Tuple
 from core.base_env import RawState, GameEvents
 
-DiscreteState = Tuple[int, int, int, int, int, int, int]
+DiscreteState = Tuple[int, ...]
 
 
 class BaseDiscretizer(ABC):

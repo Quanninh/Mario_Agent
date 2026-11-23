@@ -19,6 +19,7 @@ ACTION_NAMES = {
     Action.JUMP: "JUMP",
     Action.RIGHT: "RIGHT",
     Action.RIGHT_JUMP: "RIGHT_JUMP",
+    Action.CROUCH: "CROUCH",
 }
 
 
@@ -217,8 +218,8 @@ def parse_args() -> argparse.Namespace:
         "--level",
         type=int,
         default=1,
-        choices=[1, 2, 3, 4, 5],
-        help="Initial level to load (1..5, default: 1)",
+        choices=[1, 2, 3, 4, 5, 6, 7, 8],
+        help="Initial level to load (1..8, default: 1)",
     )
     parser.add_argument(
         "--reward",
@@ -309,7 +310,7 @@ def play_autonomous(
     print(f"[AI Player] Mode: {current_mode.upper()} | Reward: {current_reward.upper()} | Variant: {current_variant.upper()}")
     print(f"[AI Player] Active Agent: {agent_display_name}")
     print("Controls:")
-    print("  [1 / 2 / 3 / 4 / 5] Switch Level live")
+    print("  [1 - 8]             Switch Level live (1..8)")
     print("  [F1 / F2 / F3]      Swap Q-Table: Balanced (F1), Sparse (F2), Dense (F3)")
     print("  [T]                 Toggle Variant: Best <-> Final")
     print("  [H / A]             Toggle Agent: TabularQAgent <-> HybridAgent")
@@ -343,7 +344,7 @@ def play_autonomous(
         if just_pressed(pygame.K_ESCAPE):
             break
 
-        # Level switching (1..5)
+        # Level switching (1..8)
         new_lvl = None
         if just_pressed(pygame.K_1):
             new_lvl = 1
@@ -355,6 +356,12 @@ def play_autonomous(
             new_lvl = 4
         elif just_pressed(pygame.K_5):
             new_lvl = 5
+        elif just_pressed(pygame.K_6):
+            new_lvl = 6
+        elif just_pressed(pygame.K_7):
+            new_lvl = 7
+        elif just_pressed(pygame.K_8):
+            new_lvl = 8
 
         if new_lvl is not None and new_lvl != current_level:
             env.close()
@@ -511,6 +518,20 @@ def play_autonomous(
                 outcome_str = "CAUGHT BY GHOST"
             elif events.fell_in_pit:
                 outcome_str = "FELL IN PIT"
+            elif getattr(events, "hit_fire", False):
+                outcome_str = "INCINERATED BY PIT FIRE"
+            elif getattr(events, "hit_laser", False):
+                outcome_str = "VAPORIZED BY LASER"
+            elif getattr(events, "hit_wisp", False):
+                outcome_str = "STRUCK BY WILL-O'-THE-WISP"
+            elif getattr(events, "hit_monster", False):
+                monster_type = getattr(events, "monster_type", None)
+                if monster_type == "cuong_thi":
+                    outcome_str = "AMBUSHED BY CƯƠNG THI"
+                elif monster_type == "quy_nhap_trang":
+                    outcome_str = "SLAIN BY QUỶ NHẬP TRÀNG"
+                else:
+                    outcome_str = "AMBUSHED BY GRAVE MONSTER"
             else:
                 outcome_str = "TIMEOUT"
 

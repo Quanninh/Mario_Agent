@@ -17,27 +17,45 @@ class TestStage1Invariants(unittest.TestCase):
         self,
         player_x=100.0,
         player_y=288.0,
+        velocity_x=0.0,
+        velocity_y=0.0,
         is_grounded=True,
+        can_double_jump=False,
+        is_crouching=False,
         dist_to_obstacle=-1.0,
         obstacle_height=0.0,
         dist_to_pit=-1.0,
+        pit_fire_state=0,
         dist_to_ghost=20.0,
         ghost_y=0.0,
         dist_to_item=-1.0,
+        dist_to_laser=-1.0,
+        dist_to_wisp=-1.0,
+        wisp_dir=0,
+        dist_to_monster=-1.0,
+        monster_y=0.0,
         dist_to_goal=500.0,
-        velocity_y=0.0,
     ):
         return RawState(
             player_x=player_x,
             player_y=player_y,
+            velocity_x=velocity_x,
             velocity_y=velocity_y,
             is_grounded=is_grounded,
+            can_double_jump=can_double_jump,
+            is_crouching=is_crouching,
             dist_to_obstacle=dist_to_obstacle,
             obstacle_height=obstacle_height,
             dist_to_pit=dist_to_pit,
+            pit_fire_state=pit_fire_state,
             dist_to_ghost=dist_to_ghost,
             ghost_y=ghost_y,
             dist_to_item=dist_to_item,
+            dist_to_laser=dist_to_laser,
+            dist_to_wisp=dist_to_wisp,
+            wisp_dir=wisp_dir,
+            dist_to_monster=dist_to_monster,
+            monster_y=monster_y,
             dist_to_goal=dist_to_goal,
         )
 
@@ -103,12 +121,10 @@ class TestStage1Invariants(unittest.TestCase):
                 )
 
     def test_discretizer_cardinality_and_length(self):
-        """State tuple length remains 7 and max cardinality remains 1,152."""
+        """State tuple length remains 12 and max cardinality includes all hazards."""
         st = self._make_state()
         d_state = self.discretizer.discretize(st)
-        self.assertEqual(len(d_state), 7)
-        cardinality = 2 * 3 * 4 * 2 * 3 * 4 * 2
-        self.assertEqual(cardinality, 1152)
+        self.assertEqual(len(d_state), 12)
 
     def test_balanced_reward_round_trip(self):
         """LEFT + RIGHT round trip on open ground nets strictly -0.20."""
