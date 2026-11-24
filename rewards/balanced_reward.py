@@ -9,7 +9,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
     Formulation:
         r = r_progress(dx) + r_goal * I(goal) + r_pit * I(pit) + r_ghost * I(ghost)
             + r_obstacle * I(hit) + r_item * I(item) + r_step
-            + r_unnecessary_jump + r_stall + r_timeout
+            + r_unnecessary_jump + r_timeout
     """
 
     def __init__(
@@ -22,13 +22,16 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         obstacle_penalty: float = -3.0,
         item_bonus: float = 30.0,
         step_penalty: float = -0.1,
-        unnecessary_jump_penalty: float = -1.5,
+        unnecessary_jump_penalty: float = -15.0,
         stall_penalty: float = 0.0,
         timeout_penalty: float = -50.0,
-        vision_range: float = 80.0,
+        obs_threat_distance: float = 50.0,
+        pit_threat_distance: float = 45.0,
+        ghost_threat_distance: float = 80.0,
         ghost_height: float = 28.0,
         ghost_clearance_margin: float = 4.0,
         jump_penalty: Optional[float] = None,
+        vision_range: Optional[float] = None,
     ):
         self.weight_progress = weight_progress
         self.weight_regress = weight_regress
@@ -44,7 +47,12 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         self.jump_penalty = self.unnecessary_jump_penalty
         self.stall_penalty = stall_penalty
         self.timeout_penalty = timeout_penalty
-        self.vision_range = vision_range
+        self.obs_threat_distance = obs_threat_distance
+        self.pit_threat_distance = pit_threat_distance
+        self.ghost_threat_distance = (
+            vision_range if vision_range is not None else ghost_threat_distance
+        )
+        self.vision_range = self.ghost_threat_distance
         self.ghost_height = ghost_height
         self.ghost_clearance_margin = ghost_clearance_margin
 
@@ -86,34 +94,35 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         reward += self.step_penalty
 
         # 8. Unnecessary Jump Penalty
-        # Fires ONLY when grounded, jumping, and no obstacle, pit, or low/eye-level ghost within vision_range
-        # A ghost with overhead clearance (safe to walk under) does NOT exempt jumping
+        # Fires ONLY when grounded, taking off, and NO hazard justifies a jump.
+        # Aligned with Discretizer threat horizons to avoid penalizing legitimate evasive maneuvers.
+        # A ghost with overhead clearance (safe to walk under) does NOT exempt jumping.
         if prev_state.is_grounded and action in (Action.JUMP, Action.RIGHT_JUMP):
             obs_far = (
                 prev_state.dist_to_obstacle < 0.0
-                or prev_state.dist_to_obstacle > self.vision_range
+                or prev_state.dist_to_obstacle > self.obs_threat_distance
             )
             pit_far = (
                 prev_state.dist_to_pit < 0.0
-                or prev_state.dist_to_pit > self.vision_range
+                or prev_state.dist_to_pit > self.pit_threat_distance
             )
             dist_ghost = getattr(prev_state, "dist_to_ghost", -1.0)
             ghost_y = getattr(prev_state, "ghost_y", 0.0)
-            player_y = getattr(prev_state, "player_y", getattr(prev_state, "mario_y", 0.0))
+            player_y = getattr(prev_state, "player_y", getattr(prev_state, "mario_y", 288.0))
 
             ghost_overhead_cleared = (
                 ghost_y > 0.0
                 and (ghost_y + self.ghost_height) <= (player_y - self.ghost_clearance_margin)
             )
             low_ghost_near = (
-                0.0 <= dist_ghost <= self.vision_range
+                0.0 <= dist_ghost <= self.ghost_threat_distance
                 and not ghost_overhead_cleared
             )
             if obs_far and pit_far and not low_ghost_near:
                 reward += self.unnecessary_jump_penalty
 
         # 9. Stall Penalty (standing still without hitting an obstacle)
-        if abs(events.dx) < 1e-6 and not events.hit_obstacle:
+        if self.stall_penalty != 0.0 and abs(events.dx) < 1e-6 and not events.hit_obstacle:
             reward += self.stall_penalty
 
         # 10. Timeout Penalty
