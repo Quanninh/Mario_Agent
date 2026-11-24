@@ -72,51 +72,62 @@
 \@writefile{toc}{\contentsline {paragraph}{Metric Formalization and Compute Accounting.}{12}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Curriculum Transfer vs.\ Cold-Start Training}{12}{}\protected@file@percent }
 \newlabel{subsec:comparisons}{{7.2}{12}{}{subsection.7.2}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Comprehensive performance benchmark across 5 progressive levels comparing Separate (cold-start) and Curriculum training across Balanced, Dense, and Sparse reward strategies. Values represent asymptotic converged win rate (final 100 episodes) and sample efficiency metrics to reach $80\%$ rolling win rate. DNC indicates Did Not Converge.}}{13}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Comprehensive performance benchmark across 5 progressive levels for Tabular Q-Learning comparing Separate (cold-start) and Curriculum training across Balanced, Dense, and Sparse reward strategies. Values represent asymptotic converged win rate (final 100 episodes) and sample efficiency metrics to reach $80\%$ rolling win rate. DNC indicates Did Not Converge.}}{13}{}\protected@file@percent }
 \newlabel{tab:curriculum_benchmark}{{1}{13}{}{table.1}{}}
-\@writefile{toc}{\contentsline {paragraph}{Level 5 Convergence Breakthrough.}{13}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Forward Knowledge Transfer on Intermediate Tiers.}{13}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Continuous multi-stage learning curves tracking 50-episode rolling win rate (\%) across Levels 1--5 for Curriculum Transfer (solid blue) versus Separate Scratch Training (dashed orange), under the Balanced reward strategy. The secondary axis depicts exploration rate decay ($\epsilon $). Vertical dashed lines demarcate curriculum level transitions.}}{14}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Ablation Study: Reward Formulations and Failure Modes}{13}{}\protected@file@percent }
+\newlabel{subsec:ablation}{{7.3}{13}{}{subsection.7.3}{}}
+\newlabel{fig:tabular_win_rate}{{2a}{14}{}{subfigure.2.1}{}}
+\newlabel{sub@fig:tabular_win_rate}{{a}{14}{}{subfigure.2.1}{}}
+\newlabel{fig:hybrid_win_rate}{{2b}{14}{}{subfigure.2.2}{}}
+\newlabel{sub@fig:hybrid_win_rate}{{b}{14}{}{subfigure.2.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Continuous multi-stage learning curves tracking 50-episode rolling win rate (\%) across Levels 1--5 for Curriculum Transfer (solid blue) versus Separate Scratch Training (dashed orange), under Balanced rewards: (a) Pure Tabular Q-Learning suffers catastrophic collapse in adversary tiers (Level 4: 3.0\% WR, Level 5: 0.0\% WR); (b) Hybrid Expected Q-SARSA resolves adversary avoidance, achieving a 98.0\% converged win rate on Level 4 and 23.0\% on Level 5. The secondary axis depicts exploration rate ($\epsilon $).}}{14}{}\protected@file@percent }
 \newlabel{fig:curriculum_win_rate}{{2}{14}{}{figure.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Ablation Study: Reward Formulations and Failure Modes}{14}{}\protected@file@percent }
-\newlabel{subsec:ablation}{{7.3}{14}{}{subsection.7.3}{}}
 \@writefile{toc}{\contentsline {paragraph}{Sparse Reward Bottleneck.}{14}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Continuous episode reward trajectories across Levels 1--5 for Sparse (top), Balanced (middle), and Dense (bottom) reward strategies, comparing Curriculum Transfer (solid) with Separate Scratch Training (dashed). Shaded regions represent 50-episode rolling standard deviations.}}{15}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Dense Reward Trap (Local Optima and Rushing).}{14}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{The Balanced Shaping Advantage.}{14}{}\protected@file@percent }
+\newlabel{fig:tabular_rewards}{{3a}{15}{}{subfigure.3.1}{}}
+\newlabel{sub@fig:tabular_rewards}{{a}{15}{}{subfigure.3.1}{}}
+\newlabel{fig:hybrid_rewards}{{3b}{15}{}{subfigure.3.2}{}}
+\newlabel{sub@fig:hybrid_rewards}{{b}{15}{}{subfigure.3.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Continuous episode reward trajectories across Levels 1--5 for Sparse (top), Balanced (middle), and Dense (bottom) reward strategies, comparing Curriculum Transfer (solid) with Separate Scratch Training (dashed): (a) Tabular Q-Learning; (b) Hybrid Expected Q-SARSA. Shaded bands represent 50-episode rolling standard deviations.}}{15}{}\protected@file@percent }
 \newlabel{fig:reward_trajectories}{{3}{15}{}{figure.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Dense Reward Trap (Local Optima and Rushing).}{15}{}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Reward strategy ablation benchmark across Levels 1, 4, and 5 in the converged regime (final 100 episodes, Episodes 1,901--2,000). Outcome distributions classify terminal states into Victories, Pit Deaths, Ghost Deaths, and Timeouts.}}{16}{}\protected@file@percent }
-\newlabel{tab:reward_ablation}{{2}{16}{}{table.2}{}}
-\@writefile{toc}{\contentsline {paragraph}{The Balanced Shaping Advantage.}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.4}Comparative Evaluation: Pure Tabular Q-Learning vs.\ Hybrid Expected Q-SARSA}{16}{}\protected@file@percent }
-\newlabel{subsec:comparative_hybrid}{{7.4}{16}{}{subsection.7.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Static Obstacle Baselines (Levels 1--2).}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{The Level 4 Adversary Divergence (Maximization Bias vs.\ Policy Expectation).}{16}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.4}Comparative Evaluation: Pure Tabular Q-Learning vs.\ Hybrid Expected Q-SARSA}{15}{}\protected@file@percent }
+\newlabel{subsec:comparative_hybrid}{{7.4}{15}{}{subsection.7.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Static Obstacle Baselines (Levels 1--2).}{15}{}\protected@file@percent }
 \citation{van2009theoretical,sutton2018reinforcement}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Reward strategy ablation benchmark across Levels 1, 4, and 5 in the converged regime (final 100 episodes, Episodes 1,901--2,000). Outcome distributions classify terminal states into Victories, Pit Deaths, Ghost Deaths, and Timeouts for both Tabular and Hybrid architectures.}}{16}{}\protected@file@percent }
+\newlabel{tab:reward_ablation}{{2}{16}{}{table.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{The Level 4 Adversary Divergence (Maximization Bias vs.\ Policy Expectation).}{16}{}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Head-to-head performance comparison between Pure Tabular Q-Learning (Tab) and Hybrid Expected Q-SARSA (Hyb) across Levels 1--5 under Curriculum Balanced and Curriculum Dense regimes. Metrics reflect final converged 100 episodes (mean $\pm $ std). DNC denotes Did Not Converge to 80\% rolling win rate.}}{17}{}\protected@file@percent }
 \newlabel{tab:hybrid_vs_tabular}{{3}{17}{}{table.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Level 5 Gauntlet Dynamics.}{18}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.5}Sample Efficiency and Simulator Compute Accounting}{18}{}\protected@file@percent }
-\newlabel{subsec:efficiency}{{7.5}{18}{}{subsection.7.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Level 5 Gauntlet Dynamics.}{17}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.5}Sample Efficiency and Simulator Compute Accounting}{17}{}\protected@file@percent }
+\newlabel{subsec:efficiency}{{7.5}{17}{}{subsection.7.5}{}}
+\newlabel{fig:tabular_efficiency}{{4a}{18}{}{subfigure.4.1}{}}
+\newlabel{sub@fig:tabular_efficiency}{{a}{18}{}{subfigure.4.1}{}}
+\newlabel{fig:hybrid_efficiency}{{4b}{18}{}{subfigure.4.2}{}}
+\newlabel{sub@fig:hybrid_efficiency}{{b}{18}{}{subfigure.4.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Dual sample efficiency benchmark comparing Curriculum Transfer against Separate Scratch Training across Levels 1--5 under Balanced (blue), Dense (green), and Sparse (orange) reward strategies: (a) Tabular Q-Learning; (b) Hybrid Expected Q-SARSA. Top panels depict training episodes to reach 80\% rolling win rate; bottom panels report cumulative within-level adaptation steps.}}{18}{}\protected@file@percent }
+\newlabel{fig:sample_efficiency}{{4}{18}{}{figure.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {7.6}Statistical Significance and Hypothesis Testing}{18}{}\protected@file@percent }
 \newlabel{subsec:statistics}{{7.6}{18}{}{subsection.7.6}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Dual sample efficiency benchmark comparing Curriculum Transfer against Separate Scratch Training across Levels 1--5 under Balanced (blue), Dense (green), and Sparse (orange) reward strategies. Top panel: Training episodes to reach $80\%$ rolling win rate. Bottom panel: Cumulative within-level simulator adaptation steps to reach $80\%$ rolling win rate.}}{19}{}\protected@file@percent }
-\newlabel{fig:sample_efficiency}{{4}{19}{}{figure.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Between-Algorithm Hypothesis Testing (Hybrid Expected vs.\ Tabular Q).}{19}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Within-Curriculum Policy Convergence (Early vs.\ Converged).}{20}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Between-Paradigm Comparison (Curriculum vs.\ Separate).}{20}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.7}State Space Sparsity and Zero-Shot Transfer Invariance}{20}{}\protected@file@percent }
-\newlabel{subsec:sparsity}{{7.7}{20}{}{subsection.7.7}{}}
-\@writefile{toc}{\contentsline {paragraph}{Empirical State-Space Sparsity.}{20}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Zero-Shot Policy Transfer.}{21}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.8}Limitations and Scope Boundaries}{21}{}\protected@file@percent }
-\newlabel{subsec:limitations}{{7.8}{21}{}{subsection.7.8}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion and Future Work}{21}{}\protected@file@percent }
-\newlabel{sec:conclusion}{{8}{21}{}{section.8}{}}
+\@writefile{toc}{\contentsline {paragraph}{Between-Algorithm Hypothesis Testing (Hybrid Expected vs.\ Tabular Q).}{18}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Within-Curriculum Policy Convergence (Early vs.\ Converged).}{19}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Curriculum vs.\ Separate on Complex Gauntlet (Level 5).}{19}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.7}State Space Sparsity and Zero-Shot Transfer Invariance}{19}{}\protected@file@percent }
+\newlabel{subsec:sparsity}{{7.7}{19}{}{subsection.7.7}{}}
+\@writefile{toc}{\contentsline {paragraph}{Empirical State-Space Sparsity.}{19}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Zero-Shot Policy Transfer.}{20}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.8}Limitations and Scope Boundaries}{20}{}\protected@file@percent }
+\newlabel{subsec:limitations}{{7.8}{20}{}{subsection.7.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion and Future Work}{20}{}\protected@file@percent }
+\newlabel{sec:conclusion}{{8}{20}{}{section.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}Team Reflections and Collaborative Takeaways}{21}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}Future Scope and Research Directions}{21}{}\protected@file@percent }
 \bibstyle{splncs04}
 \bibdata{references}
 \bibcite{de2018multi}{1}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}Team Reflections and Collaborative Takeaways}{22}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}Future Scope and Research Directions}{22}{}\protected@file@percent }
 \bibcite{bengio2009curriculum}{2}
 \bibcite{chen2024curriculum}{3}
 \bibcite{isele2018selective}{4}
@@ -130,4 +141,4 @@
 \bibcite{sutton2018reinforcement}{12}
 \bibcite{watkins1992q}{13}
 \bibcite{zhang2023comparative}{14}
-\gdef \@abspage@last{23}
+\gdef \@abspage@last{22}

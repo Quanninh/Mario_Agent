@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.6.25)  24 NOV 2026 14:45
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.6.25)  24 NOV 2026 15:22
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -547,69 +547,95 @@ The com-plete gaunt-let com-bin-ing multi-tier hur-dles, variable-
 
 
 [11]
-<figures/figure_1_curriculum_win_rate.pdf, id=63, 832.583pt x 585.5871pt>
-File: figures/figure_1_curriculum_win_rate.pdf Graphic file (type pdf)
-<use figures/figure_1_curriculum_win_rate.pdf>
-Package pdftex.def Info: figures/figure_1_curriculum_win_rate.pdf  used on inpu
-t line 70.
-(pdftex.def)             Requested size: 333.24092pt x 234.38258pt.
+<figures/tabular_figure_1_win_rate.pdf, id=63, 832.583pt x 585.5871pt>
+File: figures/tabular_figure_1_win_rate.pdf Graphic file (type pdf)
+<use figures/tabular_figure_1_win_rate.pdf>
+Package pdftex.def Info: figures/tabular_figure_1_win_rate.pdf  used on input l
+ine 72.
+(pdftex.def)             Requested size: 170.09244pt x 119.62616pt.
+<figures/hybrid_figure_1_win_rate.pdf, id=64, 832.583pt x 585.5871pt>
+File: figures/hybrid_figure_1_win_rate.pdf Graphic file (type pdf)
+<use figures/hybrid_figure_1_win_rate.pdf>
+Package pdftex.def Info: figures/hybrid_figure_1_win_rate.pdf  used on input li
+ne 79.
+(pdftex.def)             Requested size: 170.09244pt x 119.62616pt.
 
 
 [12]
-Overfull \hbox (1.48993pt too wide) in paragraph at lines 83--84
-\T1/cmr/m/n/10 steps). Cur-ricu-lum Bal-anced reaches a \T1/cmr/bx/n/10 95.0% c
-on-verged win rate \T1/cmr/m/n/10 (+26.0%
+Overfull \hbox (2.95763pt too wide) in paragraph at lines 90--91
+\T1/cmr/m/n/10 steps) for Sep-a-rate train-ing. This rep-re-sents a \T1/cmr/bx/
+n/10 24.5% re-duc-tion in episodes
  []
 
+
+Overfull \hbox (3.6033pt too wide) in paragraph at lines 91--92
+\T1/cmr/bx/n/10 adap-ta-tion steps\T1/cmr/m/n/10 . Un-der Dense re-wards, Cur-r
+icu-lum sim-i-larly re-duces adap-
+ []
+
+<figures/tabular_figure_2_rewards.pdf, id=68, 1007.22423pt x 690.8122pt>
+File: figures/tabular_figure_2_rewards.pdf Graphic file (type pdf)
+<use figures/tabular_figure_2_rewards.pdf>
+Package pdftex.def Info: figures/tabular_figure_2_rewards.pdf  used on input li
+ne 101.
+(pdftex.def)             Requested size: 170.09244pt x 116.65648pt.
+<figures/hybrid_figure_2_rewards.pdf, id=69, 1007.22423pt x 690.8122pt>
+File: figures/hybrid_figure_2_rewards.pdf Graphic file (type pdf)
+<use figures/hybrid_figure_2_rewards.pdf>
+Package pdftex.def Info: figures/hybrid_figure_2_rewards.pdf  used on input lin
+e 108.
+(pdftex.def)             Requested size: 170.09244pt x 116.65648pt.
 
 
 [13]
-<figures/figure_2_reward_trajectories.pdf, id=71, 1007.22423pt x 690.8122pt>
-File: figures/figure_2_reward_trajectories.pdf Graphic file (type pdf)
-<use figures/figure_2_reward_trajectories.pdf>
-Package pdftex.def Info: figures/figure_2_reward_trajectories.pdf  used on inpu
-t line 90.
-(pdftex.def)             Requested size: 333.24092pt x 228.54848pt.
 
+[14 <./figures/tabular_figure_1_win_rate.pdf> <./figures/hybrid_figure_1_win_ra
+te.pdf>]
 
-[14 <./figures/figure_1_curriculum_win_rate.pdf>]
-
-[15 <./figures/figure_2_reward_trajectories.pdf>]
+[15 <./figures/tabular_figure_2_rewards.pdf> <./figures/hybrid_figure_2_rewards
+.pdf>]
 
 [16]
-
-[17]
-Overfull \hbox (2.95096pt too wide) in paragraph at lines 190--191
-[]\T1/cmr/m/n/10 On Level 2, Cur-ricu-lum takes $\OT1/cmr/m/n/10 113\OML/cmm/m/
-it/10 ; \OT1/cmr/m/n/10 241$ \T1/cmr/m/n/10 adap-ta-tion steps; in-clud-ing the
- $\OT1/cmr/m/n/10 432\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 530$
+Overfull \hbox (5.70148pt too wide) in paragraph at lines 220--221
+\T1/cmr/m/n/10 global steps), while Hy-brid Dense ac-com-plishes this in $\OT1/
+cmr/m/n/10 152[]128$ \T1/cmr/m/n/10 steps ($\OT1/cmr/m/n/10 1[]069[]947$
  []
 
-<figures/figure_3_sample_efficiency.pdf, id=297, 699.87724pt x 540.02815pt>
-File: figures/figure_3_sample_efficiency.pdf Graphic file (type pdf)
-<use figures/figure_3_sample_efficiency.pdf>
-Package pdftex.def Info: figures/figure_3_sample_efficiency.pdf  used on input 
-line 198.
-(pdftex.def)             Requested size: 319.35301pt x 246.4136pt.
 
 
-[18]
-Overfull \hbox (1.54132pt too wide) in paragraph at lines 221--222
+[17]
+<figures/tabular_figure_3_efficiency.pdf, id=522, 699.87724pt x 540.02815pt>
+File: figures/tabular_figure_3_efficiency.pdf Graphic file (type pdf)
+<use figures/tabular_figure_3_efficiency.pdf>
+Package pdftex.def Info: figures/tabular_figure_3_efficiency.pdf  used on input
+ line 228.
+(pdftex.def)             Requested size: 170.09244pt x 131.24095pt.
+<figures/hybrid_figure_3_efficiency.pdf, id=523, 699.87724pt x 540.02815pt>
+File: figures/hybrid_figure_3_efficiency.pdf Graphic file (type pdf)
+<use figures/hybrid_figure_3_efficiency.pdf>
+Package pdftex.def Info: figures/hybrid_figure_3_efficiency.pdf  used on input 
+line 235.
+(pdftex.def)             Requested size: 170.09244pt x 131.24095pt.
+
+
+[18 <./figures/tabular_figure_3_efficiency.pdf> <./figures/hybrid_figure_3_effi
+ciency.pdf>]
+Overfull \hbox (1.54132pt too wide) in paragraph at lines 261--262
 \T1/cmr/m/n/10 early ex-plo-ration (Episodes 1--100) against fi-nal con-verged 
 per-for-mance (Episodes
  []
 
 
 
-[19 <./figures/figure_3_sample_efficiency.pdf>]
-
-[20]
-Overfull \hbox (12.91214pt too wide) in paragraph at lines 261--262
+[19]
+Overfull \hbox (12.91214pt too wide) in paragraph at lines 301--302
 []\T1/cmr/bx/n/10 Adversary Ve-loc-ity and Al-ti-tude Het-ero-gene-ity\T1/cmr/m
 /n/10 : While Ex-pected SARSA
  []
 
 ) (sections/08_conclusion_future_work/conclusion.tex
+
+[20]
 Overfull \hbox (0.32306pt too wide) in paragraph at lines 6--7
 []\T1/cmr/m/n/10 Crucially, our com-par-a-tive bench-mark be-tween off-policy T
 ab-u-lar Q-Learning
@@ -618,8 +644,6 @@ ab-u-lar Q-Learning
 
 
 [21]) (main.bbl
-
-[22]
 Underfull \hbox (badness 1365) in paragraph at lines 17--20
 []\T1/cmr/m/n/9 Chen, L., Wang, Y.: Adap-tive cur-ricu-lum learn-ing for dis-cr
 ete con-trol in
@@ -627,20 +651,20 @@ ete con-trol in
 
 )
 
-[23] (main.aux)
+[22] (main.aux)
  ***********
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-05-26>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 5294 strings out of 468219
- 86356 string characters out of 5432869
- 498326 words of memory out of 5000000
- 33722 multiletter control sequences out of 15000+600000
+ 5336 strings out of 468219
+ 87784 string characters out of 5432869
+ 507479 words of memory out of 5000000
+ 33764 multiletter control sequences out of 15000+600000
  645531 words of font info for 83 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 67i,11n,77p,1845b,375s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 67i,11n,77p,1845b,509s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx
 0700.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi60
 0\ectt1000.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec
@@ -673,9 +697,9 @@ blic/amsfonts/cm/cmsy5.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/
 type1/public/amsfonts/cm/cmsy7.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTe
 X/fonts/type1/public/amsfonts/cm/cmsy9.pfb><C:/Users/khanh/AppData/Local/Progra
 ms/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
-Output written on main.pdf (23 pages, 747097 bytes).
+Output written on main.pdf (22 pages, 1022151 bytes).
 PDF statistics:
- 1067 PDF objects out of 1200 (max. 8388607)
+ 1389 PDF objects out of 1440 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
- 16 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 31 words of extra memory for PDF output out of 10000 (max. 10000000)
 
