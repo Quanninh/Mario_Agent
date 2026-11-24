@@ -15,25 +15,29 @@ class Action:
 @dataclass
 class RawState:
     """Continuous physical state of the game world."""
-    mario_x: float           # Mario's current horizontal position
-    mario_y: float           # Mario's current vertical position
+    player_x: float          # Hoá's current horizontal position
+    player_y: float          # Hoá's current vertical position
     velocity_y: float        # Current vertical velocity (gravity / jump)
-    is_grounded: bool        # True if Mario is standing on floor or platform
-    
-    # Proximity features (what Mario "sees" ahead)
-    dist_to_obstacle: float  # Distance to nearest pipe/block in front
-    obstacle_height: float   # Height of the obstacle ahead
-    dist_to_pit: float       # Distance to nearest pit/hole ahead
-    dist_to_goal: float      # Distance remaining to finish line
+    is_grounded: bool        # True if standing on ground or tombstone
+
+    # Proximity features (what Hoá "sees" ahead)
+    dist_to_obstacle: float  # Distance to nearest tombstone ahead (-1 if none)
+    obstacle_height: float   # Height of the nearest tombstone ahead
+    dist_to_pit: float       # Distance to nearest grave pit ahead (-1 if none)
+    dist_to_ghost: float     # Distance to nearest hovering ghost ahead (-1 if none)
+    ghost_y: float           # Y-position of that ghost (0 if none; low vs high)
+    dist_to_item: float      # Distance to nearest warmth item ahead (-1 if none)
+    dist_to_goal: float      # Distance remaining to Hoá's home
 
 @dataclass
 class GameEvents:
     """Events occurring in the current step (used by RewardStrategy)."""
-    dx: float = 0.0              # Horizontal distance traveled this tick
-    reached_goal: bool = False   # True if touched the flagpole
-    fell_in_pit: bool = False    # True if fell below the floor
-    hit_obstacle: bool = False   # True if bumped into a block/pipe side
-
+    dx: float = 0.0               # Horizontal distance traveled this tick
+    reached_goal: bool = False    # True if Hoá reached home [WIN]
+    fell_in_pit: bool = False     # True if Hoá fell into a grave pit [DIE]
+    hit_obstacle: bool = False    # True if Hoá bumped into a tombstone side
+    hit_ghost: bool = False       # True if Hoá touched a floating ghost [DIE]
+    collected_item: bool = False  # True if Hoá collected a warmth item [BONUS]
 
 class BaseEnvironment(ABC):
     """Abstract interface that any Mario environment must implement."""

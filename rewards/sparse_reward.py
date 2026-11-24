@@ -1,13 +1,25 @@
+from typing import Optional
 from core.base_env import RawState, GameEvents
 from core.interfaces import BaseRewardStrategy
 
 
 class SparseRewardStrategy(BaseRewardStrategy):
-    """Only fires terminal rewards (+100 on goal, -50 on pit, 0 otherwise)."""
+    """
+    Sparse reward baseline: only fires on terminal outcomes (+100 goal, -50 death by pit/ghost)
+    and milestone warmth item pickups (+10).
+    """
 
-    def __init__(self, goal_bonus: float = 100.0, pit_penalty: float = -50.0):
+    def __init__(
+        self,
+        goal_bonus: float = 100.0,
+        death_penalty: float = -50.0,
+        pit_penalty: Optional[float] = None,
+        item_bonus: float = 30.0,
+    ):
         self.goal_bonus = goal_bonus
-        self.pit_penalty = pit_penalty
+        self.death_penalty = death_penalty if pit_penalty is None else pit_penalty
+        self.pit_penalty = self.death_penalty
+        self.item_bonus = item_bonus
 
     def calculate_reward(
         self,
@@ -19,6 +31,8 @@ class SparseRewardStrategy(BaseRewardStrategy):
     ) -> float:
         if events.reached_goal:
             return self.goal_bonus
-        if events.fell_in_pit:
-            return self.pit_penalty
+        if events.fell_in_pit or events.hit_ghost:
+            return self.death_penalty
+        if events.collected_item:
+            return self.item_bonus
         return 0.0
