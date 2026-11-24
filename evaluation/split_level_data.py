@@ -72,11 +72,27 @@ def split_all_master_files(
     seen_keys: Dict[Tuple[str, str, str, str], str] = {}
     generated_by_arch: Dict[str, List[Path]] = {}
 
+    # Discover which (arch, mode, strategy) have explicit multi-seed runs (e.g. _seed42..57)
+    explicit_seed_combos = set()
+    for file_path_str in master_files:
+        try:
+            a, m, s, sd = parse_filename(Path(file_path_str).name)
+            if "_seed" in Path(file_path_str).name:
+                explicit_seed_combos.add((a, m, s))
+        except ValueError:
+            continue
+
     print(f"[Splitter] Discovered {len(master_files)} master CSV files in {outputs_dir}")
 
     for file_path_str in sorted(master_files):
         file_path = Path(file_path_str)
         arch, mode, strategy, seed = parse_filename(file_path.name)
+
+        # If explicit multi-seed runs exist for this configuration, skip legacy unseeded master CSV
+        if (arch, mode, strategy) in explicit_seed_combos and "_seed" not in file_path.name:
+            print(f"  -> Skipping legacy unseeded {file_path.name} in favor of multi-seed run files.")
+            continue
+
         key = (arch, mode, strategy, seed)
 
         if key in seen_keys:
