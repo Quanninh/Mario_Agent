@@ -197,93 +197,78 @@ def plot_figure_1_win_rate(
     save_png: Path,
 ) -> None:
     """
-    Generates Figure 1: Focused standalone figure for Rolling Win Rate (%)
-    across Episodes 1–10,000 with dual exploration schedule on secondary Y-axis.
+    Generates Figure 1: 2-panel vertically stacked figure (2 rows x 1 column) for Rolling Win Rate (%)
+    across Episodes 1–10,000, separating Curriculum Transfer (Row 1) and Separate Training (Row 2).
+    Uses clean solid lines across all strategies and dedicated exploration schedules on secondary Y-axis.
     """
-    fig, ax1 = plt.subplots(figsize=(11, 5))
+    fig, (ax_c, ax_s) = plt.subplots(2, 1, figsize=(12, 8.2), sharex=True, sharey=True)
     stage_boundaries = [2000, 4000, 6000, 8000]
-
-    # Secondary twin axis for exploration schedule
-    ax1_twin = ax1.twinx()
-    curr_eps_plotted = False
-    sep_eps_plotted = False
-
-    strategies = ["balanced", "dense", "sparse"]
-    for strat in strategies:
-        color = STRATEGY_COLORS[strat]
-        label_base = STRATEGY_LABELS[strat]
-
-        # 1. Curriculum Trajectory (Solid)
-        ep_c, wr_m_c, wr_s_c, _, _, eps_c, n_c = get_multi_seed_trajectories(
-            data_store, "curriculum", strat
-        )
-        # 2. Separate Trajectory (Dashed)
-        ep_s, wr_m_s, wr_s_s, _, _, eps_s, n_s = get_multi_seed_trajectories(
-            data_store, "separate", strat
-        )
-
-        ax1.plot(
-            ep_c, wr_m_c, color=color, linestyle="-", linewidth=1.9,
-            label=f"Curriculum {label_base}"
-        )
-        if n_c > 1:
-            ax1.fill_between(
-                ep_c, np.clip(wr_m_c - wr_s_c, 0, 100), np.clip(wr_m_c + wr_s_c, 0, 100),
-                color=color, alpha=0.18
-            )
-
-        ax1.plot(
-            ep_s, wr_m_s, color=color, linestyle="--", linewidth=1.5, alpha=0.85,
-            label=f"Separate {label_base}"
-        )
-        if n_s > 1:
-            ax1.fill_between(
-                ep_s, np.clip(wr_m_s - wr_s_s, 0, 100), np.clip(wr_m_s + wr_s_s, 0, 100),
-                color=color, alpha=0.12
-            )
-
-        # Plot Epsilon Curves once on secondary axis
-        if not curr_eps_plotted and eps_c is not None:
-            ax1_twin.plot(
-                ep_c, eps_c, color="#666666", linestyle="-", linewidth=1.2, alpha=0.75,
-                label=r"$\epsilon$ (Curriculum, $\epsilon_0=0.3$ on L2–5)"
-            )
-            curr_eps_plotted = True
-
-        if not sep_eps_plotted and eps_s is not None:
-            ax1_twin.plot(
-                ep_s, eps_s, color="#777777", linestyle=":", linewidth=1.2, alpha=0.75,
-                label=r"$\epsilon$ (Separate, $\epsilon_0=1.0$)"
-            )
-            sep_eps_plotted = True
-
-    # Styling
-    ax1.set_ylim(-3, 105)
-    ax1.set_ylabel("Rolling Win Rate (%)\n[Window = 50]", fontweight="bold")
-    ax1.set_title("Multi-Stage Continuous Win Rate Curves (Curriculum vs. Separate Benchmark)", pad=16)
-    ax1.set_xlabel("Global Training Episodes (1–10,000 across 5 Stages)", fontweight="bold")
-    ax1.set_xlim(0, 10000)
-    ax1.xaxis.set_major_locator(ticker.MultipleLocator(1000))
-
-    ax1_twin.set_ylim(-0.02, 1.08)
-    ax1_twin.set_ylabel(r"Exploration Rate ($\epsilon$)", color="#555555", fontweight="bold")
-    ax1_twin.tick_params(axis="y", labelcolor="#555555")
-
-    # Combine legends cleanly
-    h1, l1 = ax1.get_legend_handles_labels()
-    h2, l2 = ax1_twin.get_legend_handles_labels()
-    ax1.legend(h1 + h2, l1 + l2, loc="center left", bbox_to_anchor=(0.01, 0.52), ncol=2, framealpha=0.92)
-
-    # Draw Stage Dividers & Labels
-    for boundary in stage_boundaries:
-        ax1.axvline(boundary, color="#888888", linestyle="--", linewidth=1.0, alpha=0.7)
-
     level_centers = [1000, 3000, 5000, 7000, 9000]
-    for i, center in enumerate(level_centers, start=1):
-        ax1.text(
-            center, 108.5, f"Level {i}", ha="center", va="bottom",
-            fontsize=11, fontweight="bold", color="#333333"
-        )
+    strategies = ["balanced", "dense", "sparse"]
+
+    for mode, ax in [("curriculum", ax_c), ("separate", ax_s)]:
+        ax_twin = ax.twinx()
+        eps_plotted = False
+        is_curr = (mode == "curriculum")
+
+        for strat in strategies:
+            color = STRATEGY_COLORS[strat]
+            label_base = STRATEGY_LABELS[strat]
+            ep, wr_m, wr_s, _, _, eps_curve, n = get_multi_seed_trajectories(
+                data_store, mode, strat
+            )
+
+            # Solid lines for both Curriculum and Separate
+            ax.plot(
+                ep, wr_m, color=color, linestyle="-", linewidth=1.9,
+                label=f"{label_base}"
+            )
+            if n > 1:
+                ax.fill_between(
+                    ep, np.clip(wr_m - wr_s, 0, 100), np.clip(wr_m + wr_s, 0, 100),
+                    color=color, alpha=0.18
+                )
+
+            if not eps_plotted and eps_curve is not None:
+                eps_label = r"$\epsilon$ ($\epsilon_0=0.3$ on L2–5)" if is_curr else r"$\epsilon$ ($\epsilon_0=1.0$ per level)"
+                eps_ls = "-." if is_curr else ":"
+                ax_twin.plot(
+                    ep, eps_curve, color="#666666", linestyle=eps_ls, linewidth=1.3,
+                    alpha=0.75, label=eps_label
+                )
+                eps_plotted = True
+
+        ax.set_ylim(-3, 105)
+        ax.set_xlim(0, 10000)
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(1000))
+        ax.set_ylabel("Rolling Win Rate (%)\n[Window = 50]", fontweight="bold")
+
+        for b in stage_boundaries:
+            ax.axvline(b, color="#888888", linestyle="--", linewidth=1.0, alpha=0.7)
+
+        for i, center in enumerate(level_centers, start=1):
+            ax.text(
+                center, 107.5, f"Level {i}", ha="center", va="bottom",
+                fontsize=9.5, fontweight="bold", color="#333333"
+            )
+
+        ax_twin.set_ylim(-0.02, 1.08)
+        ax_twin.set_ylabel(r"Exploration Rate ($\epsilon$)", color="#555555", fontweight="bold")
+        ax_twin.tick_params(axis="y", labelcolor="#555555")
+
+        h1, l1 = ax.get_legend_handles_labels()
+        h2, l2 = ax_twin.get_legend_handles_labels()
+        ax.legend(h1 + h2, l1 + l2, loc="center left", bbox_to_anchor=(0.01, 0.52), framealpha=0.92)
+
+    ax_c.set_title("Curriculum Transfer (Continuous Trajectory)", pad=24, fontweight="bold", fontsize=12)
+    ax_s.set_title("Separate Training (Per-Stage Specialist Baselines)", pad=24, fontweight="bold", fontsize=12)
+    ax_s.set_xlabel("Global Training Episodes (1–10,000 across 5 Stages)", fontweight="bold")
+
+    fig.suptitle(
+        "Multi-Stage Continuous Win Rate Curves (Curriculum vs. Separate Benchmark)",
+        fontsize=14, fontweight="bold", y=0.99
+    )
+    plt.subplots_adjust(top=0.91, bottom=0.08, left=0.08, right=0.92, hspace=0.28)
 
     fig.savefig(save_pdf, dpi=300, bbox_inches="tight")
     fig.savefig(save_png, dpi=300, bbox_inches="tight")
@@ -300,20 +285,17 @@ def plot_figure_2_reward_trajectories(
     save_png: Path,
 ) -> None:
     """
-    Generates Figure 2: 3-panel stacked figure for Raw Reward Returns across
-    Episodes 1–10,000 with auto-scaled native Y-axis limits per strategy.
+    Generates Figure 2: 6-panel grid (3 rows x 2 columns) for Raw Reward Returns across
+    Episodes 1–10,000 with separate subplots for Curriculum (Col 1) and Separate (Col 2)
+    per reward strategy (Sparse, Balanced, Dense) using solid lines and shared native Y-axis limits.
     """
-    fig, (ax_spa, ax_bal, ax_den) = plt.subplots(3, 1, figsize=(11, 8.5), sharex=True)
-    plt.subplots_adjust(hspace=0.20)
+    fig, axes = plt.subplots(3, 2, figsize=(14, 9.8), sharex=True)
 
     stage_boundaries = [2000, 4000, 6000, 8000]
-    panels = [
-        ("sparse",   ax_spa),
-        ("balanced", ax_bal),
-        ("dense",    ax_den),
-    ]
+    level_centers = [1000, 3000, 5000, 7000, 9000]
+    strategies = ["sparse", "balanced", "dense"]
 
-    for strat, ax in panels:
+    for r, strat in enumerate(strategies):
         color = STRATEGY_COLORS[strat]
         label_base = STRATEGY_LABELS[strat]
 
@@ -326,45 +308,69 @@ def plot_figure_2_reward_trajectories(
             data_store, "separate", strat
         )
 
-        ax.plot(
+        ax_curr = axes[r, 0]
+        ax_sep = axes[r, 1]
+
+        # Plot Curriculum (Column 0) - Solid Line
+        ax_curr.plot(
             ep_c, rew_m_c, color=color, linestyle="-", linewidth=1.8,
             label=f"Curriculum {label_base}"
         )
         if n_c > 1:
-            ax.fill_between(ep_c, rew_m_c - rew_s_c, rew_m_c + rew_s_c, color=color, alpha=0.2)
+            ax_curr.fill_between(
+                ep_c, rew_m_c - rew_s_c, rew_m_c + rew_s_c, color=color, alpha=0.2
+            )
 
-        ax.plot(
-            ep_s, rew_m_s, color=color, linestyle="--", linewidth=1.5, alpha=0.85,
+        # Plot Separate (Column 1) - Solid Line
+        ax_sep.plot(
+            ep_s, rew_m_s, color=color, linestyle="-", linewidth=1.8,
             label=f"Separate {label_base}"
         )
         if n_s > 1:
-            ax.fill_between(ep_s, rew_m_s - rew_s_s, rew_m_s + rew_s_s, color=color, alpha=0.12)
+            ax_sep.fill_between(
+                ep_s, rew_m_s - rew_s_s, rew_m_s + rew_s_s, color=color, alpha=0.15
+            )
 
-        # Dynamic Auto-Scaled Limits (8% padding margin)
+        # Dynamic Auto-Scaled Limits shared per row (8% padding margin)
         all_y_min = min(np.min(rew_m_c - rew_s_c), np.min(rew_m_s - rew_s_s))
         all_y_max = max(np.max(rew_m_c + rew_s_c), max(np.max(rew_m_s + rew_s_s), 1.0))
         span = all_y_max - all_y_min
         pad = 0.08 * (span if span > 0 else 1.0)
-        ax.set_ylim(all_y_min - pad, all_y_max + pad)
-        ax.set_ylabel(f"{label_base} Return\n(20-Ep Mean)", fontweight="bold")
-        ax.legend(loc="upper left", framealpha=0.9)
+        y_min, y_max = all_y_min - pad, all_y_max + pad
 
-        # Draw Stage Dividers
-        for boundary in stage_boundaries:
-            ax.axvline(boundary, color="#888888", linestyle="--", linewidth=1.0, alpha=0.7)
+        for ax in [ax_curr, ax_sep]:
+            ax.set_ylim(y_min, y_max)
+            ax.set_ylabel(f"{label_base} Return\n(20-Ep Mean)", fontweight="bold")
+            ax.legend(loc="upper left", framealpha=0.9)
+            for boundary in stage_boundaries:
+                ax.axvline(boundary, color="#888888", linestyle="--", linewidth=1.0, alpha=0.7)
 
-    # Stage level headers on top subplot
-    level_centers = [1000, 3000, 5000, 7000, 9000]
-    for i, center in enumerate(level_centers, start=1):
-        ax_spa.text(
-            center, ax_spa.get_ylim()[1] * 1.02, f"Level {i}", ha="center", va="bottom",
-            fontsize=10.5, fontweight="bold", color="#333333"
-        )
+    # Column Titles
+    axes[0, 0].set_title("Curriculum Transfer (Continuous Trajectory)", pad=24, fontweight="bold", fontsize=12)
+    axes[0, 1].set_title("Separate Training (Per-Stage Specialist Baselines)", pad=24, fontweight="bold", fontsize=12)
 
-    ax_spa.set_title("Multi-Stage Continuous Reward Trajectories (Separated Native Currency Scales)", pad=16)
-    ax_den.set_xlabel("Global Training Episodes (1–10,000 across 5 Stages)", fontweight="bold")
-    ax_den.set_xlim(0, 10000)
-    ax_den.xaxis.set_major_locator(ticker.MultipleLocator(1000))
+    # Stage level headers on top subplots
+    for ax_top in [axes[0, 0], axes[0, 1]]:
+        y_top = ax_top.get_ylim()[1]
+        y_span = ax_top.get_ylim()[1] - ax_top.get_ylim()[0]
+        for i, center in enumerate(level_centers, start=1):
+            ax_top.text(
+                center, y_top + 0.025 * y_span, f"Level {i}", ha="center", va="bottom",
+                fontsize=9.5, fontweight="bold", color="#333333"
+            )
+
+    # X-axis configuration on bottom subplots
+    for ax_bot in [axes[2, 0], axes[2, 1]]:
+        ax_bot.set_xlabel("Global Training Episodes (1–10,000 across 5 Stages)", fontweight="bold")
+        ax_bot.set_xlim(0, 10000)
+        ax_bot.xaxis.set_major_locator(ticker.MultipleLocator(2000))
+        ax_bot.xaxis.set_minor_locator(ticker.MultipleLocator(1000))
+
+    fig.suptitle(
+        "Multi-Stage Continuous Reward Trajectories (Curriculum Transfer vs. Separate Training)",
+        fontsize=14, fontweight="bold", y=0.99
+    )
+    plt.subplots_adjust(top=0.90, bottom=0.08, left=0.07, right=0.98, hspace=0.24, wspace=0.18)
 
     fig.savefig(save_pdf, dpi=300, bbox_inches="tight")
     fig.savefig(save_png, dpi=300, bbox_inches="tight")
