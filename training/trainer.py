@@ -277,6 +277,8 @@ class Trainer:
         episodes_per_level: int = 1000,
         is_canonical_production: bool = False,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+        seed: Optional[int] = None,
+        run_name: Optional[str] = None,
     ) -> Dict:
         """
         Executes a complete RL training experiment in either curriculum or separate mode.
@@ -285,13 +287,16 @@ class Trainer:
         if levels is None:
             levels = [1, 2, 3, 4, 5]
 
-        # Canonical production run strictly if curriculum + balanced + tabular
-        if mode == "curriculum" and self.reward_name == "balanced" and self.agent_tag == "tabular":
+        # Canonical production run strictly if curriculum + balanced + tabular and not a multi-seed run
+        if mode == "curriculum" and self.reward_name == "balanced" and self.agent_tag == "tabular" and (seed is None or seed == 42):
             is_canonical_production = True
         else:
             is_canonical_production = False
 
-        run_cp_dir = Path(self.checkpoints_dir) / self.agent_tag / f"{mode}_{self.reward_name}"
+        seed_suffix = f"_seed{seed}" if seed is not None else ""
+        run_identifier = run_name or f"{mode}_{self.reward_name}{seed_suffix}"
+
+        run_cp_dir = Path(self.checkpoints_dir) / self.agent_tag / run_identifier
         run_cp_dir.mkdir(parents=True, exist_ok=True)
         outputs_dir_path = Path(self.outputs_dir)
         outputs_dir_path.mkdir(parents=True, exist_ok=True)
@@ -624,16 +629,17 @@ class Trainer:
                 "gamma": round(float(getattr(agent, "gamma", 0.99)), 4) if agent else 0.99,
                 "epsilon_min": round(float(getattr(agent, "epsilon_min", 0.01)), 6) if agent else 0.01,
                 "epsilon_decay": round(float(getattr(agent, "epsilon_decay", 0.995)), 6) if agent else 0.995,
+                "seed": seed,
             },
             "evaluation_summary": evaluation_summary,
             "episode_history": episode_history,
         }
 
-        json_out_path = outputs_dir_path / f"training_board_{self.agent_tag}_{mode}_{self.reward_name}.json"
+        json_out_path = outputs_dir_path / f"training_board_{self.agent_tag}_{mode}_{self.reward_name}{seed_suffix}.json"
         with open(json_out_path, "w", encoding="utf-8") as f:
             json.dump(board_data, f, indent=2)
 
-        csv_out_path = outputs_dir_path / f"training_metrics_{self.agent_tag}_{mode}_{self.reward_name}.csv"
+        csv_out_path = outputs_dir_path / f"training_metrics_{self.agent_tag}_{mode}_{self.reward_name}{seed_suffix}.csv"
         csv_headers = [
             "global_episode",
             "level_episode",
