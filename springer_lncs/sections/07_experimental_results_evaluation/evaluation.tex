@@ -1,113 +1,198 @@
 \section{Experimental Results \& Evaluation}
 \label{sec:eval}
 
-This section delivers an exhaustive empirical evaluation of the autonomous agent, authored by Member 4. We evaluate learning dynamics, policy robustness, and statistical significance across a multi-tier curriculum benchmark.
+This section presents a comprehensive empirical evaluation of the autonomous platformer agent, authored by Member~4. We systematically benchmark policy acquisition, transfer dynamics, reward shaping formulations, sample efficiency, and statistical significance across a 5-stage progressive curriculum.
 
-\subsection{Simulations \& Scenarios}
-\label{subsec:scenarios}
-To systematically analyze agent adaptability, we established a three-tier curriculum scenario representing progressive navigational complexity:
+\subsection{Experimental Setup and Benchmark Protocol}
+\label{subsec:setup}
+To evaluate navigational adaptability under increasing environmental complexity, we instantiated a 5-tier curriculum in \textit{Ho{\'a}'s Midnight Escape} (v2):
 \begin{enumerate}
-    \item \textbf{Level 1 (Basic Ground Traversal \& Low Hurdles)}: Goal distance $x_{\text{goal}} = 720.0\text{ px}$, step timeout limit $T_{\max} = 800$, featuring exclusively low pipes ($44\text{--}48\text{ px}$) and zero pit hazards. Exploration begins at $\epsilon_0 = 1.0$ and decays exponentially at $\lambda_{\text{decay}} = 0.992$ toward $\epsilon_{\min} = 0.05$.
-    \item \textbf{Level 2 (Variable Obstacle Heights \& Single Pit Traversal)}: Goal distance $x_{\text{goal}} = 1100.0\text{ px}$, step limit $T_{\max} = 1000$, introducing mixed obstacle heights ($44\text{--}68\text{ px}$) and an isolated $65\text{ px}$ abyss. Exploration warm-starts at $\epsilon_0 = 0.35$ leveraging transfer knowledge.
-    \item \textbf{Level 3 (Dense Hazard Chains \& Compound Chasm Pits)}: Goal distance $x_{\text{goal}} = 1120.0\text{ px}$, step limit $T_{\max} = 1000$, incorporating consecutive high pipes ($56\text{--}68\text{ px}$) positioned immediately adjacent to $75\text{ px}$ pits. Warm-start exploration is set at $\epsilon_0 = 0.35$.
+    \item \textbf{Level 1 (Basic Traversal \& Low Hurdles)}: Goal distance $x_{\text{goal}} = 720.0\text{ px}$, step timeout $T_{\max} = 800$, featuring exclusively low tombstones ($44\text{--}48\text{ px}$), 0 chasms, and 0 dynamic adversaries. Exploration starts at $\epsilon_0 = 1.0$ and decays at $\lambda = 0.997$ toward $\epsilon_{\min} = 0.01$.
+    \item \textbf{Level 2 (Variable Obstacle Heights \& Isolated Chasms)}: Goal distance $x_{\text{goal}} = 1100.0\text{ px}$, $T_{\max} = 1000$, introducing mixed hurdles ($44\text{--}68\text{ px}$) and two open grave chasms ($65\text{--}75\text{ px}$). In Curriculum mode, exploration warm-starts at $\epsilon_0 = 0.30$.
+    \item \textbf{Level 3 (Compound Chasms \& Collectible Objectives)}: Goal distance $x_{\text{goal}} = 1120.0\text{ px}$, $T_{\max} = 1000$, placing tall hurdles immediately adjacent to pits and adding 3 warmth collectibles. Warm-start exploration is initialized at $\epsilon_0 = 0.30$.
+    \item \textbf{Level 4 (Dynamic Patrolling Adversaries \& Pit Traversal)}: Goal distance $x_{\text{goal}} = 1100.0\text{ px}$, $T_{\max} = 1000$, introducing moving ghost hazards with periodic patrol trajectories alongside compound pits and 3 collectibles. Warm-start exploration is set to $\epsilon_0 = 0.40$ to explore adversary avoidance.
+    \item \textbf{Level 5 (Full Graveyard Gauntlet)}: Goal distance $x_{\text{goal}} = 1100.0\text{ px}$, $T_{\max} = 1000$, integrating multi-tier hurdles, variable-width chasms, mixed-altitude ghosts (high vs.\ low), and 4 warmth items. Warm-start exploration is initialized at $\epsilon_0 = 0.40$.
 \end{enumerate}
 
-Each curriculum phase was simulated for exactly 400 episodes, generating a comprehensive dataset of 1,200 training episodes logged with per-step telemetry.
+\paragraph{Experimental Matrix and Hyperparameters.}
+The benchmark evaluates a $2 \times 3$ factorial design comprising two training paradigms: \textbf{Curriculum Transfer} (progressive knowledge transfer across Levels 1--5 with transfer re-warmup $\epsilon_0 \in \{0.30, 0.40\}$) versus \textbf{Separate Scratch Training} (independent initialization from scratch with $\epsilon_0 = 1.0$ on every level), evaluated across three reward strategies: \textbf{Balanced} (asymmetric progress shaping), \textbf{Dense} (Euclidean goal distance), and \textbf{Sparse} (terminal victory reward only). Each level stage trains for exactly $E_{\text{level}} = 2{,}000$ episodes (10,000 episodes per continuous curriculum run), with checkpointing every 400 episodes. The learning rate decays linearly from $\alpha_{\text{start}} = 0.12$ to $\alpha_{\min} = 0.02$, with discount factor $\gamma = 0.99$. To mitigate catastrophic forgetting of foundational locomotion and hurdle-jumping competencies when transitioning to compound hazard stages (Levels 3--5), we employ an interleaved rehearsal mechanism inspired by experience replay for continual reinforcement learning~\cite{rolnick2019experience,isele2018selective}. Specifically, a background curriculum replay ratio of $\rho = 0.35$ executes periodic updates over earlier level transitions, refreshing prior $Q$-values without advancing the target level's exploration decay schedule~\cite{narvekar2020curriculum}.
 
-\subsection{Data \& Performance Comparisons}
+\paragraph{Metric Formalization and Compute Accounting.}
+Asymptotic policy performance is evaluated via the \textit{Final Converged Win Rate} ($\text{WR}_{\text{final}}$), defined as the arithmetic mean of the binary victory indicator $\mathbb{I}(\text{won}_i)$ over the final 100 training episodes ($W = 100$, Episodes 1,901--2,000) under minimal exploration noise ($\epsilon = 0.01$):
+\begin{equation}
+\text{WR}_{\text{final}} = \left( \frac{1}{100} \sum_{i=1901}^{2000} \mathbb{I}(\text{won}_i) \right) \times 100\%
+\end{equation}
+Sample efficiency is quantified by the number of episodes and cumulative simulator adaptation steps required to first attain an $80.0\%$ rolling win rate (50-episode trailing window). To ensure complete compute transparency, we disclose both within-level adaptation steps ($\text{Steps}_{\text{adapt}}$) and total simulator investment, computed as $\text{Steps}_{\text{global}} = \sum_{j=1}^{k-1} \text{Steps}_j + \text{Steps}_{\text{adapt}}$.
+
+\subsection{Comparative Performance: Curriculum Transfer vs.\ Cold Start}
 \label{subsec:comparisons}
-We quantitatively assess policy acquisition across four primary metrics: rolling win rate (50-episode moving window), cumulative episode reward, execution step efficiency, and obstacle collision frequency. Table~\ref{tab:curriculum_summary} summarizes the overarching performance metrics across both the total training horizon (Episodes 1--400) and the asymptotic converged regime (final 100 episodes, Episodes 301--400).
+Table~\ref{tab:curriculum_benchmark} summarizes quantitative benchmark performance across all five curriculum levels for both training paradigms and all three reward strategies.
 
 \begin{table}[t]
-\caption{Comprehensive curriculum performance summary comparing aggregate training metrics (Episodes 1--400) with the converged asymptotic policy regime (Episodes 301--400). Values represent mean $\pm$ standard deviation across independent episode evaluations.}
-\label{tab:curriculum_summary}
+\caption{Comprehensive performance benchmark across 5 progressive levels comparing Separate (cold-start) and Curriculum training across Balanced, Dense, and Sparse reward strategies. Values represent asymptotic converged win rate (final 100 episodes) and sample efficiency metrics to reach $80\%$ rolling win rate. DNC indicates Did Not Converge.}
+\label{tab:curriculum_benchmark}
 \centering
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccc@{}}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llccccccc}
 \toprule
-\textbf{Curriculum Tier} & \textbf{Regime} & \textbf{Episodes} & \textbf{Win Rate (\%)} $\uparrow$ & \textbf{Total Reward} $\uparrow$ & \textbf{Steps to Goal} $\downarrow$ & \textbf{Obstacle Hits} $\downarrow$ \\
+\textbf{Level} & \textbf{Reward Strategy} & \multicolumn{2}{c}{\textbf{Converged Win Rate} $\uparrow$} & \multicolumn{2}{c}{\textbf{Episodes to 80\% WR} $\downarrow$} & \multicolumn{2}{c}{\textbf{Adaptation Steps to 80\%} $\downarrow$} & \textbf{Curriculum Global} \\
+\cmidrule(lr){3-4} \cmidrule(lr){5-6} \cmidrule(lr){7-8}
+& & \textbf{Separate} & \textbf{Curriculum} & \textbf{Separate} & \textbf{Curriculum} & \textbf{Separate} & \textbf{Curriculum} & \textbf{Steps to 80\% WR} $\downarrow$ \\
 \midrule
-Level 1 (Low Hurdles) & Full Run & 400 & 69.0\% & $385.7 \pm 287.4$ & $401.7 \pm 234.2$ & $7.81 \pm 12.61$ \\
-                      & Converged & 100 & \textbf{99.0\%} & $\mathbf{597.7 \pm 69.4}$ & $\mathbf{199.2 \pm 67.6}$ & $\mathbf{0.67 \pm 3.12}$ \\
+Level 1 & Balanced & 100.0\% & \textbf{100.0\%} & 50.0 & \textbf{50.0} & 32,385 & \textbf{32,385} & 32,385 \\
+        & Dense    & 100.0\% & 100.0\% & 50.0 & 50.0 & 32,597 & 32,597 & 32,597 \\
+        & Sparse   & 100.0\% & 100.0\% & 398.0 & 398.0 & 265,660 & 265,660 & 265,660 \\
 \midrule
-Level 2 (Single Pit)  & Full Run & 400 & 57.0\% & $355.7 \pm 353.2$ & $330.6 \pm 220.9$ & $5.61 \pm 8.68$ \\
-                      & Converged & 100 & \textbf{93.0\%} & $\mathbf{636.6 \pm 186.9}$ & $\mathbf{221.9 \pm 142.7}$ & $\mathbf{1.80 \pm 6.29}$ \\
+Level 2 & Balanced & 100.0\% & \textbf{95.0\%} & 906.0 & \textbf{500.0} & 196,437 & \textbf{113,241} & 545,771 \\
+        & Dense    & 100.0\% & 91.0\%  & 969.0 & 516.0 & 223,693 & 116,409 & 568,035 \\
+        & Sparse   & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
 \midrule
-Level 3 (Chasm Chain) & Full Run & 400 & 44.2\% & $301.8 \pm 396.5$ & $334.2 \pm 243.1$ & $7.48 \pm 9.24$ \\
-                      & Converged & 100 & \textbf{88.0\%} & $\mathbf{668.2 \pm 264.2}$ & $\mathbf{235.1 \pm 181.4}$ & $\mathbf{2.42 \pm 7.11}$ \\
+Level 3 & Balanced & 92.0\%  & \textbf{89.0\%} & 883.0 & \textbf{666.0} & 149,841 & \textbf{133,917} & 1,100,865 \\
+        & Dense    & 94.0\%  & 98.0\%  & 1,260.0 & 666.0 & 262,841 & 156,735 & 1,112,958 \\
+        & Sparse   & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
+\midrule
+Level 4 & Balanced & 69.0\%  & \textbf{95.0\%} & 1,431.0 & \textbf{802.0} & 377,301 & \textbf{245,232} & 1,709,293 \\
+        & Dense    & 21.0\%  & 27.0\%  & DNC   & DNC   & DNC     & DNC     & DNC \\
+        & Sparse   & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
+\midrule
+Level 5 & Balanced & 0.0\%   & \textbf{76.0\%} & DNC   & \textbf{1,203.0} & DNC     & \textbf{316,499} & 2,505,424 \\
+        & Dense    & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
+        & Sparse   & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
 \bottomrule
-\end{tabular*}
+\end{tabular}%
+}
 \end{table}
-
-As displayed in Table~\ref{tab:curriculum_summary}, the agent establishes remarkable proficiency upon convergence. In Level 1, the agent achieves an almost flawless 99.0\% victory rate, with average step counts declining from an initial $639.5$ steps down to $199.2$ steps, accompanied by an obstacle collision rate of under $0.7$ collisions per run. Although Levels 2 and 3 introduce lethal pitfalls that penalize premature jumps, the policy maintains 93.0\% and 88.0\% success rates respectively.
-
-To benchmark the efficacy of the production reward design, Table~\ref{tab:reward_ablation} displays an ablation comparison against the two baseline strategies defined in Section~\ref{sec:approach}.
-
-\begin{table}[t]
-\caption{Reward strategy ablation benchmark on Level 2 (400 episodes). The balanced strategy prevents reward hacking while guaranteeing rapid value propagation.}
-\label{tab:reward_ablation}
-\centering
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc@{}}
-\toprule
-\textbf{Reward Strategy} & \textbf{Converged Win Rate} $\uparrow$ & \textbf{Episodes to 50\% WR} $\downarrow$ & \textbf{Mean Steps (Win)} $\downarrow$ & \textbf{Primary Failure Mode} \\
-\midrule
-Sparse Baseline          & 12.0\% & $> 400$ (Failed) & $784.5 \pm 112.3$ & Timeout / Pit Falling \\
-Dense Euclidean Shaping  & 71.0\% & 142 & $318.4 \pm 94.6$  & Collision at High Pipes \\
-\textbf{Balanced (Ours)} & \textbf{93.0\%} & \textbf{98} & $\mathbf{221.9 \pm 142.7}$ & Occasional Pit Misstep \\
-\bottomrule
-\end{tabular*}
-\end{table}
-
-The sparse reward formulation suffers severely from the credit assignment bottleneck, attaining only a 12.0\% win rate within 400 episodes. The dense Euclidean formulation induces greedy forward rushing, causing Mario to run into vertical pipe faces before jumping. The proposed balanced strategy resolves this dichotomy, yielding a 93.0\% win rate and reaching the 50\% milestone in only 98 episodes.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\textwidth]{figures/graph_1_curriculum_learning_curve.pdf}
-\caption{Curriculum learning curve tracking 50-episode rolling win rate (\%) across Levels 1--3 against exploration decay ($\epsilon$). The dashed grey curve illustrates exploration decay ($\epsilon \to 0.05$). Warm-start initialization in Levels 2 and 3 accelerates transfer convergence.}
-\label{fig:curriculum_curve}
+\includegraphics[width=0.96\textwidth]{figures/figure_1_curriculum_win_rate.pdf}
+\caption{Continuous multi-stage learning curves tracking 50-episode rolling win rate (\%) across Levels 1--5 for Curriculum Transfer (solid blue) versus Separate Scratch Training (dashed orange), under the Balanced reward strategy. The secondary axis depicts exploration rate decay ($\epsilon$). Vertical dashed lines demarcate curriculum level transitions.}
+\label{fig:curriculum_win_rate}
 \end{figure}
 
-Figure~\ref{fig:curriculum_curve} depicts the rolling win rate trajectories across all three curriculum levels. In Level 1, policy convergence occurs around episode 180 as $\epsilon$ decays below $0.15$. In Levels 2 and 3, warm-starting exploration at $\epsilon = 0.35$ preserves foundational jumping mechanics while allocating sufficient exploratory budget to map new pit hazards.
+\paragraph{Level 5 Convergence Breakthrough.}
+The most prominent finding in Table~\ref{tab:curriculum_benchmark} is the stark qualitative divergence on Level~5. Under the Balanced reward strategy, the cold-start Separate agent completely fails to solve Level~5, registering a \textbf{0.0\% converged win rate} across 2,000 episodes. Deconstruction of agent trajectories reveals that stochastic exploration from scratch in Level~5 incurs lethal fatalities on early ghost patrols (96.0\% of deaths) and chasms (4.0\%) before the agent ever discovers the distant goal flag ($x = 1100.0\text{ px}$). Consequently, positive reward signals never backpropagate to the initial state. In contrast, the Curriculum agent achieves a \textbf{76.0\% asymptotic win rate} in the presence of $1\%$ exploratory jitter, crossing the $80\%$ rolling win rate threshold at episode 1,203 ($316,499$ adaptation steps). By inheriting pre-trained jumping and chasm-clearing policies from Levels 1--4, the Curriculum agent leverages its $\epsilon_0 = 0.40$ re-warmup budget exclusively to learn adversary timing, turning an intractable exploration challenge into a solvable refinement task.
 
-Figure~\ref{fig:reward_profile} displays the smoothed cumulative reward trajectory (20-episode rolling mean). All three curves exhibit classic monotonic upward progression followed by stable asymptotic plateauing. The higher asymptotic reward on Levels 2 and 3 ($> 630.0$) directly reflects the longer traversal distance and greater horizontal displacement reward earned by the agent.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.92\textwidth]{figures/graph_2_reward_profiling_benchmark.pdf}
-\caption{Curriculum reward trajectory benchmark plotting smoothed episode returns (20-episode rolling mean) across training episodes 1--400 for Levels 1, 2, and 3.}
-\label{fig:reward_profile}
-\end{figure}
-
-\subsection{Analysis \& Statistical Evaluation}
-\label{subsec:analysis}
-To confirm that observed gains reflect genuine algorithmic policy learning rather than stochastic variance, we performed two-sample Welch's unequal variances $t$-tests comparing the early exploration regime (Episodes 1--100) against the converged regime (Episodes 301--400) for each curriculum tier:
-
+\paragraph{Forward Knowledge Transfer on Intermediate Tiers.}
+Curriculum transfer consistently accelerates policy acquisition on intermediate tiers:
 \begin{itemize}
-    \item \textbf{Level 1 Reward Gain}: Early mean return $62.38 \pm 217.85$ vs. Converged return $597.71 \pm 69.43$. The improvement is statistically significant: $t(118.9) = 23.41, p < 0.001$, with an effect size of Cohen's $d = 3.32$.
-    \item \textbf{Level 2 Reward Gain}: Early mean return $17.66 \pm 197.27$ vs. Converged return $636.61 \pm 186.93$. Statistically significant: $t(197.4) = 22.77, p < 0.001$, Cohen's $d = 3.22$.
-    \item \textbf{Level 3 Reward Gain}: Early mean return $-22.87 \pm 146.01$ vs. Converged return $668.25 \pm 264.20$. Statistically significant: $t(154.3) = 22.90, p < 0.001$, Cohen's $d = 3.25$.
+    \item \textbf{Level 2}: Curriculum reaches $80\%$ rolling win rate in $500.0$ episodes ($113,241$ adaptation steps), compared to $906.0$ episodes ($196,437$ steps) for Separate training. This represents a \textbf{44.8\% reduction in episodes} and a \textbf{42.4\% reduction in adaptation steps}.
+    \item \textbf{Level 3}: Curriculum achieves the $80\%$ milestone in $666.0$ episodes ($133,917$ steps) versus $883.0$ episodes ($149,841$ steps) for Separate training (\textbf{24.6\% fewer episodes}). Under Dense rewards, Curriculum reduces adaptation episodes from $1{,}260.0$ to $666.0$ (\textbf{47.1\% reduction}).
+    \item \textbf{Level 4}: The introduction of dynamic ghost adversaries exposes the fragility of scratch training. While Separate Balanced attains only a $69.0\%$ converged win rate after $1{,}431.0$ episodes ($377,301$ steps), Curriculum Balanced achieves a \textbf{95.0\% converged win rate} (+26.0\% absolute gain) in just $802.0$ episodes ($245,232$ steps), saving \textbf{44.0\% in training episodes} and \textbf{35.0\% in simulation steps}.
 \end{itemize}
 
-Similarly, step efficiency improved with rigorous statistical significance. In Level 1, navigation latency reduced by $68.9\%$ from $639.49$ to $199.18$ steps ($t = 18.86, p < 0.001$). Levels 2 and 3 demonstrated corresponding reductions of $50.9\%$ ($t = 6.77, p < 0.001$) and $39.1\%$ ($t = 4.46, p < 0.001$).
+Figure~\ref{fig:curriculum_win_rate} visualizes the continuous 10,000-episode win rate trajectories alongside exploration decay ($\epsilon$). When entering Levels 2--5, the curriculum policy experiences a temporary dip during the transfer re-warmup phase ($\epsilon_0 = 0.30/0.40$), followed by rapid monotonic re-ascent, whereas the cold-start agents exhibit prolonged stagnation.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.88\textwidth]{figures/graph_3_playstyle_matrix.pdf}
-\caption{Playstyle matrix mapping converged episode behavior (Episodes 301--400 across all tiers). The scatter plot reveals distinct behavioral clustering: winning trajectories concentrate densely in the low-step ($< 300$), minimal-collision ($\le 1$) quadrant.}
-\label{fig:playstyle_matrix}
+\includegraphics[width=0.96\textwidth]{figures/figure_2_reward_trajectories.pdf}
+\caption{Continuous episode reward trajectories across Levels 1--5 for Sparse (top), Balanced (middle), and Dense (bottom) reward strategies, comparing Curriculum Transfer (solid) with Separate Scratch Training (dashed). Shaded regions represent 50-episode rolling standard deviations.}
+\label{fig:reward_trajectories}
 \end{figure}
 
-\subsection{Behavioral Profiling \& Failure Mode Analysis}
-\label{subsec:playstyle}
-Figure~\ref{fig:playstyle_matrix} plots the converged agent's behavioral identity across the final 100 episodes of each tier, projecting step count against obstacle collision frequency. Two distinct topological clusters emerge:
-\begin{enumerate}
-    \item \textbf{The Optimal Navigation Cluster (Victories)}: Concentrated in the bottom-left coordinate space ($150 \le \text{steps} \le 320$, $\text{hits} \le 2$). Here, the policy executes synchronized \texttt{RIGHT\_JUMP} actions approximately $15\text{--}30\text{ px}$ prior to hazard boundaries, clearing obstacles cleanly with minimal air resistance.
-    \item \textbf{The Trapped/Failure Frontier}: Distributed across higher step counts ($> 450$) or early dropouts ($< 250$ steps with high collision counts). Deconstruction of failed runs indicates that in Level 1, 80\% of failures stemmed from timeout stalling, whereas in Levels 2 and 3, 75\% of failures resulted from pit dropouts caused by perceptual aliasing when navigating high pipes immediately abutting abyss boundaries.
-\end{enumerate}
+\subsection{Ablation Study: Reward Formulations and Failure Modes}
+\label{subsec:ablation}
+Figure~\ref{fig:reward_trajectories} illustrates the continuous reward profiles across all five levels for Sparse, Balanced, and Dense formulations, while Table~\ref{tab:reward_ablation} details the converged performance, failure mode distributions, and terminal outcomes.
+
+\begin{table}[t]
+\caption{Reward strategy ablation benchmark across Levels 1, 4, and 5 in the converged regime (final 100 episodes, Episodes 1,901--2,000). Outcome distributions classify terminal states into Victories, Pit Deaths, Ghost Deaths, and Timeouts.}
+\label{tab:reward_ablation}
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llcccccc}
+\toprule
+\textbf{Tier} & \textbf{Strategy} & \textbf{Mean Return} $\uparrow$ & \textbf{Win Rate (\%)} $\uparrow$ & \textbf{Pit Death (\%)} $\downarrow$ & \textbf{Ghost Death (\%)} $\downarrow$ & \textbf{Timeout (\%)} $\downarrow$ & \textbf{Primary Failure Mode} \\
+\midrule
+Level 1 & Sparse          & $100.0 \pm 0.0$    & 100.0\% & 0.0\%  & 0.0\%  & 0.0\%   & None (Optimal) \\
+        & Dense           & $917.6 \pm 4.9$    & 100.0\% & 0.0\%  & 0.0\%  & 0.0\%   & None (Optimal) \\
+        & \textbf{Balanced (Ours)} & $\mathbf{801.2 \pm 31.0}$   & \textbf{100.0\%} & \textbf{0.0\%}  & \textbf{0.0\%}  & \textbf{0.0\%}   & None (Optimal) \\
+\midrule
+Level 4 & Sparse          & $29.1 \pm 5.1$     & 0.0\%   & 0.0\%  & 0.0\%  & 100.0\% & Timeout (Zero Gradient) \\
+        & Dense           & $1080.8 \pm 343.2$ & 27.0\%  & 0.0\%  & 73.0\% & 0.0\%   & Reckless Ghost Collision \\
+        & \textbf{Balanced (Ours)} & $\mathbf{1269.9 \pm 117.7}$ & \textbf{95.0\%} & \textbf{0.0\%}  & \textbf{5.0\%}  & \textbf{0.0\%}   & Rare Adversary Timing Misstep \\
+\midrule
+Level 5 & Sparse          & $29.4 \pm 4.2$     & 0.0\%   & 0.0\%  & 0.0\%  & 100.0\% & Timeout (Zero Gradient) \\
+        & Dense           & $540.4 \pm 150.8$  & 0.0\%   & 86.0\% & 11.0\% & 3.0\%   & Chasm Trapping \& Collision \\
+        & \textbf{Balanced (Ours)} & $\mathbf{1394.5 \pm 419.1}$ & \textbf{76.0\%} & \textbf{18.0\%} & \textbf{6.0\%}  & \textbf{0.0\%}   & Occasional Pit Misstep \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\paragraph{The Sparse Credit Assignment Dilemma.}
+The sparse formulation provides a scalar reward of $+100.0$ strictly upon crossing the goal flag, with zero intermediate feedback. In Level~1, where the course span is short ($720\text{ px}$) and free of lethal hazards, unguided random exploration eventually stumbles across the flag, converging to a $100.0\%$ win rate. However, Sparse requires $398.0$ episodes and $265,660$ simulation steps to reach $80\%$ win rate---an \textbf{8.2$\times$ sample efficiency penalty} relative to Balanced and Dense (50 episodes, $32,385$ steps). On Levels 2--5, the credit assignment bottleneck proves insurmountable: Sparse records a \textbf{0.0\% win rate} and a \textbf{100.0\% timeout rate}. Without shaping gradients, the probability of executing an unguided sequence of coordinated jumps over lethal chasms and ghosts within $1{,}000$ steps is practically zero ($p < 10^{-6}$).
+
+\paragraph{The Dense Shaping Trap: Local Optima and Reward Hacking.}
+Dense reward shaping provides a continuous positive increment proportional to Euclidean goal displacement ($\Delta x > 0$). While this accelerates learning on Levels 1--3 where forward progress is strictly safe, it induces catastrophic policy failure when moving adversaries appear in Levels 4 and 5. Because the agent receives immediate positive reinforcement for advancing rightward, it learns a myopic rushing policy that charges directly into oncoming patrolling ghosts to harvest short-term position delta, before mastering jump-over timing. As reported in Table~\ref{tab:reward_ablation}, Dense suffers a \textbf{73.0\% ghost fatality rate} on Level~4 (yielding only 27.0\% win rate) and collapses completely to \textbf{0.0\% win rate} on Level~5 (86.0\% pit deaths, 11.0\% ghost deaths).
+
+\paragraph{The Balanced Shaping Advantage.}
+The proposed \texttt{BalancedRewardStrategy} resolves this dichotomy. By imposing a $1.5\times$ asymmetric penalty on backward motion ($-1.5 \cdot |\Delta x|$) while penalizing collisions ($-3.0$) and pit/ghost deaths ($-75.0$), the policy eliminates oscillatory dithering without rewarding reckless forward sprinting. Consequently, the Balanced agent attains $95.0\%$ win rate on Level~4 and $76.0\%$ on Level~5, confirming that asymmetric velocity shaping combined with targeted hazard costs is essential for robust navigation.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/figure_3_sample_efficiency.pdf}
+\caption{Dual sample efficiency benchmark comparing Curriculum Transfer against Separate Scratch Training across Levels 1--5 under Balanced (blue), Dense (green), and Sparse (orange) reward strategies. Top panel: Training episodes to reach $80\%$ rolling win rate. Bottom panel: Cumulative within-level simulator adaptation steps to reach $80\%$ rolling win rate.}
+\label{fig:sample_efficiency}
+\end{figure}
+
+\subsection{Sample Efficiency and Simulator Compute Accounting}
+\label{subsec:efficiency}
+Figure~\ref{fig:sample_efficiency} presents the dual sample efficiency benchmark, contrasting episode counts with within-level adaptation steps. In academic literature, curriculum learning is occasionally critiqued for obscuring total simulator compute by reporting only within-level steps. We provide complete compute accounting in Table~\ref{tab:curriculum_benchmark}:
+\begin{itemize}
+    \item In Level~2, Curriculum requires $113,241$ adaptation steps; factoring in Level~1 pre-training ($432,530$ steps), the global investment is $545,771$ steps versus $196,437$ for Separate.
+    \item In Level~4, Curriculum requires $245,232$ adaptation steps ($1,709,293$ global steps), whereas Separate requires $377,301$ adaptation steps yet achieves an inferior asymptotic win rate ($69.0\%$ vs.\ $95.0\%$).
+    \item In Level~5, Separate training consumes over $650,000$ steps without ever solving the level (DNC), whereas Curriculum successfully solves the level in $316,499$ adaptation steps ($2,505,424$ global steps).
+\end{itemize}
+These results demonstrate that cumulative pre-training compute is not redundant overhead; rather, it represents a necessary investment that unlocks successful policy synthesis in complex multi-hazard regimes where scratch training permanently fails.
+
+\subsection{Statistical Significance and Hypothesis Testing}
+\label{subsec:statistics}
+To verify that observed empirical gains reflect genuine algorithmic policy learning rather than stochastic noise, we conducted rigorous two-sample Welch's unequal variances $t$-tests:
+\begin{equation}
+t = \frac{\bar{X}_1 - \bar{X}_2}{\sqrt{\frac{s_1^2}{n_1} + \frac{s_2^2}{n_2}}}, \quad \nu \approx \frac{\left(\frac{s_1^2}{n_1} + \frac{s_2^2}{n_2}\right)^2}{\frac{(s_1^2/n_1)^2}{n_1-1} + \frac{(s_2^2/n_2)^2}{n_2-1}}
+\end{equation}
+alongside Cohen's $d$ standardized effect sizes ($d = (\bar{X}_1 - \bar{X}_2) / s_{\text{pooled}}$).
+
+\paragraph{Within-Curriculum Policy Convergence (Early vs.\ Converged).}
+We compared the early exploration regime (Episodes 1--100) against the converged asymptotic regime (Episodes 1,901--2,000) for the Curriculum Balanced agent across all five tiers:
+\begin{itemize}
+    \item \textbf{Level 1}: Cumulative reward improved from $403.0 \pm 158.6$ to $801.2 \pm 31.0$ ($t(106.5) = 24.64, p < 0.001$, Cohen's $d = 3.48$). Navigation steps dropped by $70.4\%$ from $565.0 \pm 119.4$ down to $167.3 \pm 4.6$ ($t(99.3) = -33.29, p < 0.001$, Cohen's $d = -4.71$).
+    \item \textbf{Level 2}: Reward rose from $250.9 \pm 178.4$ to $1159.5 \pm 130.8$ ($t(181.6) = 41.07, p < 0.001$, Cohen's $d = 5.81$), with win rate increasing from $4.0\%$ to $95.0\%$.
+    \item \textbf{Level 3}: Reward advanced from $45.7 \pm 257.4$ to $1181.7 \pm 359.1$ ($t(179.5) = 25.71, p < 0.001$, Cohen's $d = 3.64$), with win rate progressing from $1.0\%$ to $89.0\%$.
+    \item \textbf{Level 4}: Reward advanced from $236.7 \pm 125.0$ to $1269.9 \pm 117.7$ ($t(197.3) = 60.20, p < 0.001$, Cohen's $d = 8.51$), with win rate jumping from $0.0\%$ to $95.0\%$.
+    \item \textbf{Level 5}: Reward rose from $244.7 \pm 103.7$ to $1394.5 \pm 419.1$ ($t(111.1) = 26.63, p < 0.001$, Cohen's $d = 3.77$), with win rate climbing from $0.0\%$ to $76.0\%$.
+\end{itemize}
+
+\paragraph{Between-Paradigm Superiority (Curriculum vs.\ Separate).}
+Evaluating the converged asymptotic regimes (final 100 episodes) between Curriculum and Separate confirms the decisive superiority of curriculum transfer on complex stages:
+\begin{itemize}
+    \item \textbf{Level 4 Reward Gain}: Curriculum return ($1269.9 \pm 117.7$) significantly exceeds Separate return ($1039.4 \pm 279.8$): $t(133.0) = 7.59, p < 0.001$, with a large effect size of Cohen's $d = 1.07$.
+    \item \textbf{Level 5 Reward Gain}: Curriculum return ($1394.5 \pm 419.1$) decisively dominates Separate return ($1017.3 \pm 98.5$): $t(109.9) = 8.76, p < 0.001$, Cohen's $d = 1.24$.
+\end{itemize}
+All statistical tests demonstrate extreme significance ($p < 0.001$) with effect sizes far exceeding the conventional benchmark for large effects ($d > 0.8$), confirming that curriculum transfer yields a statistically validated, non-trivial performance enhancement.
+
+\subsection{State Space Sparsity and Zero-Shot Transfer Invariance}
+\label{subsec:sparsity}
+\paragraph{Empirical State-Space Sparsity.}
+The theoretical combinatorial cardinality of the 7-tuple discretizer is:
+\begin{equation}
+|\mathcal{S}| = 2 \times 3 \times 4 \times 2 \times 3 \times 4 \times 2 = 1{,}152 \text{ discrete states.}
+\end{equation}
+Telemetry logging reveals that under physical kinematic constraints, only a small fraction of states is ever instantiated in the $Q$-table:
+Level~1 populates only $21$ states ($1.8\%$ of capacity), expanding to $27$ in Level~2 ($2.3\%$), $30$ in Level~3 ($2.6\%$), $68$ in Level~4 ($5.9\%$), and $91$ in Level~5 ($7.9\%$). Across all 10,000 training episodes, exactly $91$ unique states are discovered out of $1{,}152$. This extreme sparsity ($<8\%$ manifold coverage) provides formal empirical justification for why tabular Q-learning remains computationally tractable and rapidly convergent in this domain without requiring neural function approximation.
+
+\paragraph{Zero-Shot Policy Transfer.}
+To evaluate spatial policy invariance, we conducted zero-shot transfer evaluations without exploratory re-warmup:
+\begin{itemize}
+    \item \textbf{Level 2 $\to$ Level 3}: Evaluating the Level~2 policy directly on Level~3 achieves a \textbf{100.0\% zero-shot win rate} (mean return $1301.7$, completion time $270.0$ steps, collecting $3.0/3.0$ warmth items). This confirms that the learned mapping from local hazard proximity to jump execution is invariant to horizontal layout rearrangements.
+    \item \textbf{Level 4 $\to$ Level 5}: In contrast, evaluating the Level~4 policy zero-shot on Level~5 yields a \textbf{0.0\% win rate} (mean return $604.1$, collecting $2.98/4.0$ items before fatal collisions). This establishes that while obstacle and chasm mechanics transfer seamlessly, compound dynamic adversaries with mixed patrol altitudes require targeted re-warmup exploration ($\epsilon_0 = 0.40$) to synthesize phase-coordinated avoidance maneuvers.
+\end{itemize}
 
 \subsection{Limitations and Scope Boundaries}
 \label{subsec:limitations}
-While the tabular Q-learning agent achieves high asymptotic reliability within the 144-state partition, two inherent limitations persist:
+While the curriculum-driven tabular agent achieves high asymptotic reliability, three structural limitations remain:
 \begin{enumerate}
-    \item \textbf{Perceptual Aliasing in Compound Hazards}: The discretizer measures hazard proximity using horizontal bounding projections. When a tall pipe is positioned immediately inside a pit's approach zone, the discrete state cannot represent both features simultaneously, leading to occasional sub-optimal jump timing.
-    \item \textbf{Out-of-Distribution Generalization}: The tabular policy depends on exact discrete state index matching. Introducing dynamic moving hazards (e.g., roaming ghosts or variable pit widths $> 80\text{ px}$) would require additional discrete bins, exponentially expanding the table size and necessitating deep function approximation.
+    \item \textbf{Perceptual Aliasing in Compound Hazards}: When a tall obstacle immediately precedes a chasm, horizontal bounding projection quantizes the nearest feature, momentarily occluding the trailing chasm until obstacle clearance.
+    \item \textbf{Discretization Granularity}: The 7-tuple partitions distance into fixed pixel thresholds. While effective for calibrated speeds ($v_x = 4.0\text{ px/tick}$), variable running velocities or floating platforms would require adaptive tile coding.
+    \item \textbf{Adversary Dynamism}: The agent exploits periodic, deterministic ghost patrol trajectories. Reactive or stochastic adversaries would violate tabular state determinism, necessitating continuous function approximation.
 \end{enumerate}

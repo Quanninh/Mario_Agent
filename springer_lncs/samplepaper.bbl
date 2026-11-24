@@ -1,0 +1,66 @@
+\begin{thebibliography}{10}
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\urlprefix}{URL }
+\providecommand{\doi}[1]{https://doi.org/#1}
+
+\bibitem{bengio2009curriculum}
+Bengio, Y., Louradour, J., Collobert, R., Weston, J.: Curriculum learning. In:
+  Proceedings of the 26th Annual International Conference on Machine Learning
+  (ICML). pp. 41--48. ACM (2009). \doi{10.1145/1553374.1553380}
+
+\bibitem{chen2024curriculum}
+Chen, L., Wang, Y.: Adaptive curriculum learning for discrete control in retro
+  platform environments. IEEE Transactions on Games pp. 1--12 (2024).
+  \doi{10.1109/TG.2024.10896424}
+
+\bibitem{isele2018selective}
+Isele, D., Cosgun, A.: Selective experience replay for lifelong learning. In:
+  Proceedings of the AAAI Conference on Artificial Intelligence (AAAI).
+  vol.~32, pp. 3335--3342 (2018). \doi{10.1609/aaai.v32i1.11697}
+
+\bibitem{khalid2024mario}
+Khalid, M.A., et~al.: Deep reinforcement learning for platformer games: A
+  benchmark on {Super Mario Bros.} In: IEEE Conference on Games (CoG).
+  pp.~1--8. IEEE (2024). \doi{10.1109/CoG58457.2024.10896445}
+
+\bibitem{mnih2015human}
+Mnih, V., Kavukcuoglu, K., Silver, D., Rusu, A.A., Veness, J., Bellemare, M.G.,
+  Graves, A., Riedmiller, M., Fidjeland, A.K., Ostrovski, G., et~al.:
+  Human-level control through deep reinforcement learning. Nature
+  \textbf{518}(7540),  529--533 (2015). \doi{10.1038/nature14236}
+
+\bibitem{narvekar2020curriculum}
+Narvekar, S., Peng, B., Leonetti, M., Sinapov, J., Taylor, M.E., Stone, P.:
+  Curriculum learning for reinforcement learning domains: A framework and
+  survey. Journal of Machine Learning Research  \textbf{21}(181),  1--50 (2020)
+
+\bibitem{ray2024dynamic}
+Ray, J.K., Logof{\u{a}}tu, D., B{\u{a}}dic{\u{a}}, C.: Dynamic stacking
+  optimization in unpredictable environments: A focus on crane scheduling. In:
+  Artificial Intelligence Applications and Innovations (AIAI 2024). IFIP
+  Advances in Information and Communication Technology, vol.~714, pp. 170--182.
+  Springer, Cham (2024). \doi{10.1007/978-3-031-63223-5_13}
+
+\bibitem{rolnick2019experience}
+Rolnick, D., Ahuja, A., Schwarz, J., Lillicrap, T.P., Wayne, G.: Experience
+  replay for continual learning. In: Advances in Neural Information Processing
+  Systems (NeurIPS). vol.~32, pp. 350--360 (2019)
+
+\bibitem{schulman2017proximal}
+Schulman, J., Wolski, F., Dhariwal, P., Radford, A., Klimov, O.: Proximal
+  policy optimization algorithms. arXiv preprint arXiv:1707.06347  (2017)
+
+\bibitem{sutton2018reinforcement}
+Sutton, R.S., Barto, A.G.: Reinforcement Learning: An Introduction. MIT Press,
+  Cambridge, MA, 2nd edn. (2018)
+
+\bibitem{watkins1992q}
+Watkins, C.J.C.H., Dayan, P.: Q-learning. Machine Learning  \textbf{8}(3),
+  279--292 (1992). \doi{10.1007/BF00992698}
+
+\bibitem{zhang2023comparative}
+Zhang, H., Liu, X.: Comparative evaluation of reward shaping strategies in
+  reinforcement learning for obstacle navigation. IEEE Access  \textbf{11},
+  104210--104222 (2023). \doi{10.1109/ACCESS.2023.10310649}
+
+\end{thebibliography}

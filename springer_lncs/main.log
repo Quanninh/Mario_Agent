@@ -1,10 +1,9 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.6.25)  20 NOV 2026 12:05
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.6.25)  24 NOV 2026 11:06
 entering extended mode
  restricted \write18 enabled.
- file:line:error style messages enabled.
  %&-line parsing enabled.
-**"d:/Winter 2026/AI for game/Mario_Agent/springer_lncs/main.tex"
-(d:/Winter 2026/AI for game/Mario_Agent/springer_lncs/main.tex
+**./main.tex
+(main.tex
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-05-26>
 (llncs.cls
@@ -26,7 +25,8 @@ File: size10.clo 2025/01/22 v1.4n Standard LaTeX file (size option)
 \abovecaptionskip=\skip49
 \belowcaptionskip=\skip50
 \bibindent=\dimen148
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/tools\multicol.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/tools\multicol.sty
 Package: multicol 2025/05/25 v2.0a multicolumn formatting (FMi)
 \c@tracingmulticols=\count283
 \mult@box=\box53
@@ -96,7 +96,8 @@ Package: multicol 2025/05/25 v2.0a multicolumn formatting (FMi)
 \colbreak@box=\box98
 \mc@col@check@num=\count292
 \g__mc_curr_col_int=\count293
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/oberdiek\aliascnt.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/oberdiek\aliascnt.sty
 Package: aliascnt 2018/09/07 v1.5 Alias counters (HO)
 )
 \c@chapter=\count294
@@ -156,25 +157,33 @@ LaTeX Info: Redefining \vec on input line 394.
 \c@Dfigchecks=\count314
 ) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/base\fontenc.sty
 Package: fontenc 2024/12/21 v2.1c Standard LaTeX package
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics\graphicx.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics\graphicx.sty
 Package: graphicx 2024/12/31 v1.2e Enhanced LaTeX Graphics (DPC,SPQR)
- (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics\keyval.sty
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics\keyval.sty
 Package: keyval 2022/05/29 v1.15 key=value parser (DPC)
 \KV@toks@=\toks21
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics\graphics.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics\graphics.sty
 Package: graphics 2024/08/06 v1.4g Standard LaTeX Graphics (DPC,SPQR)
- (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics\trig.sty
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics\trig.sty
 Package: trig 2023/12/02 v1.11 sin cos tan (DPC)
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics-cfg\graphics.cfg
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics-cfg\graphics.c
+fg
 File: graphics.cfg 2016/06/04 v1.11 sample graphics configuration
 )
 Package graphics Info: Driver file: pdftex.def on input line 106.
- (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics-def\pdftex.def
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/graphics-def\pdftex.def
 File: pdftex.def 2024/04/13 v1.2c Graphics/color driver for pdftex
 ))
 \Gin@req@height=\dimen171
 \Gin@req@width=\dimen172
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/booktabs\booktabs.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/booktabs\booktabs.sty
 Package: booktabs 2020/01/12 v1.61803398 Publication quality tables
 \heavyrulewidth=\dimen173
 \lightrulewidth=\dimen174
@@ -193,21 +202,25 @@ Package: booktabs 2020/01/12 v1.61803398 Publication quality tables
 \@thisruleclass=\count317
 \@lastruleclass=\count318
 \@thisrulewidth=\dimen185
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amsmath.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amsmath.sty
 Package: amsmath 2025/06/16 v2.17y AMS math features
 \@mathmargin=\skip53
 
 For additional information on amsmath, use the `?' option.
 (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amstext.sty
 Package: amstext 2024/11/17 v2.01 AMS text
- (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amsgen.sty
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amsgen.sty
 File: amsgen.sty 1999/11/30 v2.0 generic functions
 \@emptytoks=\toks22
 \ex@=\dimen186
-)) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amsbsy.sty
+))
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amsbsy.sty
 Package: amsbsy 1999/11/29 v1.2d Bold Symbols
 \pmbraise@=\dimen187
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amsopn.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsmath\amsopn.sty
 Package: amsopn 2022/04/08 v2.04 operator names
 )
 \inf@bad=\count319
@@ -263,7 +276,8 @@ LaTeX Info: Redefining \[ on input line 2949.
 LaTeX Info: Redefining \] on input line 2950.
 ) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\amssymb.sty
 Package: amssymb 2013/01/14 v3.01 AMS font symbols
- (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\amsfonts.sty
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\amsfonts.sty
 Package: amsfonts 2013/01/14 v3.01 Basic AMSFonts support
 \symAMSa=\mathgroup4
 \symAMSb=\mathgroup5
@@ -273,13 +287,16 @@ LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
 )) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/url\url.sty
 \Urlmuskip=\muskip18
 Package: url 2013/09/16  ver 3.4  Verb mode for urls, etc.
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/cite\cite.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/cite\cite.sty
 LaTeX Info: Redefining \cite on input line 302.
 LaTeX Info: Redefining \nocite on input line 332.
 Package: cite 2015/02/27  v 5.5
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/tools\tabularx.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/tools\tabularx.sty
 Package: tabularx 2023/12/11 v2.12a `tabularx' package (DPC)
- (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/tools\array.sty
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/tools\array.sty
 Package: array 2025/06/08 v2.6j Tabular extension package (FMi)
 \col@sep=\dimen195
 \ar@mcellbox=\box103
@@ -296,11 +313,14 @@ Package: array 2025/06/08 v2.6j Tabular extension package (FMi)
 \TX@delta=\dimen257
 \TX@cols=\count331
 \TX@ftn=\toks28
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/caption\subcaption.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/caption\subcaption.sty
 Package: subcaption 2023/07/28 v1.6b Sub-captions (AR)
- (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/caption\caption.sty
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/caption\caption.sty
 Package: caption 2023/08/05 v3.6o Customizing captions (AR)
- (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/caption\caption3.sty
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/caption\caption3.sty
 Package: caption3 2023/07/31 v2.4d caption3 kernel (AR)
 \caption@tempdima=\dimen258
 \captionmargin=\dimen259
@@ -312,7 +332,10 @@ Package: caption3 2023/07/31 v2.4d caption3 kernel (AR)
 \caption@hangindent=\dimen265
 Package caption Info: Unknown document class (or package),
 (caption)             standard defaults will be used.
-Package caption Info: \@makecaption = \long macro:#1#2->\small \vskip \abovecaptionskip \sbox \@tempboxa {{\bfseries #1.} #2}\ifdim \wd \@tempboxa >\hsize {\bfseries #1.} #2\par \else \global \@minipagefalse \hb@xt@ \hsize {\hfil \box \@tempboxa \hfil }\fi \vskip \belowcaptionskip  on input line 1175.
+Package caption Info: \@makecaption = \long macro:#1#2->\small \vskip \abovecap
+tionskip \sbox \@tempboxa {{\bfseries #1.} #2}\ifdim \wd \@tempboxa >\hsize {\b
+fseries #1.} #2\par \else \global \@minipagefalse \hb@xt@ \hsize {\hfil \box \@
+tempboxa \hfil }\fi \vskip \belowcaptionskip  on input line 1175.
 )
 
 Package caption Warning: Unknown document class (or package),
@@ -326,11 +349,12 @@ Package caption Info: New subtype `subfigure' on input line 238.
 \c@subfigure=\count334
 Package caption Info: New subtype `subtable' on input line 238.
 \c@subtable=\count335
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/l3backend\l3backend-pdftex.def
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/l3backend\l3backend-pdf
+tex.def
 File: l3backend-pdftex.def 2025-04-14 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count336
-)
-No file main.aux.
+) (main.aux)
 \openout1 = `main.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 17.
@@ -347,7 +371,9 @@ LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 17.
 LaTeX Font Info:    ... okay on input line 17.
 LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 17.
 LaTeX Font Info:    ... okay on input line 17.
-(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/context/base/mkii\supp-pdf.mkii
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/context/base/mkii\supp-pdf.mk
+ii
 [Loading MPS to PDF converter (version 2006.09.02).]
 \scratchcounter=\count337
 \scratchdimen=\dimen266
@@ -360,129 +386,82 @@ LaTeX Font Info:    ... okay on input line 17.
 \MPnumerator=\count341
 \makeMPintoPDFobject=\count342
 \everyMPtoPDFconversion=\toks30
-) (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/epstopdf-pkg\epstopdf-base.sty
+)
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/epstopdf-pkg\epstopdf-b
+ase.sty
 Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
-Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 485.
- (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/00miktex\epstopdf-sys.cfg
+Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
+85.
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/00miktex\epstopdf-sys.c
+fg
 File: epstopdf-sys.cfg 2021/03/18 v2.0 Configuration of epstopdf for MiKTeX
 ))
 Package caption Info: Begin \AtBeginDocument code.
 Package caption Info: End \AtBeginDocument code.
 LaTeX Font Info:    Trying to load font information for U+msa on input line 33.
+
  (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
 LaTeX Font Info:    Trying to load font information for U+msb on input line 33.
- (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsb.fd
+
+
+(C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
-) (sections/00_abstract/abstract.tex
+)
+(sections/00_abstract/abstract.tex
 Overfull \hbox (0.11284pt too wide) in paragraph at lines 2--3
-[]\T1/cmr/m/n/9 Autonomous nav-i-ga-tion in dy-namic plat-former en-vi-ron-ments
+[]\T1/cmr/m/n/9 Autonomous nav-i-ga-tion in dy-namic plat-former en-vi-ron-ment
+s
  []
 
 ) (sections/01_introduction/introduction.tex
-
-LaTeX Warning: Citation `mnih2015human' on page 1 undefined on input line 4.
-
-
-LaTeX Warning: Citation `sutton2018reinforcement' on page 1 undefined on input line 4.
-
-
 Overfull \hbox (7.7887pt too wide) in paragraph at lines 4--5
-\T1/cmr/m/n/10 Reinforcement learn-ing (RL) has emerged as a cor-ner-stone of au-tonomous decision-
+\T1/cmr/m/n/10 Reinforcement learn-ing (RL) has emerged as a cor-ner-stone of a
+u-tonomous decision-
  []
 
 
 
 [1
 
-{C:/Users/khanh/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}]
+{C:/Users/khanh/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}])
+(sections/02_related_work/related_work.tex
 
-LaTeX Warning: Reference `sec:related' on page 2 undefined on input line 10.
-
-
-LaTeX Warning: Reference `sec:objectives' on page 2 undefined on input line 10.
-
-
-LaTeX Warning: Reference `sec:teamwork' on page 2 undefined on input line 10.
-
-
-LaTeX Warning: Reference `sec:approach' on page 2 undefined on input line 10.
-
-
-LaTeX Warning: Reference `sec:impl' on page 2 undefined on input line 10.
-
-
-LaTeX Warning: Reference `sec:eval' on page 2 undefined on input line 10.
-
-
-LaTeX Warning: Reference `sec:conclusion' on page 2 undefined on input line 10.
-
-) (sections/02_related_work/related_work.tex
-
-LaTeX Warning: Citation `watkins1992q' on page 2 undefined on input line 7.
-
-
-LaTeX Warning: Citation `mnih2015human' on page 2 undefined on input line 7.
-
-
-LaTeX Warning: Citation `schulman2017proximal' on page 2 undefined on input line 7.
-
-
-LaTeX Warning: Citation `khalid2024mario' on page 2 undefined on input line 7.
-
-
-LaTeX Warning: Citation `sutton2018reinforcement' on page 2 undefined on input line 10.
-
-
-
-[2]
-
-LaTeX Warning: Citation `bengio2009curriculum' on page 3 undefined on input line 13.
-
-
-LaTeX Warning: Citation `chen2024curriculum' on page 3 undefined on input line 13.
-
-
-LaTeX Warning: Citation `ray2024dynamic' on page 3 undefined on input line 13.
-
-
-LaTeX Warning: Citation `zhang2023comparative' on page 3 undefined on input line 13.
-
-) (sections/03_objectives_problem_gaps/objectives.tex
+[2]) (sections/03_objectives_problem_gaps/objectives.tex
 
 [3]) (sections/04_teamwork_project_management/teamwork.tex
 
 [4]
-
-LaTeX Warning: Reference `sec:eval' on page 5 undefined on input line 13.
-
-
-LaTeX Warning: Reference `fig:curriculum_curve' on page 5 undefined on input line 13.
-
-
-LaTeX Warning: Reference `fig:playstyle_matrix' on page 5 undefined on input line 13.
-
-
 Overfull \hbox (0.62488pt too wide) in paragraph at lines 17--18
-\T1/cmr/m/n/10 To avoid code con-flicts and en-sure seam-less mod-ule in-te-gra-tion, the team adopted
+\T1/cmr/m/n/10 To avoid code con-flicts and en-sure seam-less mod-ule in-te-gra
+-tion, the team adopted
  []
 
 
 Overfull \hbox (25.42853pt too wide) in paragraph at lines 20--21
-\T1/cmr/m/n/10 stract base classes in \T1/cmtt/m/n/10 core/interfaces.py \T1/cmr/m/n/10 (\T1/cmtt/m/n/10 BaseEnvironment\T1/cmr/m/n/10 , \T1/cmtt/m/n/10 BaseDiscretizer\T1/cmr/m/n/10 ,
+\T1/cmr/m/n/10 stract base classes in \T1/cmtt/m/n/10 core/interfaces.py \T1/cm
+r/m/n/10 (\T1/cmtt/m/n/10 BaseEnvironment\T1/cmr/m/n/10 , \T1/cmtt/m/n/10 BaseD
+iscretizer\T1/cmr/m/n/10 ,
  []
 
 ) (sections/05_proposed_approach/approach.tex
 
 [5]
 Overfull \hbox (12.18495pt too wide) in paragraph at lines 16--17
-\OT1/cmr/m/n/10 80[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (1\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 40[]80[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (2\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 15[]40[])$\T1/cmr/m/n/10 , and $[]\OT1/cmr/m/n/10 (3\OML/cmm/m/it/10 ; \OMS/cmsy/m/n/10 ^^T \OT1/cmr/m/n/10 15[])$\T1/cmr/m/n/10 .
+\OT1/cmr/m/n/10 80[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (1\OML/cmm/m/it/10 ; 
+\OT1/cmr/m/n/10 40[]80[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (2\OML/cmm/m/it/1
+0 ; \OT1/cmr/m/n/10 15[]40[])$\T1/cmr/m/n/10 , and $[]\OT1/cmr/m/n/10 (3\OML/cm
+m/m/it/10 ; \OMS/cmsy/m/n/10 ^^T \OT1/cmr/m/n/10 15[])$\T1/cmr/m/n/10 .
  []
 
 
 Overfull \hbox (16.06952pt too wide) in paragraph at lines 18--19
-\T1/cmr/m/n/10 into $[]\OT1/cmr/m/n/10 (0\OML/cmm/m/it/10 ; > \OT1/cmr/m/n/10 80[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (1\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 32[]80[])$\T1/cmr/m/n/10 , and $[]\OT1/cmr/m/n/10 (2\OML/cmm/m/it/10 ; \OMS/cmsy/m/n/10 ^^T \OT1/cmr/m/n/10 32[])$\T1/cmr/m/n/10 ,
+\T1/cmr/m/n/10 into $[]\OT1/cmr/m/n/10 (0\OML/cmm/m/it/10 ; > \OT1/cmr/m/n/10 8
+0[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (1\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 3
+2[]80[])$\T1/cmr/m/n/10 , and $[]\OT1/cmr/m/n/10 (2\OML/cmm/m/it/10 ; \OMS/cmsy
+/m/n/10 ^^T \OT1/cmr/m/n/10 32[])$\T1/cmr/m/n/10 ,
  []
 
 
@@ -491,111 +470,113 @@ Overfull \hbox (16.06952pt too wide) in paragraph at lines 18--19
 
 [7]
 Overfull \hbox (2.89127pt too wide) in paragraph at lines 26--27
-[]\T1/cmr/bx/n/10 Pygame 2.5\T1/cmr/m/n/10 : Man-ages 2D sprite ren-der-ing, win-dow events, delta-time clocks,
+[]\T1/cmr/bx/n/10 Pygame 2.5\T1/cmr/m/n/10 : Man-ages 2D sprite ren-der-ing, wi
+n-dow events, delta-time clocks,
  []
 
 
-LaTeX Warning: Reference `lst:tie_break' on page 8 undefined on input line 33.
+LaTeX Warning: `h' float specifier changed to `ht'.
 
 ) (sections/07_experimental_results_evaluation/evaluation.tex
 
 [8]
 
-LaTeX Warning: Reference `tab:curriculum_summary' on page 9 undefined on input line 19.
-
-
-Overfull \hbox (134.12262pt too wide) in alignment at lines 25--38
-[] [] [] [] [] [] [] 
- []
-
-
-LaTeX Warning: Reference `tab:curriculum_summary' on page 9 undefined on input line 41.
-
-
-LaTeX Warning: Reference `tab:reward_ablation' on page 9 undefined on input line 43.
-
-
-LaTeX Warning: Reference `sec:approach' on page 9 undefined on input line 43.
-
-
-Overfull \hbox (178.03072pt too wide) in alignment at lines 49--57
-[] [] [] [] [] 
- []
-
-<figures/graph_1_curriculum_learning_curve.pdf, id=53, 722.7pt x 397.485pt>
-File: figures/graph_1_curriculum_learning_curve.pdf Graphic file (type pdf)
-<use figures/graph_1_curriculum_learning_curve.pdf>
-Package pdftex.def Info: figures/graph_1_curriculum_learning_curve.pdf  used on input line 64.
-(pdftex.def)             Requested size: 319.35301pt x 175.64601pt.
-
-LaTeX Warning: Reference `fig:curriculum_curve' on page 9 undefined on input line 69.
-
-
-
 [9]
-
-LaTeX Warning: Reference `fig:reward_profile' on page 10 undefined on input line 71.
-
-<figures/graph_2_reward_profiling_benchmark.pdf, id=57, 722.7pt x 397.485pt>
-File: figures/graph_2_reward_profiling_benchmark.pdf Graphic file (type pdf)
-<use figures/graph_2_reward_profiling_benchmark.pdf>
-Package pdftex.def Info: figures/graph_2_reward_profiling_benchmark.pdf  used on input line 75.
-(pdftex.def)             Requested size: 319.35301pt x 175.64601pt.
+<figures/figure_1_curriculum_win_rate.pdf, id=57, 832.583pt x 585.5871pt>
+File: figures/figure_1_curriculum_win_rate.pdf Graphic file (type pdf)
+<use figures/figure_1_curriculum_win_rate.pdf>
+Package pdftex.def Info: figures/figure_1_curriculum_win_rate.pdf  used on inpu
+t line 68.
+(pdftex.def)             Requested size: 333.24092pt x 234.38258pt.
 
 
 [10]
-<figures/graph_3_playstyle_matrix.pdf, id=63, 650.43pt x 433.62pt>
-File: figures/graph_3_playstyle_matrix.pdf Graphic file (type pdf)
-<use figures/graph_3_playstyle_matrix.pdf>
-Package pdftex.def Info: figures/graph_3_playstyle_matrix.pdf  used on input line 94.
-(pdftex.def)             Requested size: 305.4704pt x 203.64925pt.
+<figures/figure_2_reward_trajectories.pdf, id=61, 1007.22423pt x 690.8122pt>
+File: figures/figure_2_reward_trajectories.pdf Graphic file (type pdf)
+<use figures/figure_2_reward_trajectories.pdf>
+Package pdftex.def Info: figures/figure_2_reward_trajectories.pdf  used on inpu
+t line 88.
+(pdftex.def)             Requested size: 333.24092pt x 228.54848pt.
 
 
-LaTeX Warning: Reference `fig:playstyle_matrix' on page 11 undefined on input line 101.
+[11]
+
+[12 <./figures/figure_1_curriculum_win_rate.pdf>]
+<figures/figure_3_sample_efficiency.pdf, id=187, 699.87724pt x 540.02815pt>
+File: figures/figure_3_sample_efficiency.pdf Graphic file (type pdf)
+<use figures/figure_3_sample_efficiency.pdf>
+Package pdftex.def Info: figures/figure_3_sample_efficiency.pdf  used on input 
+line 133.
+(pdftex.def)             Requested size: 319.35301pt x 246.4136pt.
 
 
+[13 <./figures/figure_2_reward_trajectories.pdf>]
 
-[11 <./figures/graph_1_curriculum_learning_curve.pdf>]) (sections/08_conclusion_future_work/conclusion.tex
-Underfull \vbox (badness 1817) has occurred while \output is active []
+[14]
 
+[15 <./figures/figure_3_sample_efficiency.pdf>]
 
+[16]) (sections/08_conclusion_future_work/conclusion.tex
 
-[12 <./figures/graph_2_reward_profiling_benchmark.pdf>]
-Overfull \hbox (16.98615pt too wide) in paragraph at lines 9--10
-\T1/cmr/m/n/10 classes in \T1/cmtt/m/n/10 core/interfaces.py \T1/cmr/m/n/10 at project in-cep-tion al-lowed Mem-ber 1 (Physics),
+[17]) (main.bbl
+Underfull \hbox (badness 1365) in paragraph at lines 12--15
+[]\T1/cmr/m/n/9 Chen, L., Wang, Y.: Adap-tive cur-ricu-lum learn-ing for dis-cr
+ete con-trol in
  []
 
 
 
-[13 <./figures/graph_3_playstyle_matrix.pdf>])
-No file main.bbl.
+[18])
 
-
-[14] (main.aux)
+[19] (main.aux)
  ***********
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-05-26>
  ***********
-
-
-LaTeX Warning: There were undefined references.
-
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
  ) 
 Here is how much of TeX's memory you used:
- 5273 strings out of 468219
- 86041 string characters out of 5432869
- 489326 words of memory out of 5000000
- 33704 multiletter control sequences out of 15000+600000
+ 5286 strings out of 468219
+ 86191 string characters out of 5432869
+ 497326 words of memory out of 5000000
+ 33714 multiletter control sequences out of 15000+600000
  645531 words of font info for 83 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 67i,10n,77p,1506b,375s stack positions out of 10000i,1000n,20000p,200000b,200000s
- <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx0700.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ectt1000.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecrm0700.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecti1000.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx1000.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx1200.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\tcrm0900.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecti0900.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx0900.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ectt0900.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecrm0900.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecrm1000.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx1440.pk><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmbx10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmbx9.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmex10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi6.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi7.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy5.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy7.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy9.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
-Output written on main.pdf (14 pages, 485943 bytes).
+ 67i,11n,77p,1757b,375s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx
+0700.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi60
+0\ectt1000.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec
+/dpi600\ecrm0700.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknap
+pen/ec/dpi600\ecbx1000.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour
+/jknappen/ec/dpi600\ecti1000.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/
+ljfour/jknappen/ec/dpi600\ecbx1200.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fon
+ts/pk/ljfour/jknappen/ec/dpi600\tcrm0900.pk> <C:\Users\khanh\AppData\Local\MiKT
+eX\fonts/pk/ljfour/jknappen/ec/dpi600\ecti0900.pk> <C:\Users\khanh\AppData\Loca
+l\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx0900.pk> <C:\Users\khanh\AppDat
+a\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ectt0900.pk> <C:\Users\khanh\
+AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecrm0900.pk> <C:\Users\
+khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecrm1000.pk> <C:\
+Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx1440.pk
+><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/c
+mbx10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsf
+onts/cm/cmbx9.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/pub
+lic/amsfonts/cm/cmex10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/
+type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKT
+eX/fonts/type1/public/amsfonts/cm/cmmi6.pfb><C:/Users/khanh/AppData/Local/Progr
+ams/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi7.pfb><C:/Users/khanh/AppData/Loc
+al/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/khanh/App
+Data/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/k
+hanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr5.pfb><C:/
+Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.p
+fb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm
+/cmr9.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsf
+onts/cm/cmsy10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/pu
+blic/amsfonts/cm/cmsy5.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/
+type1/public/amsfonts/cm/cmsy7.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTe
+X/fonts/type1/public/amsfonts/cm/cmsy9.pfb><C:/Users/khanh/AppData/Local/Progra
+ms/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
+Output written on main.pdf (19 pages, 715217 bytes).
 PDF statistics:
- 890 PDF objects out of 1000 (max. 8388607)
+ 1021 PDF objects out of 1200 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
  16 words of extra memory for PDF output out of 10000 (max. 10000000)
 

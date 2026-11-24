@@ -84,10 +84,7 @@ springer_lncs/
 
 ## 4. How to Compile / Upload to Overleaf
 
-- **On Overleaf**:
-  1. Zip the entire `springer_lncs/` folder (including `llncs.cls`, `main.tex`, `references.bib`, `figures/`, and `sections/`).
-  2. Upload the zip directly into Overleaf (`New Project` $\to$ `Upload Project`).
-  3. Set `main.tex` as the main document and click **Recompile**.
+
 - **On Local LaTeX (TeX Live / MacTeX / MiKTeX)**:
   ```bash
   cd springer_lncs
