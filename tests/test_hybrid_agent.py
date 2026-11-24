@@ -70,12 +70,33 @@ class TestHybridQSARSAAgent(unittest.TestCase):
         target_pit = agent.compute_td_target(reward=2.0, next_state=s_pit, next_action=Action.RIGHT, done=False)
         self.assertAlmostEqual(target_pit, 2.0 + 0.9 * 20.0)
 
-        # Safe corridor (index 4 == 0) -> blend (15)
-        s_safe = (1, 0, 0, 0, 0, 0, 0)
+        # Safe corridor (all hazard bins 0) -> blend (15)
+        s_safe = (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         agent.q_table[s_safe][Action.RIGHT] = 10.0
         agent.q_table[s_safe][Action.RIGHT_JUMP] = 20.0
         target_safe = agent.compute_td_target(reward=2.0, next_state=s_safe, next_action=Action.RIGHT, done=False)
         self.assertAlmostEqual(target_safe, 2.0 + 0.9 * 15.0)
+
+        # Near laser (index 7 == 1) -> pure Q-learning (max = 20)
+        s_laser = (1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0)
+        agent.q_table[s_laser][Action.RIGHT] = 10.0
+        agent.q_table[s_laser][Action.RIGHT_JUMP] = 20.0
+        target_laser = agent.compute_td_target(reward=2.0, next_state=s_laser, next_action=Action.RIGHT, done=False)
+        self.assertAlmostEqual(target_laser, 2.0 + 0.9 * 20.0)
+
+        # Near wisp (index 8 == 1) -> pure Q-learning (max = 20)
+        s_wisp = (1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0)
+        agent.q_table[s_wisp][Action.RIGHT] = 10.0
+        agent.q_table[s_wisp][Action.RIGHT_JUMP] = 20.0
+        target_wisp = agent.compute_td_target(reward=2.0, next_state=s_wisp, next_action=Action.RIGHT, done=False)
+        self.assertAlmostEqual(target_wisp, 2.0 + 0.9 * 20.0)
+
+        # Near monster (index 11 == 1) -> pure Q-learning (max = 20)
+        s_monster = (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
+        agent.q_table[s_monster][Action.RIGHT] = 10.0
+        agent.q_table[s_monster][Action.RIGHT_JUMP] = 20.0
+        target_monster = agent.compute_td_target(reward=2.0, next_state=s_monster, next_action=Action.RIGHT, done=False)
+        self.assertAlmostEqual(target_monster, 2.0 + 0.9 * 20.0)
 
     def test_save_and_load(self) -> None:
         agent = HybridQSARSAAgent(beta=0.4, mode="hazard_gated", seed=99)

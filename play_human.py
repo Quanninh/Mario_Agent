@@ -12,7 +12,8 @@ def load_level(level_id: int):
     print(
         f"\nLoaded {cfg.name} "
         f"(Tombstones: {len(cfg.obstacles)}, Pits: {len(cfg.pits)}, "
-        f"Ghosts: {len(cfg.ghosts)}, Warmth Items: {len(cfg.items)})"
+        f"Ghosts: {len(cfg.ghosts)}, Monsters: {len(cfg.monsters or [])}, "
+        f"Warmth Items: {len(cfg.items)})"
     )
     return env, state
 
@@ -25,7 +26,8 @@ def main() -> None:
     print("  [A / Left]       Walk Left")
     print("  [D / Right]      Walk Right")
     print("  [Space / W]      Jump")
-    print("  [1 / 2 / 3 / 4 / 5] Switch Level 1 to 5")
+    print("  [1 / 2 / 3 / 4 / 5 / 6 / 7] Switch Level 1 to 7")
+    print("  [G]              Toggle God Mode")
     print("  [R]              Reset Level")
     print("  [Esc]            Quit")
 
@@ -35,11 +37,17 @@ def main() -> None:
         pygame.K_3: 3,
         pygame.K_4: 4,
         pygame.K_5: 5,
+        pygame.K_6: 6,
+        pygame.K_7: 7,
+        pygame.K_8: 8,
     }
+
+    jump_key_pressed = False
+    god_key_pressed = False
 
     while True:
         # Stop cleanly if window was closed inside env.render()
-        if env._screen is None:
+        if not env.is_running:
             break
 
         keys = pygame.key.get_pressed()
@@ -48,12 +56,14 @@ def main() -> None:
         if keys[pygame.K_ESCAPE]:
             break
 
-        # Level switching shortcuts (1 to 5)
+        # Level switching shortcuts (1 to 6)
         selected_level = next((lvl for k, lvl in level_keys.items() if keys[k]), None)
         if selected_level is not None and selected_level != current_level:
+            was_god_mode = getattr(env, "god_mode", False)
             env.close()
             current_level = selected_level
             env, state = load_level(current_level)
+            env.god_mode = was_god_mode
             continue
 
         # Manual reset shortcut (render() pumps Pygame events so window won't freeze)
@@ -62,12 +72,34 @@ def main() -> None:
             env.render()
             continue
 
+        # Toggle God Mode shortcut [G]
+        god_key_down = keys[pygame.K_g]
+        if god_key_down and not god_key_pressed:
+            env.god_mode = not env.god_mode
+            status = "ENABLED (Invincible)" if env.god_mode else "DISABLED (Normal)"
+            print(f"\n>>> GOD MODE: {status} <<<")
+        god_key_pressed = god_key_down
+
+        
+
         # Map keyboard input -> Discrete Action ID
         moving_right = keys[pygame.K_RIGHT] or keys[pygame.K_d]
         moving_left = keys[pygame.K_LEFT] or keys[pygame.K_a]
-        jumping = keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]
+        jump_key_down = keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]
+        crouching = keys[pygame.K_DOWN] or keys[pygame.K_s]
 
-        if moving_right and jumping:
+        # Grounded: holding jump triggers initial jump.
+        # Airborne: requires a fresh tap to trigger mid-air double jump.
+        if env.player.is_grounded:
+            jumping = jump_key_down
+        else:
+            jumping = jump_key_down and not jump_key_pressed
+
+        jump_key_pressed = jump_key_down
+
+        if crouching and env.player.is_grounded:
+            action = Action.CROUCH
+        elif moving_right and jumping:
             action = Action.RIGHT_JUMP
         elif moving_right:
             action = Action.RIGHT
@@ -86,14 +118,7 @@ def main() -> None:
             print(f"Warmth item collected at x={state.player_x:.1f}!")
 
         if done:
-            if events.reached_goal:
-                print(f"Hoá made it home! Cleared Level {current_level} in {env.step_count} steps!")
-            elif events.hit_ghost:
-                print(f"Caught by a ghost at x={state.player_x:.1f}!")
-            elif events.fell_in_pit:
-                print(f"Fell into a grave pit at x={state.player_x:.1f}!")
-            else:
-                print("Timeout!")
+            env.show_game_over(events)
             state = env.reset()
 
     env.close()

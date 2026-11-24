@@ -22,9 +22,12 @@ class Trainer:
         discretizer: BaseDiscretizer,
         reward_strategy: BaseRewardStrategy,
         reward_name: str = "balanced",
+        agent_type: str = "tabular",
+        hybrid_mode: str = "expected",
+        beta: float = 0.25,
         action_repeat: int = 1,
         rewarm_epsilon: float = 0.30,
-        rewarm_epsilon_ghost: float = 0.40,
+        rewarm_epsilon_ghost: float = 0.35,
         alpha_min: float = 0.02,
         replay_ratio: float = 0.35,
         eval_interval: int = 50,
@@ -39,6 +42,10 @@ class Trainer:
         self.discretizer = discretizer
         self.reward_strategy = reward_strategy
         self.reward_name = reward_name
+        self.agent_type = agent_type
+        self.hybrid_mode = hybrid_mode
+        self.beta = beta
+        self.agent_tag = "tabular" if agent_type == "tabular" else f"hybrid_{hybrid_mode}"
         self.action_repeat = max(1, action_repeat)
         self.rewarm_epsilon = rewarm_epsilon
         self.rewarm_epsilon_ghost = rewarm_epsilon_ghost
@@ -80,37 +87,81 @@ class Trainer:
         done = False
         last_events: Optional[GameEvents] = None
 
-        while not done:
+        use_on_policy_next = (
+            training
+            and (self.agent_type == "hybrid")
+            and (self.hybrid_mode in ("linear", "hazard_gated"))
+        )
+
+        if use_on_policy_next:
             action = agent.select_action(discrete_state)
+            while not done:
+                macro_reward = 0.0
+                for _ in range(self.action_repeat):
+                    next_raw_state, events, done = env.step(action)
+                    steps += 1
+                    step_reward = self.reward_strategy.calculate_reward(
+                        raw_state, action, next_raw_state, events, done
+                    )
+                    macro_reward += step_reward
+                    max_x = max(max_x, next_raw_state.player_x)
+                    if events.hit_obstacle:
+                        obstacle_hits += 1
+                    if events.collected_item:
+                        items_collected += 1
+                    last_events = events
+                    raw_state = next_raw_state
+                    if done:
+                        break
 
-            macro_reward = 0.0
-            # Execute action with action repeat
-            for _ in range(self.action_repeat):
-                next_raw_state, events, done = env.step(action)
-                steps += 1
-                step_reward = self.reward_strategy.calculate_reward(
-                    raw_state, action, next_raw_state, events, done
-                )
-                macro_reward += step_reward
-                max_x = max(max_x, next_raw_state.player_x)
-                if events.hit_obstacle:
-                    obstacle_hits += 1
-                if events.collected_item:
-                    items_collected += 1
-                last_events = events
-                raw_state = next_raw_state
-                if done:
-                    break
+                next_discrete_state = self.discretizer.discretize(raw_state)
+                next_action = None if done else agent.select_action(next_discrete_state)
 
-            next_discrete_state = self.discretizer.discretize(raw_state)
+                if training:
+                    agent.update(
+                        discrete_state,
+                        action,
+                        macro_reward,
+                        next_discrete_state,
+                        done,
+                        next_action=next_action,
+                    )
 
-            if training:
-                agent.update(
-                    discrete_state, action, macro_reward, next_discrete_state, done
-                )
+                discrete_state = next_discrete_state
+                action = next_action
+                total_reward += macro_reward
+        else:
+            while not done:
+                action = agent.select_action(discrete_state)
 
-            discrete_state = next_discrete_state
-            total_reward += macro_reward
+                macro_reward = 0.0
+                # Execute action with action repeat
+                for _ in range(self.action_repeat):
+                    next_raw_state, events, done = env.step(action)
+                    steps += 1
+                    step_reward = self.reward_strategy.calculate_reward(
+                        raw_state, action, next_raw_state, events, done
+                    )
+                    macro_reward += step_reward
+                    max_x = max(max_x, next_raw_state.player_x)
+                    if events.hit_obstacle:
+                        obstacle_hits += 1
+                    if events.collected_item:
+                        items_collected += 1
+                    last_events = events
+                    raw_state = next_raw_state
+                    if done:
+                        break
+
+                next_discrete_state = self.discretizer.discretize(raw_state)
+
+                if training:
+                    agent.update(
+                        discrete_state, action, macro_reward, next_discrete_state, done
+                    )
+
+                discrete_state = next_discrete_state
+                total_reward += macro_reward
 
         # Exploration rate decay at episode completion
         if training and decay_eps:
@@ -234,11 +285,13 @@ class Trainer:
         if levels is None:
             levels = [1, 2, 3, 4, 5]
 
-        # Canonical production run if curriculum + balanced
-        if mode == "curriculum" and self.reward_name == "balanced":
+        # Canonical production run strictly if curriculum + balanced + tabular
+        if mode == "curriculum" and self.reward_name == "balanced" and self.agent_tag == "tabular":
             is_canonical_production = True
+        else:
+            is_canonical_production = False
 
-        run_cp_dir = Path(self.checkpoints_dir) / f"{mode}_{self.reward_name}"
+        run_cp_dir = Path(self.checkpoints_dir) / self.agent_tag / f"{mode}_{self.reward_name}"
         run_cp_dir.mkdir(parents=True, exist_ok=True)
         outputs_dir_path = Path(self.outputs_dir)
         outputs_dir_path.mkdir(parents=True, exist_ok=True)
@@ -347,6 +400,8 @@ class Trainer:
 
                         if progress_callback is not None:
                             progress_callback({
+                                "agent_tag": self.agent_tag,
+                                "agent_type": self.agent_type,
                                 "mode": mode,
                                 "reward": self.reward_name,
                                 "level_id": lvl,
@@ -391,9 +446,7 @@ class Trainer:
                                     agent.save(str(root_cp / "q_table_best.pkl"))
                                     agent.save(str(root_cp / "q_table_best.json"))
 
-                        # Periodic checkpointing
-                        if global_episode % self.checkpoint_interval == 0:
-                            agent.save(str(run_cp_dir / f"q_table_ep{global_episode}.pkl"))
+
 
                 finally:
                     env.close()
@@ -482,6 +535,8 @@ class Trainer:
 
                         if progress_callback is not None:
                             progress_callback({
+                                "agent_tag": self.agent_tag,
+                                "agent_type": self.agent_type,
                                 "mode": mode,
                                 "reward": self.reward_name,
                                 "level_id": lvl,
@@ -508,9 +563,7 @@ class Trainer:
                                 agent.save(str(run_cp_dir / f"q_table_lvl{lvl}_best.pkl"))
                                 agent.save(str(run_cp_dir / f"q_table_lvl{lvl}_best.json"))
 
-                        # Periodic checkpointing
-                        if lvl_ep % self.checkpoint_interval == 0:
-                            agent.save(str(run_cp_dir / f"q_table_lvl{lvl}_ep{lvl_ep}.pkl"))
+
 
                 finally:
                     env.close()
@@ -550,6 +603,10 @@ class Trainer:
 
         board_data = {
             "metadata": {
+                "agent_type": self.agent_type,
+                "agent_tag": self.agent_tag,
+                "hybrid_mode": self.hybrid_mode,
+                "beta": round(float(self.beta), 4),
                 "training_mode": mode,
                 "reward_profile": self.reward_name,
                 "action_repeat": self.action_repeat,
@@ -572,11 +629,11 @@ class Trainer:
             "episode_history": episode_history,
         }
 
-        json_out_path = outputs_dir_path / f"training_board_{mode}_{self.reward_name}.json"
+        json_out_path = outputs_dir_path / f"training_board_{self.agent_tag}_{mode}_{self.reward_name}.json"
         with open(json_out_path, "w", encoding="utf-8") as f:
             json.dump(board_data, f, indent=2)
 
-        csv_out_path = outputs_dir_path / f"training_metrics_{mode}_{self.reward_name}.csv"
+        csv_out_path = outputs_dir_path / f"training_metrics_{self.agent_tag}_{mode}_{self.reward_name}.csv"
         csv_headers = [
             "global_episode",
             "level_episode",

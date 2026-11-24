@@ -152,17 +152,25 @@ class TabularQAgent(BaseAgent):
         if path.suffix == ".json":
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            loaded_actions = data.get("num_actions", self.num_actions)
+            self.num_actions = max(self.num_actions, loaded_actions)
             for state_str, q_vals in data.get("q_table", {}).items():
                 state_tuple = tuple(map(int, state_str.split(",")))
-                self.q_table[state_tuple] = np.array(q_vals, dtype=np.float32)
+                vec = np.zeros(self.num_actions, dtype=np.float32)
+                vec[:min(len(q_vals), self.num_actions)] = q_vals[:self.num_actions]
+                self.q_table[state_tuple] = vec
         else:
             with open(path, "rb") as f:
                 data = pickle.load(f)
+            loaded_actions = data.get("num_actions", self.num_actions)
+            self.num_actions = max(self.num_actions, loaded_actions)
             for state, q_vals in data.get("q_table", {}).items():
-                self.q_table[state] = np.array(q_vals, dtype=np.float32)
+                vec = np.zeros(self.num_actions, dtype=np.float32)
+                vec[:min(len(q_vals), self.num_actions)] = q_vals[:self.num_actions]
+                self.q_table[state] = vec
 
         # Restore hyperparameters if available in checkpoint
-        for attr in ("num_actions", "alpha", "gamma", "epsilon", "epsilon_min", "epsilon_decay"):
+        for attr in ("alpha", "gamma", "epsilon", "epsilon_min", "epsilon_decay"):
             if attr in data:
                 setattr(self, attr, data[attr])
 

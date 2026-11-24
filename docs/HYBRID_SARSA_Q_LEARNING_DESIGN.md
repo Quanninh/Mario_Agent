@@ -41,7 +41,7 @@ The value update follows standard stochastic approximation:
 $$Q(S_t, A_t) \leftarrow Q(S_t, A_t) + \alpha \Big( \text{TD Target}_{\text{Hybrid}} - Q(S_t, A_t) \Big)$$
 
 * **$\beta = 1.0$:** Collapses to **Pure SARSA** (On-Policy).
-* ** distraction $\beta = 0.0$:** Collapses to **Pure Q-Learning** (Off-Policy).
+* **$\beta = 0.0$:** Collapses to **Pure Q-Learning** (Off-Policy).
 * **$\beta = 0.25$ (Default):** Balances exploration awareness with optimal pursuit.
 
 ---
@@ -62,9 +62,9 @@ $$\text{TD Target}_{\text{Exp-SARSA}} = r_{t+1} + \gamma \left[ (1 - \epsilon) \
 
 ### 2.3 Paradigm 3: Context-Aware / Hazard-Gated Hybrid
 
-In platformers, hazards are localized. We condition the algorithm choice dynamically on the state's proximity sensors (index 4 of the state tuple, `pit_dist_bin`):
+In platformers, hazards are localized. We condition the algorithm choice dynamically on the state's proximity sensors (index 4 `pit_dist_bin` and index 5 `ghost_dist_bin`):
 
-$$\text{Next-Value}(S_{t+1}) = \begin{cases} \max_{a'} Q(S_{t+1}, a'), & \text{if } \text{pit\_dist} \ne \text{NONE} \quad \text{(Lethal Zone: Q-Learning)} \\ \beta \cdot Q(S_{t+1}, A_{t+1}) + (1 - \beta) \max_{a'} Q(S_{t+1}, a'), & \text{if } \text{pit\_dist} = \text{NONE} \quad \text{(Safe Corridor: Blend)} \end{cases}$$
+$$\text{Next-Value}(S_{t+1}) = \begin{cases} \max_{a'} Q(S_{t+1}, a'), & \text{if } (\text{pit\_dist} \ne \text{NONE}) \lor (\text{ghost\_dist} \ne \text{NONE}) \quad \text{(Lethal Zone: Q-Learning)} \\ \beta \cdot Q(S_{t+1}, A_{t+1}) + (1 - \beta) \max_{a'} Q(S_{t+1}, a'), & \text{if } (\text{pit\_dist} = \text{NONE}) \land (\text{ghost\_dist} = \text{NONE}) \quad \text{(Safe Corridor: Blend)} \end{cases}$$
 
 ---
 
