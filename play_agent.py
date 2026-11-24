@@ -329,16 +329,24 @@ def play_autonomous(
 
     # Initialize Pygame window
     env.render()
-    prev_keys = list(pygame.key.get_pressed())
+    if not getattr(env, "is_running", True):
+        return
+    try:
+        prev_keys = list(pygame.key.get_pressed())
+    except pygame.error:
+        return
     clock = pygame.time.Clock() if fps != 60 else None
 
     while True:
         # Window closed inside env.render()
-        if env._screen is None:
+        if not getattr(env, "is_running", True):
             break
 
-        keys = pygame.key.get_pressed()
-        just_pressed = lambda k: bool(keys[k] and not prev_keys[k])
+        try:
+            keys = pygame.key.get_pressed()
+        except pygame.error:
+            break
+        just_pressed = lambda k: bool(keys[k] and (k < len(prev_keys) and not prev_keys[k]))
 
         # Quit shortcut
         if just_pressed(pygame.K_ESCAPE):
@@ -378,7 +386,9 @@ def play_autonomous(
             items_collected = 0
             episode = 1
             env.render()
-            prev_keys = list(pygame.key.get_pressed())
+            if not getattr(env, "is_running", True):
+                break
+            prev_keys = list(keys)
             continue
 
         # Strategy swapping (F1..F3)
@@ -399,7 +409,9 @@ def play_autonomous(
             items_collected = 0
             episode = 1
             env.render()
-            prev_keys = list(pygame.key.get_pressed())
+            if not getattr(env, "is_running", True):
+                break
+            prev_keys = list(keys)
             continue
 
         # Variant toggle (T)
@@ -412,7 +424,9 @@ def play_autonomous(
             items_collected = 0
             episode = 1
             env.render()
-            prev_keys = list(pygame.key.get_pressed())
+            if not getattr(env, "is_running", True):
+                break
+            prev_keys = list(keys)
             continue
 
         # Agent architecture toggle (H or A)
@@ -436,7 +450,9 @@ def play_autonomous(
             items_collected = 0
             episode = 1
             env.render()
-            prev_keys = list(pygame.key.get_pressed())
+            if not getattr(env, "is_running", True):
+                break
+            prev_keys = list(keys)
             continue
 
         # Pause toggle (Space)
@@ -464,7 +480,9 @@ def play_autonomous(
             action_name = "STAY"
             print(f"[AI Player] Episode {episode} reset.")
             env.render()
-            prev_keys = list(pygame.key.get_pressed())
+            if not getattr(env, "is_running", True):
+                break
+            prev_keys = list(keys)
             continue
 
         prev_keys = list(keys)
@@ -508,6 +526,8 @@ def play_autonomous(
 
         # Render frame (env.render() handles 60 FPS clock ticking and event pump)
         env.render()
+        if not getattr(env, "is_running", True):
+            break
         if clock is not None:
             clock.tick(fps)
 
