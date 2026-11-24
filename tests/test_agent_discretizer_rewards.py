@@ -9,6 +9,52 @@ from rewards import BalancedRewardStrategy, DenseRewardStrategy, SparseRewardStr
 from agent import TabularQAgent
 
 
+def make_raw_state(
+    player_x: float = 50.0,
+    player_y: float = 288.0,
+    velocity_x: float = 0.0,
+    velocity_y: float = 0.0,
+    is_grounded: bool = True,
+    can_double_jump: bool = False,
+    is_crouching: bool = False,
+    dist_to_obstacle: float = -1.0,
+    obstacle_height: float = 0.0,
+    dist_to_pit: float = -1.0,
+    pit_fire_state: int = 0,
+    dist_to_ghost: float = -1.0,
+    ghost_y: float = 0.0,
+    dist_to_item: float = -1.0,
+    dist_to_laser: float = -1.0,
+    dist_to_wisp: float = -1.0,
+    wisp_dir: int = 0,
+    dist_to_monster: float = -1.0,
+    monster_y: float = 0.0,
+    dist_to_goal: float = 500.0,
+) -> RawState:
+    return RawState(
+        player_x=player_x,
+        player_y=player_y,
+        velocity_x=velocity_x,
+        velocity_y=velocity_y,
+        is_grounded=is_grounded,
+        can_double_jump=can_double_jump,
+        is_crouching=is_crouching,
+        dist_to_obstacle=dist_to_obstacle,
+        obstacle_height=obstacle_height,
+        dist_to_pit=dist_to_pit,
+        pit_fire_state=pit_fire_state,
+        dist_to_ghost=dist_to_ghost,
+        ghost_y=ghost_y,
+        dist_to_item=dist_to_item,
+        dist_to_laser=dist_to_laser,
+        dist_to_wisp=dist_to_wisp,
+        wisp_dir=wisp_dir,
+        dist_to_monster=dist_to_monster,
+        monster_y=monster_y,
+        dist_to_goal=dist_to_goal,
+    )
+
+
 class TestDiscretizer(unittest.TestCase):
     def setUp(self) -> None:
         self.discretizer = MarioStateDiscretizer()
@@ -18,7 +64,7 @@ class TestDiscretizer(unittest.TestCase):
         self.assertTrue(issubclass(PlayerStateDiscretizer, BaseDiscretizer))
 
     def test_discretize_structure_and_types(self) -> None:
-        raw = RawState(
+        raw = make_raw_state(
             player_x=50.0,
             player_y=288.0,
             velocity_y=0.0,
@@ -33,7 +79,7 @@ class TestDiscretizer(unittest.TestCase):
         )
         state = self.discretizer.discretize(raw)
         self.assertIsInstance(state, tuple)
-        self.assertEqual(len(state), 7)
+        self.assertEqual(len(state), 12)
         self.assertTrue(all(isinstance(x, int) for x in state))
 
     def test_legacy_attribute_compatibility(self) -> None:
@@ -49,11 +95,11 @@ class TestDiscretizer(unittest.TestCase):
             ghost_y = 0.0
 
         state = self.discretizer.discretize(LegacyState())
-        self.assertEqual(len(state), 7)
+        self.assertEqual(len(state), 12)
 
     def test_ghost_dist_and_alt_bins(self) -> None:
         # Low ghost (jump over)
-        raw_low = RawState(
+        raw_low = make_raw_state(
             player_x=50.0,
             player_y=288.0,
             velocity_y=0.0,
@@ -71,7 +117,7 @@ class TestDiscretizer(unittest.TestCase):
         self.assertEqual(s_low[6], 0)  # ghost_alt_bin: LOW
 
         # High ghost (walk under)
-        raw_high = RawState(
+        raw_high = make_raw_state(
             player_x=50.0,
             player_y=288.0,
             velocity_y=0.0,
@@ -88,11 +134,42 @@ class TestDiscretizer(unittest.TestCase):
         self.assertEqual(s_high[5], 2)  # ghost_dist_bin: CLOSE
         self.assertEqual(s_high[6], 1)  # ghost_alt_bin: HIGH
 
+    def test_wisp_and_double_jump_bins(self) -> None:
+        # Double jump armed
+        raw_dj = make_raw_state(can_double_jump=True, is_grounded=False)
+        s_dj = self.discretizer.discretize(raw_dj)
+        self.assertEqual(s_dj[10], 1)  # double_jump_bin: 1
+
+        # Wisp ahead within threat distance
+        raw_wisp_ahead = make_raw_state(dist_to_wisp=30.0, wisp_dir=1)
+        s_wisp_ahead = self.discretizer.discretize(raw_wisp_ahead)
+        self.assertEqual(s_wisp_ahead[8], 1)  # wisp_bin: INCOMING_AHEAD
+
+        # Wisp behind
+        raw_wisp_behind = make_raw_state(dist_to_wisp=30.0, wisp_dir=-1)
+        s_wisp_behind = self.discretizer.discretize(raw_wisp_behind)
+        self.assertEqual(s_wisp_behind[8], 2)  # wisp_bin: CHASING_BEHIND
+
+        # Wisp far
+        raw_wisp_far = make_raw_state(dist_to_wisp=100.0, wisp_dir=1)
+        s_wisp_far = self.discretizer.discretize(raw_wisp_far)
+        self.assertEqual(s_wisp_far[8], 0)  # wisp_bin: SAFE
+
+        # Monster approaching
+        raw_mon_near = make_raw_state(dist_to_monster=50.0)
+        s_mon_near = self.discretizer.discretize(raw_mon_near)
+        self.assertEqual(s_mon_near[11], 1)  # monster_bin: 1
+
+        # Monster far / none
+        raw_mon_far = make_raw_state(dist_to_monster=150.0)
+        s_mon_far = self.discretizer.discretize(raw_mon_far)
+        self.assertEqual(s_mon_far[11], 0)  # monster_bin: 0
+
 
 class TestRewards(unittest.TestCase):
     def setUp(self) -> None:
-        self.s1 = RawState(50.0, 288.0, 0.0, True, -1.0, 0.0, -1.0, -1.0, 0.0, -1.0, 500.0)
-        self.s2 = RawState(54.0, 288.0, 0.0, True, -1.0, 0.0, -1.0, -1.0, 0.0, -1.0, 496.0)
+        self.s1 = make_raw_state(player_x=50.0, player_y=288.0, dist_to_goal=500.0)
+        self.s2 = make_raw_state(player_x=54.0, player_y=288.0, dist_to_goal=496.0)
 
     def test_balanced_reward_ghost_and_item(self) -> None:
         strategy = BalancedRewardStrategy(
@@ -119,6 +196,11 @@ class TestRewards(unittest.TestCase):
         r_pit = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_pit, True)
         self.assertAlmostEqual(r_pit, -71.1)
 
+        # Death by monster: MUST be severely penalized
+        ev_mon = GameEvents(dx=4.0, hit_monster=True)
+        r_mon = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_mon, True)
+        self.assertAlmostEqual(r_mon, -71.1)
+
         # Warmth item collection bonus
         ev_item = GameEvents(dx=4.0, collected_item=True)
         r_item = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_item, False)
@@ -128,6 +210,43 @@ class TestRewards(unittest.TestCase):
         ev_goal = GameEvents(dx=4.0, reached_goal=True)
         r_goal = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_goal, True)
         self.assertAlmostEqual(r_goal, 203.9)  # 4.0 + 200.0 - 0.1
+
+    def test_balanced_reward_jump_exemption_and_spam_penalty(self) -> None:
+        strategy = BalancedRewardStrategy(unnecessary_jump_penalty=-15.0)
+
+        # Baseline: walking on flat open ground
+        s_open = make_raw_state(is_grounded=True)
+        ev = GameEvents(dx=4.0)
+        r_walk = strategy.calculate_reward(s_open, Action.RIGHT, s_open, ev, False)
+
+        # 1. Unprovoked jump on open ground -> MUST incur -15.0 penalty
+        r_unprovoked_jump = strategy.calculate_reward(s_open, Action.RIGHT_JUMP, s_open, ev, False)
+        self.assertAlmostEqual(r_unprovoked_jump - r_walk, -15.0)
+
+        # 2. Jump when monster is approaching at 60px (<= 75px threshold) -> EXEMPT
+        s_monster = make_raw_state(is_grounded=True, dist_to_monster=60.0)
+        r_jump_monster = strategy.calculate_reward(s_monster, Action.RIGHT_JUMP, s_monster, ev, False)
+        self.assertAlmostEqual(r_jump_monster, r_walk)
+
+        # 3. Jump when monster is far at 100px (> 75px threshold) -> PENALIZED
+        s_monster_far = make_raw_state(is_grounded=True, dist_to_monster=100.0)
+        r_jump_monster_far = strategy.calculate_reward(s_monster_far, Action.RIGHT_JUMP, s_monster_far, ev, False)
+        self.assertAlmostEqual(r_jump_monster_far - r_walk, -15.0)
+
+        # 4. Jump when wisp is incoming at 55px (<= 65px threshold) -> EXEMPT
+        s_wisp = make_raw_state(is_grounded=True, dist_to_wisp=55.0, wisp_dir=1)
+        r_jump_wisp = strategy.calculate_reward(s_wisp, Action.RIGHT_JUMP, s_wisp, ev, False)
+        self.assertAlmostEqual(r_jump_wisp, r_walk)
+
+        # 5. Jump when laser is threatening at 50px (<= 55px threshold) -> EXEMPT
+        s_laser = make_raw_state(is_grounded=True, dist_to_laser=50.0)
+        r_jump_laser = strategy.calculate_reward(s_laser, Action.RIGHT_JUMP, s_laser, ev, False)
+        self.assertAlmostEqual(r_jump_laser, r_walk)
+
+        # 6. Airborne double jump (is_grounded=False) -> NEVER penalized by unnecessary_jump_penalty
+        s_air = make_raw_state(is_grounded=False, can_double_jump=True)
+        r_air_jump = strategy.calculate_reward(s_air, Action.RIGHT_JUMP, s_air, ev, False)
+        self.assertAlmostEqual(r_air_jump, r_walk)
 
     def test_dense_reward_ghost_and_item(self) -> None:
         strategy = DenseRewardStrategy(death_penalty=-60.0, item_bonus=20.0)

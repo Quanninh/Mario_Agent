@@ -22,7 +22,7 @@ class HybridQSARSAAgent(BaseAgent):
       2. 'expected': Expected SARSA using the full policy expectation:
          Target = r + gamma * [(1 - epsilon) * max_a' Q(s', a') + (epsilon / |A|) * sum(Q(s', a'))]
       3. 'hazard_gated': Mario hazard-conditioned hybrid:
-         Uses Q-Learning (max_a') near lethal hazards (pit or ghost) to overcome risk-freezing,
+         Uses Q-Learning (max_a') near lethal hazards (pit, fire, ghost, laser, wisp, monster) to overcome risk-freezing,
          and SARSA / linear blend on safe corridors to avoid reckless collisions.
     """
 
@@ -96,7 +96,7 @@ class HybridQSARSAAgent(BaseAgent):
           - Terminal: r
           - 'linear': r + gamma * [beta * Q(s', a') + (1 - beta) * max_a' Q(s', a')]
           - 'expected': r + gamma * [(1 - eps) * max_a' Q(s', a') + (eps / |A|) * sum(Q(s', a'))]
-          - 'hazard_gated': Q-Learning if hazard ahead (pit or ghost), else linear SARSA/Q blend
+          - 'hazard_gated': Q-Learning if lethal hazard ahead (pit, ghost, laser, wisp, or monster), else linear SARSA/Q blend
         """
         if done:
             return float(reward)
@@ -116,11 +116,23 @@ class HybridQSARSAAgent(BaseAgent):
 
         if self.mode == "hazard_gated":
             # Check proximity to lethal hazards:
-            # - Index 4: pit_dist_bin (0: NONE, 1: FAR, 2: IMMEDIATE)
-            # - Index 5: ghost_dist_bin (0: NONE, 1: FAR, 2: CLOSE)
+            # - Index 4: pit_dist_bin (0: NONE, 1: FAR, 2: IMMEDIATE SAFE, 3: IMMEDIATE FIRE)
+            # - Index 5: ghost_dist_bin (0: NONE, 1: FAR, 2: CLOSE, 3: OVERLAP)
+            # - Index 7: laser_bin (0: SAFE, 1: THREAT)
+            # - Index 8: wisp_bin (0: SAFE, 1: INCOMING_AHEAD, 2: CHASING_BEHIND)
+            # - Index 11: monster_bin (0: SAFE, 1: THREAT/APPROACHING)
             pit_dist_bin = next_state[4] if len(next_state) > 4 else 0
             ghost_dist_bin = next_state[5] if len(next_state) > 5 else 0
-            is_lethal_hazard = (pit_dist_bin != 0) or (ghost_dist_bin != 0)
+            laser_bin = next_state[7] if len(next_state) > 7 else 0
+            wisp_bin = next_state[8] if len(next_state) > 8 else 0
+            monster_bin = next_state[11] if len(next_state) > 11 else 0
+            is_lethal_hazard = (
+                (pit_dist_bin != 0)
+                or (ghost_dist_bin != 0)
+                or (laser_bin != 0)
+                or (wisp_bin != 0)
+                or (monster_bin != 0)
+            )
 
             if is_lethal_hazard:
                 # Lethal hazard zone: use pure Q-Learning to overcome fear of ledges/ghosts
@@ -141,6 +153,26 @@ class HybridQSARSAAgent(BaseAgent):
         sarsa_next_q = float(next_q[next_action])
         target_future_val = self.beta * sarsa_next_q + (1.0 - self.beta) * max_next_q
         return float(reward + self.gamma * target_future_val)
+
+
+    def update_hybrid(
+        self,
+        state: DiscreteState,
+        action: int,
+        reward: float,
+        next_state: DiscreteState,
+        next_action: Optional[int],
+        done: bool,
+    ) -> float:
+        """Compatibility alias for hybrid SARSA/Q-learning update."""
+        return self.update(
+            state=state,
+            action=action,
+            reward=reward,
+            next_state=next_state,
+            done=done,
+            next_action=next_action,
+        )
 
     def update(
         self,
@@ -229,17 +261,24 @@ class HybridQSARSAAgent(BaseAgent):
         if path.suffix == ".json":
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            loaded_actions = data.get("num_actions", self.num_actions)
+            self.num_actions = max(self.num_actions, loaded_actions)
             for state_str, q_vals in data.get("q_table", {}).items():
                 state_tuple = tuple(map(int, state_str.split(",")))
-                self.q_table[state_tuple] = np.array(q_vals, dtype=np.float32)
+                vec = np.zeros(self.num_actions, dtype=np.float32)
+                vec[:min(len(q_vals), self.num_actions)] = q_vals[:self.num_actions]
+                self.q_table[state_tuple] = vec
         else:
             with open(path, "rb") as f:
                 data = pickle.load(f)
+            loaded_actions = data.get("num_actions", self.num_actions)
+            self.num_actions = max(self.num_actions, loaded_actions)
             for state, q_vals in data.get("q_table", {}).items():
-                self.q_table[state] = np.array(q_vals, dtype=np.float32)
+                vec = np.zeros(self.num_actions, dtype=np.float32)
+                vec[:min(len(q_vals), self.num_actions)] = q_vals[:self.num_actions]
+                self.q_table[state] = vec
 
         for attr in (
-            "num_actions",
             "alpha",
             "gamma",
             "beta",
@@ -256,6 +295,7 @@ class HybridQSARSAAgent(BaseAgent):
     # Aliases for backward compatibility and uniform API with TabularQAgent
     load_q_table = load
     save_q_table = save
+    update_hybrid = update
 
 
 # Convenience alias
