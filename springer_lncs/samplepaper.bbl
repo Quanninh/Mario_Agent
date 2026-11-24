@@ -3,6 +3,11 @@
 \providecommand{\urlprefix}{URL }
 \providecommand{\doi}[1]{https://doi.org/#1}
 
+\bibitem{de2018multi}
+Asis, K.D., Hernandez-Garcia, J.F., Sachdev, G.Z., Sutton, R.S.: Multi-step
+  reinforcement learning: A unifying algorithm. In: Proceedings of the AAAI
+  Conference on Artificial Intelligence (AAAI). vol.~32, pp. 2902--2909 (2018)
+
 \bibitem{bengio2009curriculum}
 Bengio, Y., Louradour, J., Collobert, R., Weston, J.: Curriculum learning. In:
   Proceedings of the 26th Annual International Conference on Machine Learning
@@ -49,6 +54,12 @@ Rolnick, D., Ahuja, A., Schwarz, J., Lillicrap, T.P., Wayne, G.: Experience
 \bibitem{schulman2017proximal}
 Schulman, J., Wolski, F., Dhariwal, P., Radford, A., Klimov, O.: Proximal
   policy optimization algorithms. arXiv preprint arXiv:1707.06347  (2017)
+
+\bibitem{van2009theoretical}
+van Seijen, H., van Hasselt, H., Whiteson, S., Wiering, M.: A theoretical and
+  empirical analysis of {Expected Sarsa}. In: IEEE Symposium on Adaptive
+  Dynamic Programming and Reinforcement Learning (ADPRL). pp. 177--184. IEEE
+  (2009). \doi{10.1109/ADPRL.2009.4927542}
 
 \bibitem{sutton2018reinforcement}
 Sutton, R.S., Barto, A.G.: Reinforcement Learning: An Introduction. MIT Press,

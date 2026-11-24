@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.6.25)  24 NOV 2026 11:06
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.6.25)  24 NOV 2026 14:46
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -410,17 +410,14 @@ LaTeX Font Info:    Trying to load font information for U+msb on input line 33.
 (C:\Users\khanh\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-(sections/00_abstract/abstract.tex
-Overfull \hbox (0.11284pt too wide) in paragraph at lines 2--3
-[]\T1/cmr/m/n/9 Autonomous nav-i-ga-tion in dy-namic plat-former en-vi-ron-ment
-s
- []
-
-) (sections/01_introduction/introduction.tex
+(sections/00_abstract/abstract.tex) (sections/01_introduction/introduction.tex
 Overfull \hbox (7.7887pt too wide) in paragraph at lines 4--5
 \T1/cmr/m/n/10 Reinforcement learn-ing (RL) has emerged as a cor-ner-stone of a
 u-tonomous decision-
  []
+
+
+Underfull \vbox (badness 4217) has occurred while \output is active []
 
 
 
@@ -431,15 +428,23 @@ u-tonomous decision-
 
 [2]) (sections/03_objectives_problem_gaps/objectives.tex
 
-[3]) (sections/04_teamwork_project_management/teamwork.tex
+[3]
 
 [4]
+Overfull \hbox (6.6831pt too wide) in paragraph at lines 30--31
+\T1/cmr/m/n/10 work against pure off-policy Q-learning, demon-strat-ing how pol
+icy-expectation
+ []
+
+) (sections/04_teamwork_project_management/teamwork.tex
 Overfull \hbox (0.62488pt too wide) in paragraph at lines 17--18
 \T1/cmr/m/n/10 To avoid code con-flicts and en-sure seam-less mod-ule in-te-gra
 -tion, the team adopted
  []
 
 
+
+[5]
 Overfull \hbox (25.42853pt too wide) in paragraph at lines 20--21
 \T1/cmr/m/n/10 stract base classes in \T1/cmtt/m/n/10 core/interfaces.py \T1/cm
 r/m/n/10 (\T1/cmtt/m/n/10 BaseEnvironment\T1/cmr/m/n/10 , \T1/cmtt/m/n/10 BaseD
@@ -447,28 +452,74 @@ iscretizer\T1/cmr/m/n/10 ,
  []
 
 ) (sections/05_proposed_approach/approach.tex
-
-[5]
-Overfull \hbox (12.18495pt too wide) in paragraph at lines 16--17
-\OT1/cmr/m/n/10 80[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (1\OML/cmm/m/it/10 ; 
-\OT1/cmr/m/n/10 40[]80[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (2\OML/cmm/m/it/1
-0 ; \OT1/cmr/m/n/10 15[]40[])$\T1/cmr/m/n/10 , and $[]\OT1/cmr/m/n/10 (3\OML/cm
-m/m/it/10 ; \OMS/cmsy/m/n/10 ^^T \OT1/cmr/m/n/10 15[])$\T1/cmr/m/n/10 .
- []
-
-
-Overfull \hbox (16.06952pt too wide) in paragraph at lines 18--19
-\T1/cmr/m/n/10 into $[]\OT1/cmr/m/n/10 (0\OML/cmm/m/it/10 ; > \OT1/cmr/m/n/10 8
-0[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (1\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 3
-2[]80[])$\T1/cmr/m/n/10 , and $[]\OT1/cmr/m/n/10 (2\OML/cmm/m/it/10 ; \OMS/cmsy
-/m/n/10 ^^T \OT1/cmr/m/n/10 32[])$\T1/cmr/m/n/10 ,
+Overfull \hbox (20.26476pt too wide) detected at line 10
+[]\OMS/cmsy/m/n/10 S \OT1/cmr/m/n/10 = \OMS/cmsy/m/n/10 h[]\OML/cmm/m/it/10 ;  
+V[];  [][];  [][];  [][];  [][];  [][]\OMS/cmsy/m/n/10 i
  []
 
 
 
-[6]) (sections/06_implementation_details/implementation.tex
+[6]
+Overfull \hbox (64.25214pt too wide) in paragraph at lines 16--17
+\T1/cmr/m/n/10 the near-est up-com-ing ob-sta-cle: $[]\OT1/cmr/m/n/10 (0\OML/cm
+m/m/it/10 ; > \OT1/cmr/m/n/10 80[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (1\OML/
+cmm/m/it/10 ; \OT1/cmr/m/n/10 45[]80[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (2\
+OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 15[]45[])$\T1/cmr/m/n/10 ,
+ []
+
+
+Overfull \hbox (2.83531pt too wide) in paragraph at lines 16--17
+\T1/cmr/m/n/10 and $[]\OT1/cmr/m/n/10 (3\OML/cmm/m/it/10 ; < \OT1/cmr/m/n/10 15
+[])$\T1/cmr/m/n/10 . Ver-ti-cally cleared ob-sta-cles re-set to $[]\OT1/cmr/m/n
+/10 (0)$\T1/cmr/m/n/10 . 
+ []
+
+
+Overfull \hbox (22.52881pt too wide) in paragraph at lines 17--18
+[]\T1/cmr/bx/n/10 Obstacle Height ($[][] \OMS/cmsy/m/n/10 2 f\OT1/cmr/m/n/10 0\
+OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 1\OMS/cmsy/m/n/10 g$\T1/cmr/bx/n/10 )\T1/cmr/
+m/n/10 : Bi-nary height thresh-old: $[]\OT1/cmr/m/n/10 (0\OML/cmm/m/it/10 ; \OM
+S/cmsy/m/n/10 ^^T
+ []
+
+
+Overfull \hbox (0.10367pt too wide) in paragraph at lines 18--19
+\T1/cmr/m/n/10 into $[]\OT1/cmr/m/n/10 (0\OML/cmm/m/it/10 ; > \OT1/cmr/m/n/10 1
+00[])$\T1/cmr/m/n/10 , $[]\OT1/cmr/m/n/10 (1\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 
+32[]100[])$\T1/cmr/m/n/10 , and $[]\OT1/cmr/m/n/10 (2\OML/cmm/m/it/10 ; \OMS/cm
+sy/m/n/10 ^^T \OT1/cmr/m/n/10 32[])$\T1/cmr/m/n/10 ,
+ []
+
+
 
 [7]
+Overfull \hbox (78.8702pt too wide) detected at line 76
+[]\OMS/cmsy/m/n/10 T[] \OT1/cmr/m/n/10 = []
+ []
+
+
+
+[8]
+Overfull \hbox (18.99945pt too wide) detected at line 91
+[]\OML/cmm/m/it/10 r[] \OT1/cmr/m/n/10 = \OML/cmm/m/it/10 r[]\OT1/cmr/m/n/10 (\
+OML/cmm/m/it/10 ^^Ax\OT1/cmr/m/n/10 ) + \OML/cmm/m/it/10 r[] \OMS/cmsy/m/n/10 ^
+^A \U/msb/m/n/10 I[] \OT1/cmr/m/n/10 + \OML/cmm/m/it/10 r[] \OMS/cmsy/m/n/10 ^^
+A \U/msb/m/n/10 I[] \OT1/cmr/m/n/10 + \OML/cmm/m/it/10 r[] \OMS/cmsy/m/n/10 ^^A
+ \U/msb/m/n/10 I[] \OT1/cmr/m/n/10 + \OML/cmm/m/it/10 r[] \OMS/cmsy/m/n/10 ^^A 
+\U/msb/m/n/10 I[] \OT1/cmr/m/n/10 + \OML/cmm/m/it/10 r[] \OMS/cmsy/m/n/10 ^^A \
+U/msb/m/n/10 I[] \OT1/cmr/m/n/10 + \OML/cmm/m/it/10 r[]
+ []
+
+) (sections/06_implementation_details/implementation.tex
+
+[9]
+Overfull \hbox (21.75948pt too wide) in paragraph at lines 19--20
+\T1/cmr/m/n/10 tu-ple $\OMS/cmsy/m/n/10 h\OML/cmm/m/it/10 s[]; [] ; s[]\OMS/cms
+y/m/n/10 i$\T1/cmr/m/n/10 , and se-lected ac-tion. A man-ual key-board mode (\T
+1/cmtt/m/n/10 play_human.py\T1/cmr/m/n/10 )
+ []
+
+
 Overfull \hbox (2.89127pt too wide) in paragraph at lines 26--27
 []\T1/cmr/bx/n/10 Pygame 2.5\T1/cmr/m/n/10 : Man-ages 2D sprite ren-der-ing, wi
 n-dow events, delta-time clocks,
@@ -479,69 +530,117 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 ) (sections/07_experimental_results_evaluation/evaluation.tex
 
-[8]
-
-[9]
-<figures/figure_1_curriculum_win_rate.pdf, id=57, 832.583pt x 585.5871pt>
-File: figures/figure_1_curriculum_win_rate.pdf Graphic file (type pdf)
-<use figures/figure_1_curriculum_win_rate.pdf>
-Package pdftex.def Info: figures/figure_1_curriculum_win_rate.pdf  used on inpu
-t line 68.
-(pdftex.def)             Requested size: 333.24092pt x 234.38258pt.
-
-
 [10]
-<figures/figure_2_reward_trajectories.pdf, id=61, 1007.22423pt x 690.8122pt>
-File: figures/figure_2_reward_trajectories.pdf Graphic file (type pdf)
-<use figures/figure_2_reward_trajectories.pdf>
-Package pdftex.def Info: figures/figure_2_reward_trajectories.pdf  used on inpu
-t line 88.
-(pdftex.def)             Requested size: 333.24092pt x 228.54848pt.
+Overfull \hbox (1.47458pt too wide) in paragraph at lines 11--12
+\T1/cmr/m/n/10 tance $\OML/cmm/m/it/10 x[] \OT1/cmr/m/n/10 = 1100\OML/cmm/m/it/
+10 :\OT1/cmr/m/n/10 0[]$ \T1/cmr/m/n/10 ($\OML/cmm/m/it/10 T[] \OT1/cmr/m/n/10 
+= 1000$\T1/cmr/m/n/10 ), in-tro-duc-ing mixed hur-dles ($\OT1/cmr/m/n/10 44[]68
+[]$\T1/cmr/m/n/10 )
+ []
 
 
-[11]
-
-[12 <./figures/figure_1_curriculum_win_rate.pdf>]
-<figures/figure_3_sample_efficiency.pdf, id=187, 699.87724pt x 540.02815pt>
-File: figures/figure_3_sample_efficiency.pdf Graphic file (type pdf)
-<use figures/figure_3_sample_efficiency.pdf>
-Package pdftex.def Info: figures/figure_3_sample_efficiency.pdf  used on input 
-line 133.
-(pdftex.def)             Requested size: 319.35301pt x 246.4136pt.
-
-
-[13 <./figures/figure_2_reward_trajectories.pdf>]
-
-[14]
-
-[15 <./figures/figure_3_sample_efficiency.pdf>]
-
-[16]) (sections/08_conclusion_future_work/conclusion.tex
-
-[17]) (samplepaper.bbl
-Underfull \hbox (badness 1365) in paragraph at lines 12--15
-[]\T1/cmr/m/n/9 Chen, L., Wang, Y.: Adap-tive cur-ricu-lum learn-ing for dis-cr
-ete con-trol in
+Overfull \hbox (0.21536pt too wide) in paragraph at lines 14--15
+\T1/cmr/m/n/10 ($\OML/cmm/m/it/10 T[] \OT1/cmr/m/n/10 = 1000$\T1/cmr/m/n/10 ). 
+The com-plete gaunt-let com-bin-ing multi-tier hur-dles, variable-
  []
 
 
 
-[18])
+[11]
+<figures/figure_1_curriculum_win_rate.pdf, id=63, 832.583pt x 585.5871pt>
+File: figures/figure_1_curriculum_win_rate.pdf Graphic file (type pdf)
+<use figures/figure_1_curriculum_win_rate.pdf>
+Package pdftex.def Info: figures/figure_1_curriculum_win_rate.pdf  used on inpu
+t line 70.
+(pdftex.def)             Requested size: 333.24092pt x 234.38258pt.
 
-[19] (samplepaper.aux)
+
+[12]
+Overfull \hbox (1.48993pt too wide) in paragraph at lines 83--84
+\T1/cmr/m/n/10 steps). Cur-ricu-lum Bal-anced reaches a \T1/cmr/bx/n/10 95.0% c
+on-verged win rate \T1/cmr/m/n/10 (+26.0%
+ []
+
+
+
+[13]
+<figures/figure_2_reward_trajectories.pdf, id=71, 1007.22423pt x 690.8122pt>
+File: figures/figure_2_reward_trajectories.pdf Graphic file (type pdf)
+<use figures/figure_2_reward_trajectories.pdf>
+Package pdftex.def Info: figures/figure_2_reward_trajectories.pdf  used on inpu
+t line 90.
+(pdftex.def)             Requested size: 333.24092pt x 228.54848pt.
+
+
+[14 <./figures/figure_1_curriculum_win_rate.pdf>]
+
+[15 <./figures/figure_2_reward_trajectories.pdf>]
+
+[16]
+
+[17]
+Overfull \hbox (2.95096pt too wide) in paragraph at lines 190--191
+[]\T1/cmr/m/n/10 On Level 2, Cur-ricu-lum takes $\OT1/cmr/m/n/10 113\OML/cmm/m/
+it/10 ; \OT1/cmr/m/n/10 241$ \T1/cmr/m/n/10 adap-ta-tion steps; in-clud-ing the
+ $\OT1/cmr/m/n/10 432\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 530$
+ []
+
+<figures/figure_3_sample_efficiency.pdf, id=297, 699.87724pt x 540.02815pt>
+File: figures/figure_3_sample_efficiency.pdf Graphic file (type pdf)
+<use figures/figure_3_sample_efficiency.pdf>
+Package pdftex.def Info: figures/figure_3_sample_efficiency.pdf  used on input 
+line 198.
+(pdftex.def)             Requested size: 319.35301pt x 246.4136pt.
+
+
+[18]
+Overfull \hbox (1.54132pt too wide) in paragraph at lines 221--222
+\T1/cmr/m/n/10 early ex-plo-ration (Episodes 1--100) against fi-nal con-verged 
+per-for-mance (Episodes
+ []
+
+
+
+[19 <./figures/figure_3_sample_efficiency.pdf>]
+
+[20]
+Overfull \hbox (12.91214pt too wide) in paragraph at lines 261--262
+[]\T1/cmr/bx/n/10 Adversary Ve-loc-ity and Al-ti-tude Het-ero-gene-ity\T1/cmr/m
+/n/10 : While Ex-pected SARSA
+ []
+
+) (sections/08_conclusion_future_work/conclusion.tex
+Overfull \hbox (0.32306pt too wide) in paragraph at lines 6--7
+[]\T1/cmr/m/n/10 Crucially, our com-par-a-tive bench-mark be-tween off-policy T
+ab-u-lar Q-Learning
+ []
+
+
+
+[21]) (samplepaper.bbl
+
+[22]
+Underfull \hbox (badness 1365) in paragraph at lines 17--20
+[]\T1/cmr/m/n/9 Chen, L., Wang, Y.: Adap-tive cur-ricu-lum learn-ing for dis-cr
+ete con-trol in
+ []
+
+)
+
+[23] (samplepaper.aux)
  ***********
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-05-26>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 5286 strings out of 468219
- 86317 string characters out of 5432869
- 497333 words of memory out of 5000000
- 33714 multiletter control sequences out of 15000+600000
+ 5294 strings out of 468219
+ 86482 string characters out of 5432869
+ 498333 words of memory out of 5000000
+ 33722 multiletter control sequences out of 15000+600000
  645531 words of font info for 83 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 67i,11n,77p,1764b,375s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 67i,11n,77p,1852b,375s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx
 0700.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi60
 0\ectt1000.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec
@@ -574,9 +673,9 @@ blic/amsfonts/cm/cmsy5.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/
 type1/public/amsfonts/cm/cmsy7.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTe
 X/fonts/type1/public/amsfonts/cm/cmsy9.pfb><C:/Users/khanh/AppData/Local/Progra
 ms/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
-Output written on samplepaper.pdf (19 pages, 715217 bytes).
+Output written on samplepaper.pdf (23 pages, 747097 bytes).
 PDF statistics:
- 1021 PDF objects out of 1200 (max. 8388607)
+ 1067 PDF objects out of 1200 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
  16 words of extra memory for PDF output out of 10000 (max. 10000000)
 

@@ -6,17 +6,17 @@ This section describes the software architecture, graphical user interface, tech
 \subsection{Software Architecture and Decoupled Subsystems}
 The project follows a decoupled, object-oriented design adhering to SOLID principles. The system is partitioned into five distinct Python packages under \texttt{core/interfaces.py}:
 \begin{enumerate}
-    \item \texttt{env/}: Houses the Pygame environment, continuous physics simulation, collision engine, and tilemap loaders for Levels 1--3.
-    \item \texttt{discretizer/}: Implements \texttt{BaseDiscretizer}, encapsulating continuous coordinate projection into the discrete 144-state hashable representation.
+    \item \texttt{env/}: Houses the Pygame environment, continuous physics simulation, collision engine, and procedural tilemap loaders for Levels 1--5.
+    \item \texttt{discretizer/}: Implements \texttt{BaseDiscretizer}, encapsulating continuous coordinate projection into the discrete 7-tuple hashable representation ($\le 1{,}152$ states).
     \item \texttt{rewards/}: Implements the Strategy Pattern via \texttt{BaseRewardStrategy}, allowing plug-and-play swapping between Sparse, Dense, and Balanced reward formulations without touching environment physics.
-    \item \texttt{agent/}: Implements \texttt{BaseAgent}, containing the $Q$-table data structure, action selection, TD updates, and model serialization.
+    \item \texttt{agent/}: Implements \texttt{BaseAgent}, providing both \texttt{TabularQAgent} (pure off-policy Q-learning) and \texttt{HybridQSARSAAgent} (Expected SARSA, linear $Q(\sigma)$ blending, and hazard-gated switching), alongside experience rehearsal, Q-table serialization, and decay schedulers.
     \item \texttt{evaluation/}: Houses telemetry loggers, CSV export hooks, and automated Matplotlib/Seaborn graph generation scripts.
 \end{enumerate}
 
 \subsection{User Interface and Interactive Modes}
 The application provides two execution modes:
 \begin{itemize}
-    \item \textbf{Interactive GUI / Evaluation Mode}: Renders at $60\text{ FPS}$ using Pygame. The head-up display (HUD) visualizes real-time metrics, including current episode index, instantaneous reward, exploration rate $\epsilon$, current discrete state tuple $\langle s_1, s_2, s_3, s_4, s_5 \rangle$, and selected action. A manual keyboard mode (\texttt{play\_human.py}) allows human benchmark play.
+    \item \textbf{Interactive GUI / Evaluation Mode}: Renders at $60\text{ FPS}$ using Pygame. The head-up display (HUD) visualizes real-time metrics, including current episode index, instantaneous reward, exploration rate $\epsilon$, current discrete state tuple $\langle s_1, \dots, s_7 \rangle$, and selected action. A manual keyboard mode (\texttt{play\_human.py}) allows human benchmark play.
     \item \textbf{Headless Training Mode}: Bypasses graphical rendering to execute physics steps at over $500\text{ FPS}$, accelerating multi-episode curriculum completion.
 \end{itemize}
 

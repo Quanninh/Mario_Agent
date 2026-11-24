@@ -4,7 +4,7 @@
 \subsection{Problem Formulation (Markov Decision Process)}
 We formulate the platformer navigation challenge as a discrete-time Markov Decision Process (MDP) defined by the 5-tuple $(\mathcal{S}, \mathcal{A}, \mathcal{P}, \mathcal{R}, \gamma)$:
 \begin{itemize}
-    \item \textbf{Environment}: A 2D side-scrolling platformer with continuous kinematic physics ($60\text{ FPS}$), featuring variable-height tombstones, lethal chasm pits, and a terminal goal house.
+    \item \textbf{Environment}: A 2D side-scrolling platformer with continuous kinematic physics ($60\text{ FPS}$), featuring variable-height tombstones, lethal open chasms, dynamic airborne ghosts, warmth collectibles, and a terminal goal house.
     \item \textbf{Continuous State Space}: In raw game physics, the agent is governed by real-valued kinematics $\mathbf{s}_{\text{raw}} = (x, y, v_x, v_y) \in \mathbb{R}^4$, along with arbitrary obstacle and pit coordinates. Because this space is uncountably infinite ($|\mathcal{S}_{\text{raw}}| \to \infty$), exact table lookup is intractable.
     \item \textbf{Action Space ($\mathcal{A}$)}: Five discrete actions: $\text{STAY} (0)$, $\text{LEFT} (1)$, $\text{JUMP} (2)$, $\text{RIGHT} (3)$, and $\text{RIGHT\_JUMP} (4)$.
     \item \textbf{Transition Function ($\mathcal{P}$)}: Governed by the underlying game engine kinematics including gravitational acceleration ($g = 0.5\text{ px/tick}^2$), terminal velocity, and AABB collision resolution.
@@ -13,17 +13,19 @@ We formulate the platformer navigation challenge as a discrete-time Markov Decis
 \end{itemize}
 
 \subsection{Identified Research Gaps and Technical Challenges}
-Current approaches to platformer reinforcement learning face three major limitations:
+Current approaches to platformer reinforcement learning face four major limitations:
 \begin{enumerate}
     \item \textbf{Compute Inefficiency of Deep RL}: Deep architectures (such as DQN or PPO) require millions of frames, specialized compute infrastructure, and extensive tuning. For resource-constrained academic setups or lightweight game agents, deep networks introduce unnecessary complexity and latency.
     \item \textbf{Spatial Overfitting in Naive Discretization}: Prior tabular methods frequently partition absolute global coordinates ($x, y$). This destroys generalization: an agent trained on Level 1 cannot navigate Level 2 because world coordinates do not match. A spatially invariant feature representation is essential.
     \item \textbf{The Credit Assignment and Dithering Bottleneck}: Purely sparse reward signals ($+100$ on victory, $-50$ on death) provide no gradient in intermediate states, causing agents to timeout randomly. Conversely, symmetric dense progress rewards ($+1.0$ forward, $-1.0$ backward) allow agents to oscillate back and forth without penalty, resulting in policy dithering.
+    \item \textbf{Maximization Bias and Exploratory Jitter Near Hazards}: Off-policy Q-learning assumes optimal future greedy actions ($\max_{a'}$). In the presence of lethal cliffs and moving adversaries, stochastic exploratory actions during training lead to sudden deaths that off-policy updates fail to anticipate, requiring expectation-based on-policy TD targets (Expected SARSA).
 \end{enumerate}
 
 \subsection{Project Objectives}
-To address these gaps, our team established three concrete engineering and research objectives:
+To address these gaps, our team established four concrete engineering and research objectives:
 \begin{enumerate}
-    \item Design a compact, spatially invariant 144-state discretization model that abstracts continuous physics into relative hazard proximities without perceptual aliasing.
-    \item Implement a modular, asymmetric progression reward function that mathematically discourages regression and stalling.
-    \item Validate that curriculum-based policy transfer enables a tabular Q-agent to master increasingly lethal platforming stages with $> 85\%$ reliability.
+    \item Design a compact, spatially invariant 7-tuple discretization model ($\le 1{,}152$ discrete states) that abstracts continuous kinematics into relative hazard proximities without perceptual aliasing.
+    \item Implement a modular, asymmetric progression reward function that discourages backward regression and policy dithering.
+    \item Validate that curriculum-based policy transfer across a 5-tier environment enables tabular reinforcement learning to master increasingly complex platforming stages, resolving hard exploration bottlenecks where training from scratch fails.
+    \item Formulate and comparatively benchmark a unified Hybrid Q-SARSA framework against pure off-policy Q-learning, demonstrating how policy-expectation bootstrapping (Expected SARSA) mitigates maximization bias near dynamic adversaries and lethal chasms.
 \end{enumerate}

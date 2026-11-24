@@ -4,25 +4,27 @@
 This section details the theoretical and algorithmic formulation of our reinforcement learning system, authored collaboratively by Members 2 and 3.
 
 \subsection{State Representation and Discretization Mapping}
-To eliminate the curse of dimensionality and ensure spatial invariance across different level layouts, the continuous coordinate state $\mathbf{s}_{\text{raw}}$ is mapped into a compact, discrete 5-tuple:
+To eliminate the curse of dimensionality and ensure spatial invariance across different level layouts, the continuous coordinate state $\mathbf{s}_{\text{raw}}$ is mapped into a compact, discrete 7-tuple:
 \begin{equation}
-\mathcal{S} = \langle \text{is\_grounded}, \; V_{y\text{-sign}}, \; \text{Obstacle}_{\text{dist}}, \; \text{Obstacle}_{\text{height}}, \; \text{Pit}_{\text{dist}} \rangle
+\mathcal{S} = \langle \text{is\_grounded}, \; V_{y\text{-sign}}, \; \text{Obstacle}_{\text{dist}}, \; \text{Obstacle}_{\text{height}}, \; \text{Pit}_{\text{dist}}, \; \text{Ghost}_{\text{dist}}, \; \text{Ghost}_{\text{alt}} \rangle
 \end{equation}
 
 The individual feature dimensions are partitioned as follows:
 \begin{enumerate}
-    \item \textbf{Grounded Status ($\text{is\_grounded} \in \{0, 1\}$)}: Binary indicator ($1$ if Mario's feet contact ground, $0$ otherwise). This prevents the agent from attempting invalid mid-air jump commands.
-    \item \textbf{Vertical Velocity Sign ($V_{y\text{-sign}} \in \{-1, 0, 1\}$)}: Differentiates ascending jump trajectories ($v_y < -0.1 \implies 1$), descending freefall ($v_y > 0.1 \implies -1$), and horizontal motion ($0$).
-    \item \textbf{Obstacle Proximity ($\text{Obstacle}_{\text{dist}} \in \{0, 1, 2, 3\}$)}: Measures horizontal distance to the nearest upcoming obstacle. Partitioned into $\text{NONE} (0, > 80\text{ px})$, $\text{FAR} (1, 40\text{--}80\text{ px})$, $\text{CLOSE} (2, 15\text{--}40\text{ px})$, and $\text{IMMEDIATE} (3, \le 15\text{ px})$. Obstacles already vertically cleared are suppressed to $\text{NONE} (0)$ to avoid perceptual aliasing.
-    \item \textbf{Obstacle Height ($\text{Obstacle}_{\text{height}} \in \{0, 1\}$)}: Calibrated binary threshold: $\text{LOW} (0, \le 50\text{ px})$ vs. $\text{HIGH} (1, > 50\text{ px})$. High obstacles require early, maximum-velocity jumps.
-    \item \textbf{Pit Proximity ($\text{Pit}_{\text{dist}} \in \{0, 1, 2\}$)}: Quantizes distance to lethal chasms into $\text{NONE} (0, > 80\text{ px})$, $\text{APPROACH} (1, 32\text{--}80\text{ px})$, and $\text{TAKEOFF} (2, \le 32\text{ px})$, delineating the safe jump initiation window.
+    \item \textbf{Grounded Status ($\text{is\_grounded} \in \{0, 1\}$)}: Binary flag ($1$ if feet touch ground, $0$ otherwise), preventing illegal mid-air jumps.
+    \item \textbf{Vertical Velocity Sign ($V_{y\text{-sign}} \in \{-1, 0, 1\}$)}: Distinguishes ascending jumps ($v_y < -0.1 \implies 1$), descending falls ($v_y > 0.1 \implies -1$), and horizontal motion ($0$).
+    \item \textbf{Obstacle Proximity ($\text{Obstacle}_{\text{dist}} \in \{0, 1, 2, 3\}$)}: Measures distance to the nearest upcoming obstacle: $\text{NONE} (0, > 80\text{ px})$, $\text{FAR} (1, 45\text{--}80\text{ px})$, $\text{CLOSE} (2, 15\text{--}45\text{ px})$, and $\text{IMMEDIATE} (3, < 15\text{ px})$. Vertically cleared obstacles reset to $\text{NONE} (0)$.
+    \item \textbf{Obstacle Height ($\text{Obstacle}_{\text{height}} \in \{0, 1\}$)}: Binary height threshold: $\text{LOW} (0, \le 50\text{ px})$ vs. $\text{HIGH} (1, > 50\text{ px})$.
+    \item \textbf{Pit Proximity ($\text{Pit}_{\text{dist}} \in \{0, 1, 2\}$)}: Quantizes distance to lethal chasms into $\text{NONE} (0, > 100\text{ px})$, $\text{FAR} (1, 32\text{--}100\text{ px})$, and $\text{IMMEDIATE} (2, \le 32\text{ px})$, defining the safe take-off zone.
+    \item \textbf{Ghost Proximity ($\text{Ghost}_{\text{dist}} \in \{0, 1, 2, 3\}$)}: Measures horizontal distance to moving ghosts: $\text{NONE} (0, > 80\text{ px})$, $\text{FAR} (1, 35\text{--}80\text{ px})$, $\text{CLOSE} (2, 0 < \text{dist} \le 35\text{ px})$, and $\text{OVERLAP} (3, \text{dist} = 0\text{ px})$.
+    \item \textbf{Ghost Altitude ($\text{Ghost}_{\text{alt}} \in \{0, 1\}$)}: Indicates whether a ghost flies low ($\text{LOW} = 0$, requiring a jump over) or high ($\text{HIGH} = 1$, allowing walking underneath).
 \end{enumerate}
 
-The resulting cardinality of the quantized state space is:
+The resulting combinatorial cardinality of this quantized state space is:
 \begin{equation}
-|\mathcal{S}| = 2 \times 3 \times 4 \times 2 \times 3 = 144 \text{ discrete states.}
+|\mathcal{S}| = 2 \times 3 \times 4 \times 2 \times 3 \times 4 \times 2 = 1{,}152 \text{ discrete states.}
 \end{equation}
-This allows high visitation frequencies across all states within several hundred episodes, enabling rapid tabular value convergence.
+In baseline levels without dynamic adversaries (Levels 1--3), ghost bins remain at zero, collapsing the effective state space to $144$ states. In adversary levels (Levels 4--5), the state space expands up to $1{,}152$ states. Even at maximum capacity, this compact representation allows rapid tabular value convergence without neural function approximation.
 
 \subsection{Tabular Q-Learning Algorithm and Tie-Breaking}
 The agent maintains an explicit lookup table $Q: \mathcal{S} \times \mathcal{A} \to \mathbb{R}$. During interaction, actions are selected using an $\epsilon$-greedy policy with deterministic random tie-breaking. At initialization ($Q(s, a) = 0$), standard \texttt{argmax} introduces severe index-0 bias (\texttt{STAY}); our agent instead identifies all maximal candidates $\mathcal{A}^* = \{a \in \mathcal{A} \mid Q(s, a) = \max_{a'} Q(s, a')\}$ and samples uniformly:
@@ -33,16 +35,59 @@ a_t = \begin{cases}
 \end{cases}
 \end{equation}
 
-Upon executing $a_t$, transitioning to $s_{t+1}$, and receiving scalar reward $r_{t+1}$, the Q-value is updated via the Temporal Difference (TD) rule:
+Upon executing $a_t$, transitioning to $s_{t+1}$, and receiving scalar reward $r_{t+1}$, the Q-value is updated via the off-policy Temporal Difference (TD) rule~\cite{watkins1992q}:
 \begin{equation}
 Q(s_t, a_t) \leftarrow Q(s_t, a_t) + \alpha \left[ r_{t+1} + \gamma \max_{a' \in \mathcal{A}} Q(s_{t+1}, a') - Q(s_t, a_t) \right]
 \end{equation}
-with learning rate $\alpha = 0.1$ and discount factor $\gamma = 0.99$. Exploration decays after each episode according to $\epsilon_{k+1} = \max(\epsilon_{\min}, \epsilon_k \cdot \lambda_{\text{decay}})$.
+with learning rate decaying linearly from $\alpha_{\text{start}} = 0.12$ down to $\alpha_{\min} = 0.02$, and discount factor $\gamma = 0.99$. Exploration decays after each episode according to $\epsilon_{k+1} = \max(\epsilon_{\min}, \epsilon_k \cdot \lambda_{\text{decay}})$.
+
+\subsection{Hybrid Q-SARSA Framework: Unifying On-Policy and Off-Policy Control}
+\label{subsec:hybrid_formulation}
+While pure Q-learning optimizes the optimal action-value function $Q^*$ by assuming greedy exploitation at future steps, it suffers from maximization bias and high risk near lethal hazards under exploratory jitter~\cite{sutton2018reinforcement}. On-policy SARSA, conversely, incorporates exploratory actions into its target, resulting in cautious policies that may freeze or fail to commit near cliffs. To overcome this dilemma, we architect a unified \textbf{Hybrid Q-SARSA Agent} supporting three target calculation paradigms~\cite{van2009theoretical,de2018multi}:
+
+\paragraph{1. Expected SARSA Mode.}
+Expected SARSA eliminates the sampling variance of classic SARSA while directly accounting for the stochastic exploratory behavior policy $\pi$ in the bootstrap target:
+\begin{equation}
+\label{eq:expected_sarsa}
+\mathcal{T}_{\text{Expected}} = r_{t+1} + \gamma \sum_{a' \in \mathcal{A}} \pi(a' \mid s_{t+1}) Q(s_{t+1}, a')
+\end{equation}
+Under our $\epsilon$-greedy exploratory policy with uniform random tie-breaking over greedy candidates $\mathcal{A}^*$, the expected future return expands to:
+\begin{equation}
+\mathcal{T}_{\text{Expected}} = r_{t+1} + \gamma \left[ (1 - \epsilon) \max_{a' \in \mathcal{A}} Q(s_{t+1}, a') + \frac{\epsilon}{|\mathcal{A}|} \sum_{a' \in \mathcal{A}} Q(s_{t+1}, a') \right]
+\end{equation}
+During evaluation ($\epsilon = 0$), $\mathcal{T}_{\text{Expected}}$ smoothly reduces to the deterministic greedy Bellman target. During training ($\epsilon > 0$), the second term explicitly penalizes boundary states where an unintended exploratory action would plunge the agent into a lethal pit or adversary.
+
+\paragraph{2. Linear $Q(\sigma)$ Target Interpolation.}
+To explore the continuous spectrum between on-policy SARSA and off-policy Q-learning, we implement the $Q(\sigma)$ interpolation target~\cite{de2018multi} parameterized by mixing parameter $\beta \in [0, 1]$:
+\begin{equation}
+\label{eq:linear_q_sarsa}
+\mathcal{T}_{\text{Linear}} = r_{t+1} + \gamma \left[ \beta Q(s_{t+1}, a_{t+1}) + (1 - \beta) \max_{a' \in \mathcal{A}} Q(s_{t+1}, a') \right]
+\end{equation}
+Setting $\beta = 0.0$ recovers pure Q-learning, $\beta = 1.0$ recovers on-policy SARSA, and $\beta = 0.25$ provides an empirically tuned compromise between greedy pursuit and trajectory-grounded safety.
+
+\paragraph{3. Hazard-Gated Hybrid Mode.}
+To address the physical asymmetry of platformer navigation---where open corridors reward fast momentum while chasm edges require precise commitment---our agent implements state-conditioned hazard gating:
+\begin{equation}
+\label{eq:hazard_gated}
+\mathcal{T}_{\text{Gated}} = \begin{cases}
+r_{t+1} + \gamma \max_{a' \in \mathcal{A}} Q(s_{t+1}, a'), & \text{if } \text{Pit}_{\text{dist}} \ge 1 \lor \text{Ghost}_{\text{dist}} \ge 1 \\
+r_{t+1} + \gamma \left[ \beta Q(s_{t+1}, a_{t+1}) + (1 - \beta) \max_{a' \in \mathcal{A}} Q(s_{t+1}, a') \right], & \text{otherwise (safe corridor)}
+\end{cases}
+\end{equation}
+In the proximity of lethal hazards, pure off-policy Q-learning eliminates hesitation and cliff-freezing by optimizing the ideal leap trajectory; along safe corridors, on-policy blending curbs reckless sprinting and reduces collision fatalities. In all variants, the TD update rule takes the unified form:
+\begin{equation}
+Q(s_t, a_t) \leftarrow Q(s_t, a_t) + \alpha \left[ \mathcal{T}_{\text{mode}} - Q(s_t, a_t) \right]
+\end{equation}
+
+\subsection{Curriculum Transfer and Continual Rehearsal}
+In our curriculum framework, rather than training an agent on each stage from scratch, the learned Q-table is carried forward across progressive stages. When advancing to subsequent levels, the exploration rate re-warms to $\epsilon_0 = 0.30$ on Levels 2--3 and $\epsilon_0 = 0.40$ on Levels 4--5. This provides sufficient exploration to discover solutions for novel obstacles while retaining core locomotion skills.
+
+To prevent catastrophic forgetting when training on complex stages (Levels 3--5), we employ an experience replay rehearsal mechanism~\cite{rolnick2019experience,isele2018selective}. Specifically, a replay ratio of $\rho = 0.35$ executes periodic updates over earlier level transitions. This allows the Q-table to master the current level's hazards without overwriting foundational jumping reflexes from prior stages~\cite{narvekar2020curriculum}.
 
 \subsection{Modular Reward Shaping Formulations}
 To prevent reward hacking and cyclical dithering, our primary production strategy (\texttt{BalancedRewardStrategy}) employs asymmetric horizontal progress shaping:
 \begin{equation}
-r_{t+1} = r_{\text{progress}}(\Delta x) + r_{\text{goal}} \cdot \mathbb{I}_{\text{win}} + r_{\text{pit}} \cdot \mathbb{I}_{\text{pit}} + r_{\text{obstacle}} \cdot \mathbb{I}_{\text{hit}} + r_{\text{step}}
+r_{t+1} = r_{\text{progress}}(\Delta x) + r_{\text{goal}} \cdot \mathbb{I}_{\text{win}} + r_{\text{pit}} \cdot \mathbb{I}_{\text{pit}} + r_{\text{ghost}} \cdot \mathbb{I}_{\text{ghost}} + r_{\text{item}} \cdot \mathbb{I}_{\text{item}} + r_{\text{obstacle}} \cdot \mathbb{I}_{\text{hit}} + r_{\text{step}}
 \end{equation}
 where:
 \begin{equation}
@@ -51,4 +96,4 @@ r_{\text{progress}}(\Delta x) = \begin{cases}
 -1.5 \cdot |\Delta x|, & \text{if } \Delta x \le 0 \quad (\text{backward regression})
 \end{cases}
 \end{equation}
-with terminal victory bonus $r_{\text{goal}} = +200.0$, pit death penalty $r_{\text{pit}} = -75.0$, obstacle collision penalty $r_{\text{obstacle}} = -3.0$, and per-step living cost $r_{\text{step}} = -0.1$. The $1.5\times$ asymmetry ensures that retreating is mathematically unprofitable, eliminating oscillatory dithering.
+with terminal victory bonus $r_{\text{goal}} = +200.0$, pit and ghost death penalties $r_{\text{pit}} = r_{\text{ghost}} = -75.0$, collectible warmth bonus $r_{\text{item}} = +30.0$, obstacle collision penalty $r_{\text{obstacle}} = -3.0$, and per-step living cost $r_{\text{step}} = -0.1$. The $1.5\times$ penalty on retreat ensures that oscillating backward is mathematically unprofitable, eliminating dithering.
