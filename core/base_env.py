@@ -28,16 +28,42 @@ class RawState:
     # Proximity features (what Hoá "sees" ahead)
     dist_to_obstacle: float  # Distance to nearest tombstone ahead (-1 if none)
     obstacle_height: float   # Height of the nearest tombstone ahead
-    dist_to_pit: float       # Distance to nearest grave pit ahead (-1 if none)
-    pit_fire_state: int      # 0: Safe/Off, 1: Warning embers, 2: Lethal flame
+
+    # 1. Pit & Flame Hazards
+    dist_to_pit: float        # Distance to nearest grave pit ahead (-1 if none)
+    pit_width: float          # Width of that pit (px) (0 if none; helps choose single vs double jump)
+    pit_fire_state: int       # 0: Safe/Off, 1: Warning embers, 2: Lethal flame
+    pit_fire_cycle: float     # Progress in 100-tick fire cycle: [0.0 -> 1.0] (macro cycle)
+    pit_fire_countdown: float # Exact ticks remaining until the next phase change (micro countdown)
+
+    # 2. Ghost Patrol & Wave Kinematics
     dist_to_ghost: float     # Distance to nearest hovering ghost ahead (-1 if none)
     ghost_y: float           # Y-position of that ghost (0 if none; low vs high)
-    dist_to_item: float      # Distance to nearest warmth item ahead (-1 if none)
+    ghost_vx: float          # Ghost's horizontal velocity (negative = flying toward Hoá, positive = away)
+    ghost_vy: float          # Ghost's vertical sinusoidal velocity (negative = ascending, positive = descending)
+
+    # 3. Rotating Laser Specter Hazard
     dist_to_laser: float     # Distance to nearest active laser beam ahead (-1 if none)
+    laser_angle: float       # Current beam angle in radians [0, 2*pi] (0 if no laser)
+    laser_is_blocking: bool  # True if laser beam is currently sweeping across ground/jumping path
+
+    # 4. Will-o'-the-Wisp Projectiles & WispGhost Casting
     dist_to_wisp: float      # Distance to nearest active will-o'-the-wisp projectile ahead
-    wisp_dir: int            #  1: Ahead (in front), -1: Behind (chasing from left), 0: None
-    dist_to_monster: float   # Distance to nearest approaching grave monster ahead (-1 if none)
+    wisp_dir: int            # 1: Ahead (in front), -1: Behind (chasing from left), 0: None
+    wisp_vy: float           # Wisp's vertical velocity (negative = rising, positive = falling, 0 if rolling)
+    wisp_is_grounded: bool   # True if wisp is rolling along the grass floor (requires jump)
+    wisp_ghost_charging: bool# True if nearby WispGhost is winding up / telegraphing a shot
+
+    # 5. Grave Monster Ambush (Cương Thi & Quỷ Nhập Tràng)
+    dist_to_monster: float   # Distance to active/emerging monster ahead (-1 if none)
     monster_y: float         # Y-position of that monster (ground sprint vs airborne hop)
+    monster_state: int       # 0: DORMANT, 1: EMERGING, 2: ACTIVE
+    monster_vx: float        # Monster's current sprint / hop velocity
+    monster_is_grounded: bool# True if monster is on the ground, False if leaping over pit/airborne
+    dist_to_monster_trigger: float # Distance to sleeping monster's grave trigger boundary (< 0 if none/already triggered)
+
+    # 6. Items & Destination
+    dist_to_item: float      # Distance to nearest warmth item ahead (-1 if none)
     dist_to_goal: float      # Distance remaining to Hoá's home
 
     
