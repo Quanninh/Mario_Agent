@@ -35,6 +35,12 @@ class TestStage1Invariants(unittest.TestCase):
         dist_to_monster=-1.0,
         monster_y=0.0,
         dist_to_goal=500.0,
+        ghost_vx=0.0,
+        laser_angle=-1.0,
+        laser_rot_speed=0.0,
+        monster_vx=0.0,
+        monster_vy=0.0,
+        monster_type=None,
     ):
         return RawState(
             player_x=player_x,
@@ -57,6 +63,12 @@ class TestStage1Invariants(unittest.TestCase):
             dist_to_monster=dist_to_monster,
             monster_y=monster_y,
             dist_to_goal=dist_to_goal,
+            ghost_vx=ghost_vx,
+            laser_angle=laser_angle,
+            laser_rot_speed=laser_rot_speed,
+            monster_vx=monster_vx,
+            monster_vy=monster_vy,
+            monster_type=monster_type,
         )
 
     def test_discretizer_high_ghosts_on_floor(self):
@@ -121,13 +133,18 @@ class TestStage1Invariants(unittest.TestCase):
                 )
 
     def test_discretizer_cardinality_and_length(self):
-        """State tuple length remains 12 and max cardinality includes all hazards."""
-        st = self._make_state()
+        """State tuple length is 15 and includes pit_width, ghost_vx, and vx bins."""
+        st = self._make_state(dist_to_pit=30.0, dist_to_ghost=40.0, velocity_x=4.0)
+        st.pit_width = 90.0
+        st.ghost_vx = -1.5
         d_state = self.discretizer.discretize(st)
-        self.assertEqual(len(d_state), 12)
+        self.assertEqual(len(d_state), 15)
+        self.assertEqual(d_state[12], 1)  # pit_width_bin: wide
+        self.assertEqual(d_state[13], 1)  # ghost_vx_bin: advancing
+        self.assertEqual(d_state[14], 1)  # vx_bin: moving right
 
     def test_balanced_reward_round_trip(self):
-        """LEFT + RIGHT round trip on open ground nets strictly -0.20."""
+        """LEFT + RIGHT round trip on open ground nets strictly -0.20 living cost."""
         prev_st = self._make_state(player_x=100.0)
         next_left = self._make_state(player_x=96.0)
         events_left = GameEvents(dx=-4.0)
@@ -143,14 +160,7 @@ class TestStage1Invariants(unittest.TestCase):
             next_left, Action.RIGHT, next_right, events_right, done=False
         )
         self.assertAlmostEqual(r_right, 1.0 * 4.0 - 0.1, places=5)
-
-        net_round_trip = r_left + r_right
-        self.assertAlmostEqual(
-            net_round_trip,
-            -0.20,
-            places=5,
-            msg=f"Net round trip should be -0.20, got {net_round_trip}",
-        )
+        self.assertAlmostEqual(r_left + r_right, -0.20, places=5)
 
     def test_balanced_jump_under_high_ghost_penalized(self):
         """Grounded JUMP under L4 Ghost 2 triggers unnecessary-jump penalty."""
@@ -209,6 +219,26 @@ class TestStage1Invariants(unittest.TestCase):
             r_stay,
             places=5,
             msg="Jumping on top of tombstone at eye level with ghost must be exempted (r_jump == r_stay)",
+        )
+
+    def test_balanced_midair_jump_not_penalized(self):
+        """Action JUMP or RIGHT_JUMP while airborne does NOT trigger jump penalty."""
+        prev_air = self._make_state(player_y=260.0, is_grounded=False)
+        next_air = self._make_state(player_y=255.0, is_grounded=False)
+        events = GameEvents(dx=0.0)
+
+        r_stay = self.balanced.calculate_reward(
+            prev_air, Action.STAY, next_air, events, done=False
+        )
+        r_jump = self.balanced.calculate_reward(
+            prev_air, Action.JUMP, next_air, events, done=False
+        )
+
+        self.assertAlmostEqual(
+            r_jump,
+            r_stay,
+            places=5,
+            msg="Airborne jump action should not incur takeoff penalty",
         )
 
     def test_dense_and_sparse_unchanged(self):
