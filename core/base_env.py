@@ -40,6 +40,14 @@ class RawState:
     monster_y: float         # Y-position of that monster (ground sprint vs airborne hop)
     dist_to_goal: float      # Distance remaining to Hoá's home
 
+    # Entity Kinematics & Hazard Rotations (Timing windows for Levels 4-8)
+    ghost_vx: float = 0.0          # Horizontal velocity of nearest ghost (<0 = advancing, >0 = retreating)
+    laser_angle: float = -1.0      # Current angle of rotating laser [0, 2pi), -1 if none
+    laser_rot_speed: float = 0.0   # Laser rotation speed & direction (rad/tick)
+    monster_vx: float = 0.0        # Horizontal velocity of nearest monster (<0 = charging towards Hoá)
+    monster_vy: float = 0.0        # Vertical velocity of nearest monster (<0 = hopping/airborne)
+    monster_type: Optional[str] = None  # "cuong_thi" or "quy_nhap_trang" or None
+
     
 
 @dataclass
@@ -56,6 +64,19 @@ class GameEvents:
     hit_monster: bool = False     # True if Hoá touched an emerging or active grave monster [DIE]
     monster_type: Optional[str] = None  # Specific monster type: "cuong_thi" or "quy_nhap_trang"
     collected_item: bool = False  # True if Hoá collected a warmth item [BONUS]
+    died: bool = False            # True if Hoá died by any lethal hazard [DIE]
+
+    @property
+    def is_death(self) -> bool:
+        return (
+            self.died
+            or self.fell_in_pit
+            or self.hit_ghost
+            or self.hit_fire
+            or self.hit_laser
+            or self.hit_wisp
+            or self.hit_monster
+        )
 
 class BaseEnvironment(ABC):
     """Abstract interface that any Mario environment must implement."""

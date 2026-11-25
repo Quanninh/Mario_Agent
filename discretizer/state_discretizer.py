@@ -1,3 +1,4 @@
+import math
 from typing import Optional
 from core.base_env import RawState
 from core.interfaces import BaseDiscretizer, DiscreteState
@@ -36,7 +37,7 @@ class MarioStateDiscretizer(BaseDiscretizer):
         obs_close_threshold: float = 45.0,
         ghost_height: float = 28.0,
         ghost_clearance_margin: float = 4.0,
-        laser_threat_distance: float = 55.0,
+        laser_threat_distance: float = 75.0,
         wisp_threat_distance: float = 65.0,
         monster_threat_distance: float = 75.0,
     ):
@@ -96,7 +97,7 @@ class MarioStateDiscretizer(BaseDiscretizer):
         elif dist_pit > 32.0:
             pit_dist_bin = 1  # FAR (early warning approach zone 32..100px)
         else:
-            pit_dist_bin = 3 if pit_fire == 2 else 2  # Immediate danger zone
+            pit_dist_bin = 3 if pit_fire in (1, 2) else 2  # Immediate danger zone
 
         # 6. Ghost Proximity Bin (4 bins: NONE, FAR, CLOSE, OVERLAP)
         dist_ghost = getattr(raw_state, "dist_to_ghost", -1.0)
@@ -122,9 +123,19 @@ class MarioStateDiscretizer(BaseDiscretizer):
         else:
             ghost_alt_bin = 0  # LOW / NONE (hovering low / eye-level -> jump over)
 
-        # 8. Rotating Laser Proximity Bin (0: Safe, 1: Immediate Danger)
+        # 8. Rotating Laser Hazard & Rotation Bin (0: Safe/None, 1: Overhead Safe Window, 2: Ground Sweep Danger)
         dist_laser = getattr(raw_state, "dist_to_laser", -1.0)
-        laser_bin = 1 if (0.0 <= dist_laser <= self.laser_threat_distance) else 0
+        laser_angle = getattr(raw_state, "laser_angle", -1.0)
+        if dist_laser < 0.0 or dist_laser > self.laser_threat_distance:
+            laser_bin = 0  # Safe / None
+        else:
+            if laser_angle >= 0.0:
+                norm_angle = laser_angle % (2.0 * math.pi)
+                # Angle in [0, pi): sweeps down into ground/player plane (lethal danger)
+                # Angle in [pi, 2*pi): points up toward clouds/sky (safe clearance window)
+                laser_bin = 2 if norm_angle < math.pi else 1
+            else:
+                laser_bin = 1  # Threat flag when angle is unspecified
 
         # 9. Will-o'-the-Wisp Hazard Bin (0: Safe/None, 1: Incoming Ahead, 2: Chasing Behind)
         dist_wisp = getattr(raw_state, "dist_to_wisp", -1.0)
@@ -142,9 +153,24 @@ class MarioStateDiscretizer(BaseDiscretizer):
         # 11. Mid-Air Double Jump Bin (0: Unavailable/Spent, 1: Ready)
         double_jump_bin = 1 if getattr(raw_state, "can_double_jump", False) else 0
 
-        # 12. Grave Monster Proximity Bin (0: Safe/None, 1: Threat/Approaching <= 75px)
+        # 12. Grave Monster Proximity & Velocity Bin
+        # 0: Safe/None
+        # 1: Generic threat / Cuong Thi airborne hop (vy < -1.0)
+        # 2: Cuong Thi paused on ground (grounded, vy >= -1.0)
+        # 3: Quy Nhap Trang high-speed ground sprint (vx < -1.0)
         dist_monster = getattr(raw_state, "dist_to_monster", -1.0)
-        monster_bin = 1 if (0.0 <= dist_monster <= self.monster_threat_distance) else 0
+        monster_vx = getattr(raw_state, "monster_vx", 0.0)
+        monster_vy = getattr(raw_state, "monster_vy", 0.0)
+        monster_type = getattr(raw_state, "monster_type", None)
+        if dist_monster < 0.0 or dist_monster > self.monster_threat_distance:
+            monster_bin = 0
+        else:
+            if monster_type == "quy_nhap_trang" or monster_vx < -2.0:
+                monster_bin = 3  # Sprint demon rush
+            elif monster_type == "cuong_thi" or monster_vy != 0.0:
+                monster_bin = 1 if monster_vy < -1.0 else 2  # 1: Airborne hop, 2: Paused on ground
+            else:
+                monster_bin = 1
 
         return (
             grounded_bin,

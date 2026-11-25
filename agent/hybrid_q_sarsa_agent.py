@@ -77,6 +77,10 @@ class HybridQSARSAAgent(BaseAgent):
         Performs uniform random tie-breaking among maximal action values.
         """
         if self.training and random.random() < self.epsilon:
+            # Prevent reversing direction mid-air when traversing over or near a pit
+            if len(state) >= 5 and state[0] == 0 and state[4] != 0:
+                valid_air_actions = [Action.RIGHT, Action.RIGHT_JUMP, Action.JUMP, Action.STAY]
+                return random.choice(valid_air_actions)
             return random.randrange(self.num_actions)
 
         q_values = self.q_table[state]

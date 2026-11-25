@@ -1,3 +1,4 @@
+import math
 from typing import List, Optional, Tuple
 import pygame
 
@@ -281,30 +282,35 @@ class GameEnvironment(BaseEnvironment):
             if hit_ghost:
                 self.player.is_alive = False
                 events.hit_ghost = True
+                events.died = True
                 done = True
 
             # Death by hitting fire
             elif hit_fire:
                 self.player.is_alive = False
                 events.hit_fire = True
+                events.died = True
                 done = True
 
             # Death by hitting laser of the ghost
             elif hit_laser:
                 self.player.is_alive = False
                 events.hit_laser = True
+                events.died = True
                 done = True
 
             # Death by hitting the will-o-wisp
             elif hit_wisp:
                 self.player.is_alive = False
                 events.hit_wisp = True
+                events.died = True
                 done = True
 
             # Death by hitting grave monster
             elif hit_monster:
                 self.player.is_alive = False
                 events.hit_monster = True
+                events.died = True
                 from .entities import CuongThi, QuyNhapTrang
                 if isinstance(collided_monster, CuongThi):
                     events.monster_type = "cuong_thi"
@@ -316,6 +322,7 @@ class GameEnvironment(BaseEnvironment):
             elif self.player.y > self.canvas_height:
                 self.player.is_alive = False
                 events.fell_in_pit = True
+                events.died = True
                 done = True
         else:
             # In God Mode: if fall into the pit, the force push the player back
@@ -396,12 +403,16 @@ class GameEnvironment(BaseEnvironment):
             nearest_ghost = min(upcoming_ghosts, key=lambda g: g.x)
             dist_to_ghost = max(0.0, nearest_ghost.x - self.player.right)
             ghost_y = nearest_ghost.y
+            ghost_vx = getattr(nearest_ghost, "speed", 0.0)
         else:
             dist_to_ghost = -1.0
             ghost_y = 0.0
+            ghost_vx = 0.0
 
         # Nearest upcoming rotating laser hazard
         dist_to_laser = -1.0
+        laser_angle = -1.0
+        laser_rot_speed = 0.0
         for g in self.ghosts:
             if not isinstance(g, LaserGhost):
                 continue
@@ -423,6 +434,11 @@ class GameEnvironment(BaseEnvironment):
                 dist = max(0.0, laser_min_x - self.player.right)
                 if dist_to_laser < 0 or dist < dist_to_laser:
                     dist_to_laser = dist
+                    if getattr(g, "laser_sweep_amplitude", 0.0) > 0.0:
+                        laser_angle = (g.laser_initial_angle + g.laser_sweep_amplitude * math.sin(self.step_count * g.laser_rotation_speed)) % (2.0 * math.pi)
+                    else:
+                        laser_angle = (g.laser_initial_angle + self.step_count * g.laser_rotation_speed) % (2.0 * math.pi)
+                    laser_rot_speed = getattr(g, "laser_rotation_speed", 0.0)
 
         # Nearest upcoming wisp
         threatening_wisps = []
@@ -453,9 +469,21 @@ class GameEnvironment(BaseEnvironment):
             nearest_monster = min(upcoming_monsters, key=lambda m: m.x)
             dist_to_monster = max(0.0, nearest_monster.x - self.player.right)
             monster_y = nearest_monster.y
+            monster_vx = getattr(nearest_monster, "vx", 0.0)
+            monster_vy = getattr(nearest_monster, "vy", 0.0)
+            from .entities import CuongThi, QuyNhapTrang
+            if isinstance(nearest_monster, CuongThi):
+                monster_type = "cuong_thi"
+            elif isinstance(nearest_monster, QuyNhapTrang):
+                monster_type = "quy_nhap_trang"
+            else:
+                monster_type = "grave_monster"
         else:
             dist_to_monster = -1.0
             monster_y = 0.0
+            monster_vx = 0.0
+            monster_vy = 0.0
+            monster_type = None
 
         # Nearest upcoming uncollected warmth item
         upcoming_items = [it for it in self.items if not it.is_collected and it.right > self.player.x]
@@ -489,6 +517,12 @@ class GameEnvironment(BaseEnvironment):
             monster_y=monster_y,
             dist_to_item=dist_to_item,
             dist_to_goal=dist_to_goal,
+            ghost_vx=ghost_vx,
+            laser_angle=laser_angle,
+            laser_rot_speed=laser_rot_speed,
+            monster_vx=monster_vx,
+            monster_vy=monster_vy,
+            monster_type=monster_type,
         )
 
     @staticmethod

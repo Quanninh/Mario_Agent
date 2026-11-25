@@ -1,5 +1,6 @@
 import os
 import tempfile
+from typing import Optional
 import unittest
 
 from core.base_env import Action, GameEvents, RawState
@@ -30,6 +31,12 @@ def make_raw_state(
     dist_to_monster: float = -1.0,
     monster_y: float = 0.0,
     dist_to_goal: float = 500.0,
+    ghost_vx: float = 0.0,
+    laser_angle: float = -1.0,
+    laser_rot_speed: float = 0.0,
+    monster_vx: float = 0.0,
+    monster_vy: float = 0.0,
+    monster_type: Optional[str] = None,
 ) -> RawState:
     return RawState(
         player_x=player_x,
@@ -52,6 +59,12 @@ def make_raw_state(
         dist_to_monster=dist_to_monster,
         monster_y=monster_y,
         dist_to_goal=dist_to_goal,
+        ghost_vx=ghost_vx,
+        laser_angle=laser_angle,
+        laser_rot_speed=laser_rot_speed,
+        monster_vx=monster_vx,
+        monster_vy=monster_vy,
+        monster_type=monster_type,
     )
 
 
@@ -165,6 +178,32 @@ class TestDiscretizer(unittest.TestCase):
         s_mon_far = self.discretizer.discretize(raw_mon_far)
         self.assertEqual(s_mon_far[11], 0)  # monster_bin: 0
 
+    def test_laser_and_monster_bins_with_rotation_and_velocity(self) -> None:
+        # Laser pointing skyward (angle ~ 4.71 rad / 270 deg) -> laser_bin: 1 (SAFE_WINDOW)
+        raw_laser_sky = make_raw_state(dist_to_laser=40.0, laser_angle=4.71)
+        s_laser_sky = self.discretizer.discretize(raw_laser_sky)
+        self.assertEqual(s_laser_sky[7], 1)
+
+        # Laser sweeping floor (angle ~ 1.57 rad / 90 deg) -> laser_bin: 2 (GROUND_DANGER)
+        raw_laser_floor = make_raw_state(dist_to_laser=40.0, laser_angle=1.57)
+        s_laser_floor = self.discretizer.discretize(raw_laser_floor)
+        self.assertEqual(s_laser_floor[7], 2)
+
+        # Cuong Thi airborne hopping (vy < -1.0) -> monster_bin: 1
+        raw_cuong_thi_hop = make_raw_state(dist_to_monster=50.0, monster_vy=-4.0, monster_type="cuong_thi")
+        s_hop = self.discretizer.discretize(raw_cuong_thi_hop)
+        self.assertEqual(s_hop[11], 1)
+
+        # Cuong Thi paused on ground (vy == 0.0) -> monster_bin: 2
+        raw_cuong_thi_ground = make_raw_state(dist_to_monster=50.0, monster_vy=0.0, monster_type="cuong_thi")
+        s_ground = self.discretizer.discretize(raw_cuong_thi_ground)
+        self.assertEqual(s_ground[11], 2)
+
+        # Quy Nhap Trang high-speed ground sprint (vx < -2.0) -> monster_bin: 3
+        raw_quy_nhap_trang = make_raw_state(dist_to_monster=50.0, monster_vx=-4.2, monster_type="quy_nhap_trang")
+        s_sprint = self.discretizer.discretize(raw_quy_nhap_trang)
+        self.assertEqual(s_sprint[11], 3)
+
 
 class TestRewards(unittest.TestCase):
     def setUp(self) -> None:
@@ -178,6 +217,7 @@ class TestRewards(unittest.TestCase):
             ghost_penalty=-75.0,
             item_bonus=25.0,
             step_penalty=-0.1,
+            use_max_x=False,
         )
         self.assertIsInstance(strategy, BaseRewardStrategy)
 
@@ -200,6 +240,11 @@ class TestRewards(unittest.TestCase):
         ev_mon = GameEvents(dx=4.0, hit_monster=True)
         r_mon = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_mon, True)
         self.assertAlmostEqual(r_mon, -71.1)
+
+        # Unified died event flag
+        ev_died = GameEvents(dx=4.0, died=True)
+        r_died = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_died, True)
+        self.assertAlmostEqual(r_died, -71.1)
 
         # Warmth item collection bonus
         ev_item = GameEvents(dx=4.0, collected_item=True)
@@ -247,6 +292,50 @@ class TestRewards(unittest.TestCase):
         s_air = make_raw_state(is_grounded=False, can_double_jump=True)
         r_air_jump = strategy.calculate_reward(s_air, Action.RIGHT_JUMP, s_air, ev, False)
         self.assertAlmostEqual(r_air_jump, r_walk)
+
+    def test_balanced_reward_timing_and_velocity_guidance(self) -> None:
+        strategy = BalancedRewardStrategy(
+            laser_danger_penalty=-3.0,
+            ghost_advance_penalty=-3.0,
+            monster_ground_rush_penalty=-3.0,
+            monster_airborne_jump_penalty=-3.0,
+            evasion_bonus=1.5,
+            use_max_x=False,
+        )
+
+        # 1. Laser sweeping floor (angle in [0, pi)): rushing forward incurs laser_danger_penalty (-3.0)
+        s_laser_danger = make_raw_state(dist_to_laser=40.0, laser_angle=1.57)
+        ev = GameEvents(dx=4.0)
+        r_fwd_danger = strategy.calculate_reward(s_laser_danger, Action.RIGHT, s_laser_danger, ev, False)
+        # Expected: 4.0 - 0.1 (step) - 3.0 (laser danger) = 0.9
+        self.assertAlmostEqual(r_fwd_danger, 0.9)
+
+        # Laser pointing skyward (angle in [pi, 2pi)): safe window, no penalty
+        s_laser_safe = make_raw_state(dist_to_laser=40.0, laser_angle=4.71)
+        r_fwd_safe = strategy.calculate_reward(s_laser_safe, Action.RIGHT, s_laser_safe, ev, False)
+        self.assertAlmostEqual(r_fwd_safe, 3.9)
+
+        # 2. Ghost advancing over pit (ghost_vx < 0, pit ahead): jumping over incurs ghost_advance_penalty
+        s_ghost_adv = make_raw_state(dist_to_ghost=50.0, ghost_vx=-1.5, dist_to_pit=40.0)
+        r_jump_adv = strategy.calculate_reward(s_ghost_adv, Action.RIGHT_JUMP, s_ghost_adv, ev, False)
+        # 4.0 - 0.1 - 3.0 = 0.9
+        self.assertAlmostEqual(r_jump_adv, 0.9)
+
+        # 3. Quy Nhap Trang charging on ground (vx < -2.0):
+        # Staying on ground or walking into it incurs monster_ground_rush_penalty (-3.0)
+        s_demon_sprint = make_raw_state(dist_to_monster=50.0, monster_vx=-4.0, monster_type="quy_nhap_trang")
+        r_walk_demon = strategy.calculate_reward(s_demon_sprint, Action.RIGHT, s_demon_sprint, ev, False)
+        self.assertAlmostEqual(r_walk_demon, 0.9)
+        # Jumping to clear demon earns evasion_bonus (+1.5)
+        r_jump_demon = strategy.calculate_reward(s_demon_sprint, Action.RIGHT_JUMP, s_demon_sprint, ev, False)
+        # 4.0 - 0.1 + 1.5 = 5.4
+        self.assertAlmostEqual(r_jump_demon, 5.4)
+
+        # 4. Cuong Thi airborne hopping (vy < -1.0):
+        # Jumping up into mid-air hopping vampire incurs monster_airborne_jump_penalty (-3.0)
+        s_jiangshi_air = make_raw_state(dist_to_monster=50.0, monster_vy=-4.5, monster_type="cuong_thi")
+        r_jump_jiangshi = strategy.calculate_reward(s_jiangshi_air, Action.RIGHT_JUMP, s_jiangshi_air, ev, False)
+        self.assertAlmostEqual(r_jump_jiangshi, 0.9)
 
     def test_dense_reward_ghost_and_item(self) -> None:
         strategy = DenseRewardStrategy(death_penalty=-60.0, item_bonus=20.0)
