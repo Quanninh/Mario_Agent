@@ -400,7 +400,7 @@ class Trainer:
 
             for lvl_idx, lvl in enumerate(levels):
                 print(f"[Trainer] [Curriculum] Starting Level {lvl} ({episodes_per_level} episodes)...")
-                recent_wins: deque = deque(maxlen=50)  # Reset per level
+                recent_wins: deque = deque(maxlen=100)  # Reset per level
                 best_stage_score = (-1.0, float("-inf"))
                 unlocked_levels = levels[: lvl_idx + 1]
 
@@ -535,7 +535,7 @@ class Trainer:
                             "epsilon": round(float(getattr(agent, "epsilon", 0.0)), 6),
                             "won": ep_res["won"],
                             "outcome": ep_res["outcome"],
-                            "rolling_win_rate_50": rolling_win_rate,
+                            "rolling_win_rate_100": rolling_win_rate,
                         }
                         episode_history.append(rec)
 
@@ -553,7 +553,7 @@ class Trainer:
                                 "global_episode": global_episode,
                                 "total_episodes": len(levels) * episodes_per_level,
                                 "total_reward": round(float(ep_res["total_reward"]), 2),
-                                "rolling_win_rate_50": rolling_win_rate,
+                                "rolling_win_rate_100": rolling_win_rate,
                                 "epsilon": round(float(getattr(agent, "epsilon", 0.0)), 6),
                                 "states_discovered": len(getattr(agent, "q_table", {})),
                             })
@@ -645,7 +645,7 @@ class Trainer:
                 print(f"[Trainer] [Separate] Training Level {lvl} with fresh agent...")
                 agent = agent_factory()
                 alpha_start = float(getattr(agent, "alpha", 0.12))
-                recent_wins: deque = deque(maxlen=50)  # Reset per level
+                recent_wins: deque = deque(maxlen=100)  # Reset per level
                 best_stage_score = (-1.0, float("-inf"))
 
                 env = self.env_factory(lvl)
@@ -700,7 +700,7 @@ class Trainer:
                             "epsilon": round(float(getattr(agent, "epsilon", 0.0)), 6),
                             "won": ep_res["won"],
                             "outcome": ep_res["outcome"],
-                            "rolling_win_rate_50": rolling_win_rate,
+                            "rolling_win_rate_100": rolling_win_rate,
                         }
                         episode_history.append(rec)
 
@@ -718,7 +718,7 @@ class Trainer:
                                 "global_episode": global_episode,
                                 "total_episodes": len(levels) * episodes_per_level,
                                 "total_reward": round(float(ep_res["total_reward"]), 2),
-                                "rolling_win_rate_50": rolling_win_rate,
+                                "rolling_win_rate_100": rolling_win_rate,
                                 "epsilon": round(float(getattr(agent, "epsilon", 0.0)), 6),
                                 "states_discovered": len(getattr(agent, "q_table", {})),
                             })
@@ -820,7 +820,7 @@ class Trainer:
             "epsilon",
             "won",
             "outcome",
-            "rolling_win_rate_50",
+            "rolling_win_rate_100",
         ]
         with open(csv_out_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=csv_headers)

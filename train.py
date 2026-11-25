@@ -69,7 +69,7 @@ class ProgressTracker:
                 line = (
                     f"\r[{bar}] {pct_str} | {self.agent_tag} | {self.mode.capitalize()} | {self.reward.upper()}{seed_str} | "
                     f"Lvl {data['level_id']} ({lvl_ep}/{ep_per_lvl}) | "
-                    f"Win50: {data['rolling_win_rate_50']:5.1f}% | "
+                    f"Win100: {data.get('rolling_win_rate_100', data.get('rolling_win_rate_50', 0.0)):5.1f}% | "
                     f"R: {data['total_reward']:+7.1f} | eps: {data['epsilon']:.3f} | "
                     f"States: {data['states_discovered']:4d}/1152 | ETA: {eta_str}"
                 )
@@ -84,7 +84,7 @@ class ProgressTracker:
                     f"[{self.agent_tag.upper()} | {self.mode.capitalize()} | {self.reward.upper()}{seed_str}] "
                     f"Global Ep {current_ep:4d}/{total_ep:4d} | "
                     f"Lvl {data['level_id']} ({lvl_ep:4d}/{ep_per_lvl:4d}) | "
-                    f"Win50: {data['rolling_win_rate_50']:5.1f}% | "
+                    f"Win100: {data.get('rolling_win_rate_100', data.get('rolling_win_rate_50', 0.0)):5.1f}% | "
                     f"R: {data['total_reward']:+7.1f} | eps: {data['epsilon']:.3f} | "
                     f"States: {data['states_discovered']:4d}/1152 | ETA: {eta_str}"
                 )

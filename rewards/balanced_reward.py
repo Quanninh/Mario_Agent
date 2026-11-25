@@ -25,11 +25,11 @@ class BalancedRewardStrategy(BaseRewardStrategy):
 
     def __init__(
         self,
-        weight_progress: float = 1.0,
-        weight_regress: float = 1.0,
+        weight_progress: float = 0.4,
+        weight_regress: float = 0.3,
         goal_bonus: float = 200.0,
         death_penalty: float = -75.0,
-        pit_penalty: Optional[float] = None,
+        pit_penalty: Optional[float] = -200,
         ghost_penalty: Optional[float] = None,
         fire_penalty: Optional[float] = None,
         laser_penalty: Optional[float] = None,
@@ -38,7 +38,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         obstacle_penalty: float = -3.0,
         item_bonus: float = 30.0,
         step_penalty: float = -0.1,
-        unnecessary_jump_penalty: float = -1.5,
+        unnecessary_jump_penalty: float = -5,
         jump_cost: Optional[float] = None,
         timeout_penalty: float = -100.0,
         use_max_x: bool = False,
