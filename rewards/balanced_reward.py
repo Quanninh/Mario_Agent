@@ -52,9 +52,12 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         ghost_height: float = 28.0,
         ghost_clearance_margin: float = 4.0,
         laser_danger_penalty: float = -3.0,
+        laser_lookahead_ticks: int = 8,
         ghost_advance_penalty: float = -3.0,
         monster_ground_rush_penalty: float = -3.0,
         monster_airborne_jump_penalty: float = -3.0,
+        wisp_danger_penalty: float = -3.0,
+        wisp_radius: float = 6.0,
         evasion_bonus: float = 1.5,
     ):
         self.weight_progress = weight_progress
@@ -95,9 +98,12 @@ class BalancedRewardStrategy(BaseRewardStrategy):
 
         # Timing guidance penalties & bonuses (Levels 4-8)
         self.laser_danger_penalty = laser_danger_penalty
+        self.laser_lookahead_ticks = laser_lookahead_ticks
         self.ghost_advance_penalty = ghost_advance_penalty
         self.monster_ground_rush_penalty = monster_ground_rush_penalty
         self.monster_airborne_jump_penalty = monster_airborne_jump_penalty
+        self.wisp_danger_penalty = wisp_danger_penalty
+        self.wisp_radius = wisp_radius
         self.evasion_bonus = evasion_bonus
 
     def reset(self) -> None:
@@ -203,7 +209,13 @@ class BalancedRewardStrategy(BaseRewardStrategy):
                 and not ghost_overhead_cleared
             )
             laser_near = 0.0 <= getattr(prev_state, "dist_to_laser", -1.0) <= self.laser_threat_distance
-            wisp_near = 0.0 <= getattr(prev_state, "dist_to_wisp", -1.0) <= self.wisp_threat_distance
+            dist_wisp = getattr(prev_state, "dist_to_wisp", -1.0)
+            wisp_y = getattr(prev_state, "wisp_y", 0.0)
+            wisp_overhead_cleared = (
+                wisp_y > 0.0
+                and (wisp_y + self.wisp_radius) <= (player_y - self.ghost_clearance_margin)
+            )
+            wisp_near = 0.0 <= dist_wisp <= self.wisp_threat_distance and not wisp_overhead_cleared
             monster_near = 0.0 <= getattr(prev_state, "dist_to_monster", -1.0) <= self.monster_threat_distance
 
             # If no hazard justifies a jump (or ghost is hovering overhead), penalize takeoff
@@ -213,14 +225,19 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         # 8. Dynamic Timing & Kinematics Guidance (Levels 4-8):
         if not is_death:
             # A. Rotating Laser Timing Guidance:
-            # Penalize rushing forward when laser is actively sweeping downward through the ground plane;
-            # Reward patient waiting outside danger zone and sprinting through the skyward window.
+            # Penalize rushing forward when laser is actively sweeping downward through the ground plane,
+            # or when its rotation speed/direction is about to close the skyward window.
             dist_laser = getattr(prev_state, "dist_to_laser", -1.0)
             laser_angle = getattr(prev_state, "laser_angle", -1.0)
+            laser_rot_speed = getattr(prev_state, "laser_rot_speed", 0.0)
             if 0.0 <= dist_laser <= self.laser_threat_distance and laser_angle >= 0.0:
-                norm_angle = laser_angle % 6.283185307179586
-                laser_sweeping_floor = norm_angle < 3.141592653589793
-                if laser_sweeping_floor:
+                two_pi = 6.283185307179586
+                pi = 3.141592653589793
+                norm_angle = laser_angle % two_pi
+                laser_sweeping_floor = norm_angle < pi
+                next_angle = (norm_angle + laser_rot_speed * self.laser_lookahead_ticks) % two_pi
+                laser_closing_window = (not laser_sweeping_floor) and (laser_rot_speed != 0.0) and (next_angle < pi)
+                if laser_sweeping_floor or laser_closing_window:
                     if action in (Action.RIGHT, Action.RIGHT_JUMP):
                         reward += self.laser_danger_penalty
 
@@ -273,6 +290,34 @@ class BalancedRewardStrategy(BaseRewardStrategy):
             if 0.0 <= dist_pit <= self.pit_threat_distance and pit_fire_state in (1, 2):
                 if action in (Action.RIGHT, Action.RIGHT_JUMP, Action.JUMP):
                     reward += self.laser_danger_penalty
+
+            # E. Will-o'-the-Wisp Velocity, Altitude & Casting Phase Guidance:
+            dist_wisp = getattr(prev_state, "dist_to_wisp", -1.0)
+            wisp_dir = getattr(prev_state, "wisp_dir", 0)
+            wisp_vx = getattr(prev_state, "wisp_vx", 0.0)
+            wisp_y = getattr(prev_state, "wisp_y", 0.0)
+            wisp_charging = getattr(prev_state, "wisp_charging", False)
+            player_y = getattr(prev_state, "player_y", getattr(prev_state, "mario_y", 288.0))
+            if 0.0 <= dist_wisp <= self.wisp_threat_distance:
+                if wisp_dir < 0 and wisp_vx > 0.0:
+                    # Chasing from behind: standing still risks getting hit from the left
+                    if prev_state.is_grounded and action in (Action.STAY, Action.CROUCH):
+                        reward += self.wisp_danger_penalty
+                    elif action in (Action.RIGHT, Action.RIGHT_JUMP):
+                        reward += self.evasion_bonus
+                elif wisp_y > 0.0 and (wisp_y + self.wisp_radius) <= (player_y - self.ghost_clearance_margin):
+                    # High parabolic arc overhead: jumping into it is fatal
+                    if action in (Action.JUMP, Action.RIGHT_JUMP):
+                        reward += self.wisp_danger_penalty
+                elif wisp_vx < 0.0:
+                    # Low/ground-rolling wisp ahead: leap over instead of walking/standing into it
+                    if prev_state.is_grounded and action in (Action.STAY, Action.CROUCH, Action.RIGHT):
+                        reward += self.wisp_danger_penalty
+                    elif action in (Action.JUMP, Action.RIGHT_JUMP):
+                        reward += self.evasion_bonus
+            elif wisp_charging and action == Action.RIGHT_JUMP:
+                # WispGhost telegraphing an imminent cast ahead: avoid leaping blindly into the spawn
+                reward += 0.5 * self.wisp_danger_penalty
 
         # 9. Timeout Penalty
         if done and not events.reached_goal and not is_death:

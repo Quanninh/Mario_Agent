@@ -44,6 +44,10 @@ class RawState:
     ghost_vx: float = 0.0          # Horizontal velocity of nearest ghost (<0 = advancing, >0 = retreating)
     laser_angle: float = -1.0      # Current angle of rotating laser [0, 2pi), -1 if none
     laser_rot_speed: float = 0.0   # Laser rotation speed & direction (rad/tick)
+    wisp_vx: float = 0.0           # Horizontal velocity of nearest threatening wisp
+    wisp_vy: float = 0.0           # Vertical velocity of nearest threatening wisp
+    wisp_y: float = 0.0            # Y-position of nearest threatening wisp (0 if none)
+    wisp_charging: bool = False    # True if an upcoming WispGhost is charging a cast
     monster_vx: float = 0.0        # Horizontal velocity of nearest monster (<0 = charging towards Hoá)
     monster_vy: float = 0.0        # Vertical velocity of nearest monster (<0 = hopping/airborne)
     monster_type: Optional[str] = None  # "cuong_thi" or "quy_nhap_trang" or None

@@ -19,8 +19,8 @@ class MarioStateDiscretizer(BaseDiscretizer):
         pit_dist_bin:        4 values (0: None >100px or <0px, 1: Far 32-100px, 2: Immediate Safe <=32px, 3: Immediate Fire Spewing)
         ghost_dist_bin:      4 values (0: None >80px or <0px, 1: Far 35-80px, 2: Close 0<dist<=35px, 3: Overlap dist==0.0)
         ghost_alt_bin:       2 values (0: Low/None - jump over, 1: High - walk/crouch under)
-        laser_bin:           2 values (0: Safe/None, 1: Threat/Overhead <=55px)
-        wisp_bin:            3 values (0: Safe/None, 1: Incoming Ahead, 2: Chasing Behind)
+        laser_bin:           4 values (0: Safe/None, 1: Overhead Safe Window, 2: Ground Sweep Danger, 3: Closing Window)
+        wisp_bin:            5 values (0: Safe/None, 1: Incoming Low, 2: Chasing Behind, 3: Incoming High, 4: Charging)
         crouch_bin:          2 values (0: Standing, 1: Crouching/Sliding)
         double_jump_bin:     2 values (0: Spent/Unavailable, 1: Armed/Ready)
         monster_bin:         2 values (0: Safe/None, 1: Threat/Approaching <=75px)
@@ -38,7 +38,9 @@ class MarioStateDiscretizer(BaseDiscretizer):
         ghost_height: float = 28.0,
         ghost_clearance_margin: float = 4.0,
         laser_threat_distance: float = 75.0,
+        laser_lookahead_ticks: int = 8,
         wisp_threat_distance: float = 65.0,
+        wisp_radius: float = 6.0,
         monster_threat_distance: float = 75.0,
     ):
         self.velocity_threshold = velocity_threshold
@@ -50,7 +52,9 @@ class MarioStateDiscretizer(BaseDiscretizer):
         self.ghost_height = ghost_height
         self.ghost_clearance_margin = ghost_clearance_margin
         self.laser_threat_distance = laser_threat_distance
+        self.laser_lookahead_ticks = laser_lookahead_ticks
         self.wisp_threat_distance = wisp_threat_distance
+        self.wisp_radius = wisp_radius
         self.monster_threat_distance = monster_threat_distance
 
     def discretize(self, raw_state: RawState) -> DiscreteState:
@@ -123,9 +127,11 @@ class MarioStateDiscretizer(BaseDiscretizer):
         else:
             ghost_alt_bin = 0  # LOW / NONE (hovering low / eye-level -> jump over)
 
-        # 8. Rotating Laser Hazard & Rotation Bin (0: Safe/None, 1: Overhead Safe Window, 2: Ground Sweep Danger)
+        # 8. Rotating Laser Hazard & Rotation Bin
+        # 0: Safe/None, 1: Overhead Safe Window, 2: Ground Sweep Danger, 3: Closing Window
         dist_laser = getattr(raw_state, "dist_to_laser", -1.0)
         laser_angle = getattr(raw_state, "laser_angle", -1.0)
+        laser_rot_speed = getattr(raw_state, "laser_rot_speed", 0.0)
         if dist_laser < 0.0 or dist_laser > self.laser_threat_distance:
             laser_bin = 0  # Safe / None
         else:
@@ -133,19 +139,31 @@ class MarioStateDiscretizer(BaseDiscretizer):
                 norm_angle = laser_angle % (2.0 * math.pi)
                 # Angle in [0, pi): sweeps down into ground/player plane (lethal danger)
                 # Angle in [pi, 2*pi): points up toward clouds/sky (safe clearance window)
-                laser_bin = 2 if norm_angle < math.pi else 1
+                if norm_angle < math.pi:
+                    laser_bin = 2
+                else:
+                    next_angle = (norm_angle + laser_rot_speed * self.laser_lookahead_ticks) % (2.0 * math.pi)
+                    laser_bin = 3 if (laser_rot_speed != 0.0 and next_angle < math.pi) else 1
             else:
                 laser_bin = 1  # Threat flag when angle is unspecified
 
-        # 9. Will-o'-the-Wisp Hazard Bin (0: Safe/None, 1: Incoming Ahead, 2: Chasing Behind)
+        # 9. Will-o'-the-Wisp Hazard Bin
+        # 0: Safe/None, 1: Incoming Low, 2: Chasing Behind, 3: Incoming High, 4: Charging
         dist_wisp = getattr(raw_state, "dist_to_wisp", -1.0)
         wisp_dir = getattr(raw_state, "wisp_dir", 0)
-        if dist_wisp < 0.0 or dist_wisp > self.wisp_threat_distance:
-            wisp_bin = 0  # SAFE / NONE
-        elif wisp_dir >= 0:
-            wisp_bin = 1  # INCOMING_AHEAD
+        wisp_y = getattr(raw_state, "wisp_y", 0.0)
+        wisp_charging = getattr(raw_state, "wisp_charging", False)
+        if 0.0 <= dist_wisp <= self.wisp_threat_distance:
+            if wisp_dir < 0:
+                wisp_bin = 2  # CHASING_BEHIND
+            elif wisp_y > 0.0 and (wisp_y + self.wisp_radius) <= (player_y - self.ghost_clearance_margin):
+                wisp_bin = 3  # INCOMING_HIGH (overhead arc -> walk/crouch under)
+            else:
+                wisp_bin = 1  # INCOMING_LOW (skimming/rolling -> jump over)
+        elif wisp_charging:
+            wisp_bin = 4  # CHARGING (WispGhost telegraphing cast ahead)
         else:
-            wisp_bin = 2  # CHASING_BEHIND
+            wisp_bin = 0  # SAFE / NONE
 
         # 10. Crouch Posture Bin (0: Standing, 1: Crouching)
         crouch_bin = 1 if getattr(raw_state, "is_crouching", False) else 0

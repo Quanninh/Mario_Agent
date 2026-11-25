@@ -435,12 +435,14 @@ class GameEnvironment(BaseEnvironment):
                 if dist_to_laser < 0 or dist < dist_to_laser:
                     dist_to_laser = dist
                     if getattr(g, "laser_sweep_amplitude", 0.0) > 0.0:
-                        laser_angle = (g.laser_initial_angle + g.laser_sweep_amplitude * math.sin(self.step_count * g.laser_rotation_speed)) % (2.0 * math.pi)
+                        phase = self.step_count * g.laser_rotation_speed
+                        laser_angle = (g.laser_initial_angle + g.laser_sweep_amplitude * math.sin(phase)) % (2.0 * math.pi)
+                        laser_rot_speed = g.laser_sweep_amplitude * g.laser_rotation_speed * math.cos(phase)
                     else:
                         laser_angle = (g.laser_initial_angle + self.step_count * g.laser_rotation_speed) % (2.0 * math.pi)
-                    laser_rot_speed = getattr(g, "laser_rotation_speed", 0.0)
+                        laser_rot_speed = getattr(g, "laser_rotation_speed", 0.0)
 
-        # Nearest upcoming wisp
+        # Nearest upcoming wisp & WispGhost casting phase
         threatening_wisps = []
         for w in self.wisps:
             if not w.is_alive:
@@ -448,15 +450,29 @@ class GameEnvironment(BaseEnvironment):
             # 1. Wisp is ahead of Hoá (in front)
             if (w.x + w.radius) >= self.player.x:
                 dist = max(0.0, (w.x - w.radius) - self.player.right)
-                threatening_wisps.append((dist, 1))
+                threatening_wisps.append((dist, 1, w))
             elif w.vx > 0:
                 dist = max(0.0, self.player.x - (w.x + w.radius))
-                threatening_wisps.append((dist, -1))
+                threatening_wisps.append((dist, -1, w))
         if threatening_wisps:
-            dist_to_wisp, wisp_dir = min(threatening_wisps, key=lambda item: item[0])
+            dist_to_wisp, wisp_dir, nearest_wisp = min(threatening_wisps, key=lambda item: item[0])
+            wisp_vx = nearest_wisp.vx
+            wisp_vy = nearest_wisp.vy
+            wisp_y = nearest_wisp.y
         else:
             dist_to_wisp = -1.0
             wisp_dir = 0
+            wisp_vx = 0.0
+            wisp_vy = 0.0
+            wisp_y = 0.0
+
+        wisp_charging = any(
+            isinstance(g, WispGhost)
+            and g.right > self.player.x
+            and (g.x - self.player.right) <= 150.0
+            and g.is_charging_wisp(self.step_count)
+            for g in self.ghosts
+        )
 
         # Nearest upcoming grave monster (charging QuyNhapTrang or hopping CuongThi)
         upcoming_monsters = [
@@ -520,6 +536,10 @@ class GameEnvironment(BaseEnvironment):
             ghost_vx=ghost_vx,
             laser_angle=laser_angle,
             laser_rot_speed=laser_rot_speed,
+            wisp_vx=wisp_vx,
+            wisp_vy=wisp_vy,
+            wisp_y=wisp_y,
+            wisp_charging=wisp_charging,
             monster_vx=monster_vx,
             monster_vy=monster_vy,
             monster_type=monster_type,

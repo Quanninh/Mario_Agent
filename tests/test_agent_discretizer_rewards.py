@@ -34,6 +34,10 @@ def make_raw_state(
     ghost_vx: float = 0.0,
     laser_angle: float = -1.0,
     laser_rot_speed: float = 0.0,
+    wisp_vx: float = 0.0,
+    wisp_vy: float = 0.0,
+    wisp_y: float = 0.0,
+    wisp_charging: bool = False,
     monster_vx: float = 0.0,
     monster_vy: float = 0.0,
     monster_type: Optional[str] = None,
@@ -62,6 +66,10 @@ def make_raw_state(
         ghost_vx=ghost_vx,
         laser_angle=laser_angle,
         laser_rot_speed=laser_rot_speed,
+        wisp_vx=wisp_vx,
+        wisp_vy=wisp_vy,
+        wisp_y=wisp_y,
+        wisp_charging=wisp_charging,
         monster_vx=monster_vx,
         monster_vy=monster_vy,
         monster_type=monster_type,
@@ -204,6 +212,22 @@ class TestDiscretizer(unittest.TestCase):
         s_sprint = self.discretizer.discretize(raw_quy_nhap_trang)
         self.assertEqual(s_sprint[11], 3)
 
+        # Laser skyward but rotating fast clockwise toward ground sweep -> laser_bin: 3 (CLOSING_WINDOW)
+        raw_laser_closing = make_raw_state(dist_to_laser=40.0, laser_angle=6.10, laser_rot_speed=0.05)
+        self.assertEqual(self.discretizer.discretize(raw_laser_closing)[7], 3)
+
+        # Laser skyward and rotating away from ground sweep -> laser_bin: 1 (SAFE_WINDOW)
+        raw_laser_opening = make_raw_state(dist_to_laser=40.0, laser_angle=3.30, laser_rot_speed=0.05)
+        self.assertEqual(self.discretizer.discretize(raw_laser_opening)[7], 1)
+
+        # Wisp high overhead -> wisp_bin: 3 (INCOMING_HIGH)
+        raw_wisp_high = make_raw_state(player_y=288.0, dist_to_wisp=30.0, wisp_dir=1, wisp_y=240.0)
+        self.assertEqual(self.discretizer.discretize(raw_wisp_high)[8], 3)
+
+        # WispGhost charging ahead with no active wisp in range -> wisp_bin: 4 (CHARGING)
+        raw_wisp_charging = make_raw_state(dist_to_wisp=-1.0, wisp_charging=True)
+        self.assertEqual(self.discretizer.discretize(raw_wisp_charging)[8], 4)
+
 
 class TestRewards(unittest.TestCase):
     def setUp(self) -> None:
@@ -336,6 +360,24 @@ class TestRewards(unittest.TestCase):
         s_jiangshi_air = make_raw_state(dist_to_monster=50.0, monster_vy=-4.5, monster_type="cuong_thi")
         r_jump_jiangshi = strategy.calculate_reward(s_jiangshi_air, Action.RIGHT_JUMP, s_jiangshi_air, ev, False)
         self.assertAlmostEqual(r_jump_jiangshi, 0.9)
+
+        # 5. Laser closing window (skyward angle about to cross into ground sweep via laser_rot_speed)
+        s_laser_closing = make_raw_state(dist_to_laser=40.0, laser_angle=6.10, laser_rot_speed=0.05)
+        r_fwd_closing = strategy.calculate_reward(s_laser_closing, Action.RIGHT, s_laser_closing, ev, False)
+        self.assertAlmostEqual(r_fwd_closing, 0.9)
+
+        # 6. Wisp low ahead (leap over) vs high overhead (do not jump into) vs charging
+        s_wisp_low = make_raw_state(dist_to_wisp=30.0, wisp_dir=1, wisp_vx=-2.5, wisp_y=314.0)
+        self.assertAlmostEqual(strategy.calculate_reward(s_wisp_low, Action.RIGHT, s_wisp_low, ev, False), 0.9)
+        self.assertAlmostEqual(strategy.calculate_reward(s_wisp_low, Action.RIGHT_JUMP, s_wisp_low, ev, False), 5.4)
+
+        s_wisp_high = make_raw_state(player_y=288.0, dist_to_wisp=30.0, wisp_dir=1, wisp_vx=-1.8, wisp_y=240.0)
+        # 4.0 - 0.1 - 1.5 (unnecessary jump under overhead wisp) - 3.0 (wisp_danger_penalty) = -0.6
+        self.assertAlmostEqual(strategy.calculate_reward(s_wisp_high, Action.RIGHT_JUMP, s_wisp_high, ev, False), -0.6)
+
+        s_wisp_charge = make_raw_state(dist_to_wisp=-1.0, wisp_charging=True)
+        # 4.0 - 0.1 - 1.5 (unnecessary jump) - 1.5 (0.5 * wisp_danger_penalty) = 0.9
+        self.assertAlmostEqual(strategy.calculate_reward(s_wisp_charge, Action.RIGHT_JUMP, s_wisp_charge, ev, False), 0.9)
 
     def test_dense_reward_ghost_and_item(self) -> None:
         strategy = DenseRewardStrategy(death_penalty=-60.0, item_bonus=20.0)
