@@ -7,7 +7,15 @@
 ## 1. Scope & Algorithm Rules
 - **Tabular Q-Learning ONLY**: Do **not** add PyTorch, TensorFlow, Stable-Baselines3, or DQN code unless explicitly requested as a post-submission extension.
 - **Keep State Space Compact**: Use local vision (nearest upcoming obstacle, pit, fire phase, ghost, garlic item, goal). Never pass raw pixel arrays or full lists of all level entities into the Q-table.
-- **Physical Kinematics**: Horizontal movement is discrete input-driven except during **momentum crouch slides** (`Action.CROUCH`), where `velocity_x` undergoes friction deceleration ($v_{x, t} = v_{x, t-1} \cdot 0.82$). Keep continuous state space compact when passing to the discretizer.
+- **Physical Kinematics & Strict Playability Guardrail**:
+  - Horizontal movement is discrete input-driven except during **momentum crouch slides** (`Action.CROUCH`), where `velocity_x` undergoes friction deceleration ($v_{x, t} = v_{x, t-1} \cdot 0.82$).
+  - **CRITICAL / STRICT GUARDRAIL — DO NOT MODIFY JUMP IMPULSE IN GOD MODE**:
+    Never uncomment or apply jump boost multiplier in `God Mode`:
+    ```python
+    # DO NOT UNCOMMENT THIS:
+    # jump_impulse = self.JUMP_FORCE * 1.35 if getattr(self, "god_mode", False) else self.JUMP_FORCE
+    ```
+    `God Mode` is strictly used by human testers to inspect level geometry and test **human playability/reachability**. Artificially increasing jump force distorts physics and causes false-positive playability passes. In `God Mode`, `JUMP_FORCE` must strictly remain `-13.0` (infinite mid-air flutter leaps are allowed, but vertical impulse per leap must remain unmodified).
 
 ## 2. SOLID & Clean Code Rules
 - **Respect `core/` Contracts**: High-level modules (`training/`, `evaluation/`) must depend on interfaces in `core/` (`BaseEnvironment`, `BaseAgent`, `BaseDiscretizer`, `BaseRewardStrategy`), never concrete classes.
