@@ -226,17 +226,21 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         if not is_death:
             # A. Rotating Laser Timing Guidance:
             # Penalize rushing forward when laser is actively sweeping downward through the ground plane,
-            # or when its rotation speed/direction is about to close the skyward window.
+            # blocking the path, or about to close the skyward window.
             dist_laser = getattr(prev_state, "dist_to_laser", -1.0)
             laser_angle = getattr(prev_state, "laser_angle", -1.0)
             laser_rot_speed = getattr(prev_state, "laser_rot_speed", 0.0)
-            if 0.0 <= dist_laser <= self.laser_threat_distance and laser_angle >= 0.0:
-                two_pi = 6.283185307179586
-                pi = 3.141592653589793
-                norm_angle = laser_angle % two_pi
-                laser_sweeping_floor = norm_angle < pi
-                next_angle = (norm_angle + laser_rot_speed * self.laser_lookahead_ticks) % two_pi
-                laser_closing_window = (not laser_sweeping_floor) and (laser_rot_speed != 0.0) and (next_angle < pi)
+            laser_blocking = getattr(prev_state, "laser_is_blocking", False)
+            if 0.0 <= dist_laser <= self.laser_threat_distance:
+                laser_sweeping_floor = laser_blocking
+                laser_closing_window = False
+                if laser_angle >= 0.0:
+                    two_pi = 6.283185307179586
+                    pi = 3.141592653589793
+                    norm_angle = laser_angle % two_pi
+                    laser_sweeping_floor = laser_sweeping_floor or (norm_angle < pi)
+                    next_angle = (norm_angle + laser_rot_speed * self.laser_lookahead_ticks) % two_pi
+                    laser_closing_window = (norm_angle >= pi) and (laser_rot_speed != 0.0) and (next_angle < pi)
                 if laser_sweeping_floor or laser_closing_window:
                     if action in (Action.RIGHT, Action.RIGHT_JUMP):
                         reward += self.laser_danger_penalty
@@ -260,6 +264,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
 
             # C. Grave Monster Velocity & Type Guidance (Quy Nhập Tràng & Cương Thi):
             dist_monster = getattr(prev_state, "dist_to_monster", -1.0)
+            monster_grounded = getattr(prev_state, "monster_is_grounded", True)
             monster_vx = getattr(prev_state, "monster_vx", 0.0)
             monster_vy = getattr(prev_state, "monster_vy", 0.0)
             monster_type = getattr(prev_state, "monster_type", None)
@@ -273,9 +278,9 @@ class BalancedRewardStrategy(BaseRewardStrategy):
                         reward += self.evasion_bonus
 
                 # 2. Cương Thi (Jiangshi / hopping vampire):
-                elif monster_type == "cuong_thi" or (monster_vy < -1.0):
-                    if monster_vy < -1.0:
-                        # Airborne hop: jumping up into it collides mid-air; crouch/stay or wait!
+                elif monster_type == "cuong_thi" or (not monster_grounded) or (monster_vy < -1.0):
+                    if (not monster_grounded) or (monster_vy < -1.0):
+                        # Airborne hop: jumping up into it collides mid-air; wait/stay!
                         if action in (Action.JUMP, Action.RIGHT_JUMP):
                             reward += self.monster_airborne_jump_penalty
                     else:
@@ -283,20 +288,33 @@ class BalancedRewardStrategy(BaseRewardStrategy):
                         if prev_state.is_grounded and action in (Action.JUMP, Action.RIGHT_JUMP):
                             reward += self.evasion_bonus
 
-            # D. Fire Pit Timing Guidance:
-            # Penalize jumping or walking into an active or warning flame.
+            # D. Fire Pit & Wide-Pit Timing Guidance:
+            # Penalize jumping or walking into an active, warning, or imminent flame;
+            # Encourage grounded jump takeoff for wide pits (>70px).
             dist_pit = getattr(prev_state, "dist_to_pit", -1.0)
+            pit_width = getattr(prev_state, "pit_width", 0.0)
             pit_fire_state = getattr(prev_state, "pit_fire_state", 0)
-            if 0.0 <= dist_pit <= self.pit_threat_distance and pit_fire_state in (1, 2):
-                if action in (Action.RIGHT, Action.RIGHT_JUMP, Action.JUMP):
-                    reward += self.laser_danger_penalty
+            pit_countdown = getattr(prev_state, "pit_fire_countdown", 0.0)
+            if 0.0 <= dist_pit <= self.pit_threat_distance:
+                fire_imminent = (pit_fire_state in (1, 2)) or (
+                    pit_fire_state == 0 and 0.0 < pit_countdown <= 15.0 and pit_width > 70.0
+                )
+                if fire_imminent:
+                    if action in (Action.RIGHT, Action.RIGHT_JUMP, Action.JUMP):
+                        reward += self.laser_danger_penalty
+                elif pit_width > 70.0 and prev_state.is_grounded and dist_pit <= 35.0:
+                    if action == Action.RIGHT_JUMP:
+                        reward += self.evasion_bonus
+                    elif action == Action.RIGHT and dist_pit <= 12.0:
+                        reward += self.laser_danger_penalty
 
             # E. Will-o'-the-Wisp Velocity, Altitude & Casting Phase Guidance:
             dist_wisp = getattr(prev_state, "dist_to_wisp", -1.0)
             wisp_dir = getattr(prev_state, "wisp_dir", 0)
             wisp_vx = getattr(prev_state, "wisp_vx", 0.0)
             wisp_y = getattr(prev_state, "wisp_y", 0.0)
-            wisp_charging = getattr(prev_state, "wisp_charging", False)
+            wisp_grounded = getattr(prev_state, "wisp_is_grounded", False)
+            wisp_charging = getattr(prev_state, "wisp_charging", False) or getattr(prev_state, "wisp_ghost_charging", False)
             player_y = getattr(prev_state, "player_y", getattr(prev_state, "mario_y", 288.0))
             if 0.0 <= dist_wisp <= self.wisp_threat_distance:
                 if wisp_dir < 0 and wisp_vx > 0.0:
@@ -305,11 +323,11 @@ class BalancedRewardStrategy(BaseRewardStrategy):
                         reward += self.wisp_danger_penalty
                     elif action in (Action.RIGHT, Action.RIGHT_JUMP):
                         reward += self.evasion_bonus
-                elif wisp_y > 0.0 and (wisp_y + self.wisp_radius) <= (player_y - self.ghost_clearance_margin):
+                elif (not wisp_grounded) and wisp_y > 0.0 and (wisp_y + self.wisp_radius) <= (player_y - self.ghost_clearance_margin):
                     # High parabolic arc overhead: jumping into it is fatal
                     if action in (Action.JUMP, Action.RIGHT_JUMP):
                         reward += self.wisp_danger_penalty
-                elif wisp_vx < 0.0:
+                elif wisp_grounded or wisp_vx < 0.0:
                     # Low/ground-rolling wisp ahead: leap over instead of walking/standing into it
                     if prev_state.is_grounded and action in (Action.STAY, Action.CROUCH, Action.RIGHT):
                         reward += self.wisp_danger_penalty

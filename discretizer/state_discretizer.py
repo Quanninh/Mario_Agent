@@ -6,24 +6,27 @@ from core.interfaces import BaseDiscretizer, DiscreteState
 
 class MarioStateDiscretizer(BaseDiscretizer):
     """
-    Transforms continuous RawState into a compact hashable 12-tuple:
+    Transforms continuous RawState into a compact hashable 15-tuple:
         (grounded_bin, vy_bin, obs_dist_bin, obs_height_bin, pit_dist_bin,
          ghost_dist_bin, ghost_alt_bin, laser_bin, wisp_bin, crouch_bin,
-         double_jump_bin, monster_bin)
+         double_jump_bin, monster_bin, pit_width_bin, ghost_vx_bin, vx_bin)
 
     Cardinality:
         grounded_bin:        2 values (0: airborne, 1: on ground)
         vy_bin:              3 values (-1: falling, 0: flat/stationary, 1: ascending)
         obs_dist_bin:        4 values (0: None >80px or cleared, 1: Far 45-80px, 2: Close 15-45px, 3: Immediate <15px)
         obs_height_bin:      2 values (0: Low <=50px or cleared, 1: High >50px)
-        pit_dist_bin:        4 values (0: None >100px or <0px, 1: Far 32-100px, 2: Immediate Safe <=32px, 3: Immediate Fire Spewing)
+        pit_dist_bin:        4 values (0: None >100px or <0px, 1: Far, 2: Immediate Safe, 3: Immediate/Imminent Fire)
         ghost_dist_bin:      4 values (0: None >80px or <0px, 1: Far 35-80px, 2: Close 0<dist<=35px, 3: Overlap dist==0.0)
         ghost_alt_bin:       2 values (0: Low/None - jump over, 1: High - walk/crouch under)
         laser_bin:           4 values (0: Safe/None, 1: Overhead Safe Window, 2: Ground Sweep Danger, 3: Closing Window)
         wisp_bin:            5 values (0: Safe/None, 1: Incoming Low, 2: Chasing Behind, 3: Incoming High, 4: Charging)
         crouch_bin:          2 values (0: Standing, 1: Crouching/Sliding)
         double_jump_bin:     2 values (0: Spent/Unavailable, 1: Armed/Ready)
-        monster_bin:         2 values (0: Safe/None, 1: Threat/Approaching <=75px)
+        monster_bin:         4 values (0: Safe/None, 1: Airborne Hop, 2: Paused/Emerging, 3: Ground Sprint)
+        pit_width_bin:       2 values (0: None/Narrow <=70px, 1: Wide >70px)
+        ghost_vx_bin:        3 values (0: None/Stationary, 1: Advancing <0, 2: Retreating >0)
+        vx_bin:              3 values (-1: Moving Left, 0: Stationary, 1: Moving Right)
     """
 
     def __init__(
@@ -93,15 +96,21 @@ class MarioStateDiscretizer(BaseDiscretizer):
             1 if (obs_dist_bin != 0 and raw_state.obstacle_height > self.high_obstacle_threshold) else 0
         )
 
-        # 5. Fire-Aware Pit Proximity Bin (0: None, 1: Far, 2: Immediate Safe, 3: Immediate Fire)
+        # 5. Fire- & Width-Aware Pit Proximity Bin (0: None, 1: Far, 2: Immediate Safe, 3: Immediate/Imminent Fire)
         dist_pit = getattr(raw_state, "dist_to_pit", -1.0)
+        pit_width = getattr(raw_state, "pit_width", 0.0)
         pit_fire = getattr(raw_state, "pit_fire_state", 0)
+        pit_countdown = getattr(raw_state, "pit_fire_countdown", 0.0)
+        takeoff_dist = 42.0 if pit_width > 70.0 else 32.0
+        imminent_fire = (pit_fire in (1, 2)) or (
+            pit_fire == 0 and 0.0 < pit_countdown <= 20.0 and pit_width > 70.0
+        )
         if dist_pit < 0.0 or dist_pit > 100.0:
             pit_dist_bin = 0  # NONE
-        elif dist_pit > 32.0:
-            pit_dist_bin = 1  # FAR (early warning approach zone 32..100px)
+        elif dist_pit > takeoff_dist:
+            pit_dist_bin = 1  # FAR (early warning approach zone)
         else:
-            pit_dist_bin = 3 if pit_fire in (1, 2) else 2  # Immediate danger zone
+            pit_dist_bin = 3 if imminent_fire else 2  # Immediate danger zone
 
         # 6. Ghost Proximity Bin (4 bins: NONE, FAR, CLOSE, OVERLAP)
         dist_ghost = getattr(raw_state, "dist_to_ghost", -1.0)
@@ -132,8 +141,11 @@ class MarioStateDiscretizer(BaseDiscretizer):
         dist_laser = getattr(raw_state, "dist_to_laser", -1.0)
         laser_angle = getattr(raw_state, "laser_angle", -1.0)
         laser_rot_speed = getattr(raw_state, "laser_rot_speed", 0.0)
+        laser_blocking = getattr(raw_state, "laser_is_blocking", False)
         if dist_laser < 0.0 or dist_laser > self.laser_threat_distance:
             laser_bin = 0  # Safe / None
+        elif laser_blocking:
+            laser_bin = 2  # Actively blocking ground/jump path
         else:
             if laser_angle >= 0.0:
                 norm_angle = laser_angle % (2.0 * math.pi)
@@ -148,14 +160,17 @@ class MarioStateDiscretizer(BaseDiscretizer):
                 laser_bin = 1  # Threat flag when angle is unspecified
 
         # 9. Will-o'-the-Wisp Hazard Bin
-        # 0: Safe/None, 1: Incoming Low, 2: Chasing Behind, 3: Incoming High, 4: Charging
+        # 0: Safe/None, 1: Incoming Low/Grounded, 2: Chasing Behind, 3: Incoming High, 4: Charging
         dist_wisp = getattr(raw_state, "dist_to_wisp", -1.0)
         wisp_dir = getattr(raw_state, "wisp_dir", 0)
         wisp_y = getattr(raw_state, "wisp_y", 0.0)
-        wisp_charging = getattr(raw_state, "wisp_charging", False)
+        wisp_grounded = getattr(raw_state, "wisp_is_grounded", False)
+        wisp_charging = getattr(raw_state, "wisp_charging", False) or getattr(raw_state, "wisp_ghost_charging", False)
         if 0.0 <= dist_wisp <= self.wisp_threat_distance:
             if wisp_dir < 0:
                 wisp_bin = 2  # CHASING_BEHIND
+            elif wisp_grounded:
+                wisp_bin = 1  # INCOMING_LOW (rolling along floor -> jump over)
             elif wisp_y > 0.0 and (wisp_y + self.wisp_radius) <= (player_y - self.ghost_clearance_margin):
                 wisp_bin = 3  # INCOMING_HIGH (overhead arc -> walk/crouch under)
             else:
@@ -171,12 +186,14 @@ class MarioStateDiscretizer(BaseDiscretizer):
         # 11. Mid-Air Double Jump Bin (0: Unavailable/Spent, 1: Ready)
         double_jump_bin = 1 if getattr(raw_state, "can_double_jump", False) else 0
 
-        # 12. Grave Monster Proximity & Velocity Bin
+        # 12. Grave Monster Proximity, State & Velocity Bin
         # 0: Safe/None
-        # 1: Generic threat / Cuong Thi airborne hop (vy < -1.0)
+        # 1: Generic threat / Cuong Thi airborne hop (vy < -1.0 or !grounded)
         # 2: Cuong Thi paused on ground (grounded, vy >= -1.0)
         # 3: Quy Nhap Trang high-speed ground sprint (vx < -1.0)
         dist_monster = getattr(raw_state, "dist_to_monster", -1.0)
+        monster_state = getattr(raw_state, "monster_state", 2)
+        monster_grounded = getattr(raw_state, "monster_is_grounded", True)
         monster_vx = getattr(raw_state, "monster_vx", 0.0)
         monster_vy = getattr(raw_state, "monster_vy", 0.0)
         monster_type = getattr(raw_state, "monster_type", None)
@@ -185,10 +202,33 @@ class MarioStateDiscretizer(BaseDiscretizer):
         else:
             if monster_type == "quy_nhap_trang" or monster_vx < -2.0:
                 monster_bin = 3  # Sprint demon rush
+            elif not monster_grounded or monster_vy < -1.0:
+                monster_bin = 1  # Airborne hop
             elif monster_type == "cuong_thi" or monster_vy != 0.0:
-                monster_bin = 1 if monster_vy < -1.0 else 2  # 1: Airborne hop, 2: Paused on ground
+                monster_bin = 2  # Paused / emerging on ground
             else:
                 monster_bin = 1
+
+        # 13. Pit Width Bin (0: None/Narrow <=70px, 1: Wide >70px)
+        pit_width_bin = 1 if (pit_dist_bin != 0 and pit_width > 70.0) else 0
+
+        # 14. Ghost Horizontal Velocity Bin (0: None/Stationary, 1: Advancing <0, 2: Retreating >0)
+        ghost_vx = getattr(raw_state, "ghost_vx", 0.0)
+        if ghost_dist_bin == 0 or abs(ghost_vx) <= 0.05:
+            ghost_vx_bin = 0
+        elif ghost_vx < 0.0:
+            ghost_vx_bin = 1
+        else:
+            ghost_vx_bin = 2
+
+        # 15. Player Horizontal Momentum Bin (-1: Left, 0: Stationary, 1: Right)
+        vx = getattr(raw_state, "velocity_x", 0.0)
+        if vx < -0.5:
+            vx_bin = -1
+        elif vx > 0.5:
+            vx_bin = 1
+        else:
+            vx_bin = 0
 
         return (
             grounded_bin,
@@ -203,6 +243,9 @@ class MarioStateDiscretizer(BaseDiscretizer):
             crouch_bin,
             double_jump_bin,
             monster_bin,
+            pit_width_bin,
+            ghost_vx_bin,
+            vx_bin,
         )
 
 

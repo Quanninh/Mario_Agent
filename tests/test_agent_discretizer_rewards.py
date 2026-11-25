@@ -100,7 +100,7 @@ class TestDiscretizer(unittest.TestCase):
         )
         state = self.discretizer.discretize(raw)
         self.assertIsInstance(state, tuple)
-        self.assertEqual(len(state), 12)
+        self.assertEqual(len(state), 15)
         self.assertTrue(all(isinstance(x, int) for x in state))
 
     def test_legacy_attribute_compatibility(self) -> None:
@@ -116,7 +116,7 @@ class TestDiscretizer(unittest.TestCase):
             ghost_y = 0.0
 
         state = self.discretizer.discretize(LegacyState())
-        self.assertEqual(len(state), 12)
+        self.assertEqual(len(state), 15)
 
     def test_ghost_dist_and_alt_bins(self) -> None:
         # Low ghost (jump over)
@@ -477,6 +477,40 @@ class TestFullSystemIntegration(unittest.TestCase):
         # Assert agent discovered discrete states across the 5 levels
         self.assertGreater(len(agent.q_table), 0)
 
+    def test_trainer_saves_best_route(self) -> None:
+        import json
+        from env import create_env
+        from training.trainer import Trainer
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trainer = Trainer(
+                env_factory=create_env,
+                discretizer=MarioStateDiscretizer(),
+                reward_strategy=BalancedRewardStrategy(),
+                eval_interval=5,
+                eval_episodes_periodic=2,
+                final_eval_episodes=2,
+                untrained_eval_episodes=1,
+                checkpoints_dir=os.path.join(tmpdir, "checkpoints"),
+                outputs_dir=os.path.join(tmpdir, "outputs"),
+                agent_type="tabular",
+                reward_name="balanced",
+            )
+            trainer.run_experiment(
+                agent_factory=lambda: TabularQAgent(seed=42),
+                mode="separate",
+                levels=[1],
+                episodes_per_level=5,
+            )
+            route_path = os.path.join(
+                tmpdir, "checkpoints", "tabular", "separate_balanced", "best_route_lvl1.json"
+            )
+            self.assertTrue(os.path.exists(route_path))
+            with open(route_path, "r", encoding="utf-8") as f:
+                route = json.load(f)
+            self.assertEqual(route["level_id"], 1)
+            self.assertEqual(len(route["actions"]), route["steps"])
+            self.assertEqual(len(route["positions"]), route["steps"] + 1)
 
 
 if __name__ == "__main__":

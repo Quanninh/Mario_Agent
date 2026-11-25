@@ -133,10 +133,15 @@ class TestStage1Invariants(unittest.TestCase):
                 )
 
     def test_discretizer_cardinality_and_length(self):
-        """State tuple length remains 12 and max cardinality includes all hazards."""
-        st = self._make_state()
+        """State tuple length is 15 and includes pit_width, ghost_vx, and vx bins."""
+        st = self._make_state(dist_to_pit=30.0, dist_to_ghost=40.0, velocity_x=4.0)
+        st.pit_width = 90.0
+        st.ghost_vx = -1.5
         d_state = self.discretizer.discretize(st)
-        self.assertEqual(len(d_state), 12)
+        self.assertEqual(len(d_state), 15)
+        self.assertEqual(d_state[12], 1)  # pit_width_bin: wide
+        self.assertEqual(d_state[13], 1)  # ghost_vx_bin: advancing
+        self.assertEqual(d_state[14], 1)  # vx_bin: moving right
 
     def test_balanced_reward_round_trip(self):
         """LEFT + RIGHT round trip on open ground nets strictly -0.20 living cost."""
