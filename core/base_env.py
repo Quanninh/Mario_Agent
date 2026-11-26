@@ -66,6 +66,46 @@ class RawState:
     dist_to_item: float      # Distance to nearest warmth item ahead (-1 if none)
     dist_to_goal: float      # Distance remaining to Hoá's home
 
+    # 7. Extended Continuous & Cyclic Kinematics (DQN-ready, backward-compatible)
+    obstacle_dy: float = 0.0            # nearest_obs.y - player.y (0 if none)
+    obstacle_width: float = 0.0         # Width of nearest obstacle ahead (0 if none)
+    
+    pit_fire_sin: float = 0.0           # sin(2*pi * pit_fire_cycle)
+    pit_fire_cos: float = 1.0           # cos(2*pi * pit_fire_cycle)
+
+    ghost_dy: float = 0.0               # nearest_ghost.y - player.y (0 if none)
+    ghost_float_amplitude: float = 0.0  # Ghost sinusoidal bobbing amplitude
+    ghost_float_speed: float = 0.0      # Ghost sinusoidal angular speed (rad/tick)
+    ghost_phase_sin: float = 0.0        # sin(ghost._phase)
+    ghost_phase_cos: float = 1.0        # cos(ghost._phase)
+    ghost_dist_to_left_bound: float = 0.0   # ghost.x - ghost.patrol_min_x
+    ghost_dist_to_right_bound: float = 0.0  # ghost.patrol_max_x - ghost.right
+
+    laser_ghost_dx: float = 0.0         # eye_cx - player.right for nearest upcoming LaserGhost
+    laser_ghost_dy: float = 0.0         # eye_cy - player.y for nearest upcoming LaserGhost
+    laser_angle_sin: float = 0.0        # sin(cur_angle)
+    laser_angle_cos: float = 1.0        # cos(cur_angle)
+    laser_angular_vel: float = 0.0      # Instantaneous d(angle)/dt (rad/tick)
+    laser_length: float = 0.0           # Beam reach in pixels
+    laser_sweep_amplitude: float = 0.0  # 0.0 for 360-deg rotation, >0 for searchlight sweep
+
+    wisp_ghost_dx: float = 0.0          # nearest_wg.x - player.right (0 if none)
+    wisp_ghost_dy: float = 0.0          # nearest_wg.y - player.y (0 if none)
+    wisp_cast_progress: float = 0.0     # phase / wisp_cycle in [0, 1)
+    wisp_ticks_to_cast: float = 0.0     # wisp_cycle - phase
+    wisp_next_is_high: bool = False     # True if next cast is High Arc, False if Low Fast Arc
+    wisp_dy: float = 0.0                # nearest_wisp.y - player.y (0 if none)
+    wisp_vx: float = 0.0                # nearest_wisp.vx (0 if none)
+    wisp_roll_ticks_left: int = 0       # Remaining ground roll ticks if grounded, else 0
+
+    monster_type: int = 0               # 0: none, 1: QuyNhapTrang, 2: CuongThi
+    monster_is_sentry: bool = False     # True if patrolling an elevated platform
+    monster_dy: float = 0.0             # nearest_monster.y - player.y (0 if none)
+    monster_vy: float = 0.0             # nearest_monster.vy (0 if none)
+    monster_pause_progress: float = 0.0 # CuongThi _pause_timer / pause_duration when grounded
+    monster_speed_ratio: float = 0.0    # QuyNhapTrang (_current_speed - base) / (max - base)
+    monster_dist_to_pit: float = -1.0   # Distance from monster.x to nearest pit to its left (-1 if none)
+
     
 
 @dataclass

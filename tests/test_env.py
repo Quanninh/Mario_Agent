@@ -493,5 +493,72 @@ class TestGameEnvironment(unittest.TestCase):
                     # Level 5: Has WispGhost
                     self.assertTrue(any(isinstance(g, WispGhost) for g in cfg.ghosts))
 
+    def test_dqn_raw_state_bug_fixes_and_kinematics(self) -> None:
+        """Verify RawState fixes (monster_is_grounded, continuous LaserGhost, obstacle_dy/width, wisp_dy/vx)."""
+        import math
+        from env.entities import CuongThi, GraveMonsterState, Obstacle, QuyNhapTrang, WillOWisp
+
+        # 1. Obstacle vertical clearance (obstacle_dy) and width
+        floating_obs = Obstacle(x=120.0, y=220.0, width=64.0, height=20.0)
+        env = GameEnvironment(obstacles=[floating_obs], pits=[], ghosts=[], items=[])
+        state = env.reset()
+        self.assertAlmostEqual(state.obstacle_dy, floating_obs.y - env.player.y)
+        self.assertAlmostEqual(state.obstacle_width, 64.0)
+
+        # 2. Continuous LaserGhost tracking even when beam points straight upward (-pi/2)
+        laser_ghost = LaserGhost(
+            x=200.0, y=260.0, patrol_min_x=200.0, patrol_max_x=200.0,
+            speed=0.0, float_amplitude=0.0,
+            laser_length=90.0, laser_rotation_speed=0.05, laser_initial_angle=-math.pi / 2.0,
+        )
+        env = GameEnvironment(obstacles=[], pits=[], ghosts=[laser_ghost], items=[])
+        state = env.reset()
+        self.assertEqual(state.dist_to_laser, -1.0)  # Beam points upward, not overlapping player Y
+        self.assertGreater(state.laser_ghost_dx, 0.0)
+        self.assertAlmostEqual(state.laser_angle_sin, -1.0, places=5)
+        self.assertAlmostEqual(state.laser_angle_cos, 0.0, places=5)
+        self.assertAlmostEqual(state.laser_angular_vel, 0.05, places=5)
+        self.assertAlmostEqual(state.laser_length, 90.0)
+
+        # 3. Monster grounded state, type, speed ratio, pause progress, and pit distance
+        pit = Pit(x_start=150.0, x_end=210.0)
+        ct = CuongThi(x=300.0, y=288.0, state=GraveMonsterState.ACTIVE, pause_duration=10)
+        env = GameEnvironment(obstacles=[], pits=[pit], ghosts=[], monsters=[ct], items=[])
+        env.reset()
+        ct._is_grounded = False
+        ct.vy = -4.0
+        state = env._get_raw_state()
+        self.assertFalse(state.monster_is_grounded)
+        self.assertEqual(state.monster_type, 2)
+        self.assertAlmostEqual(state.monster_vy, -4.0)
+        self.assertAlmostEqual(state.monster_dist_to_pit, 300.0 - 210.0)
+
+        qnt = QuyNhapTrang(x=280.0, y=288.0, state=GraveMonsterState.ACTIVE)
+        env = GameEnvironment(obstacles=[], pits=[pit], ghosts=[], monsters=[qnt], items=[])
+        env.reset()
+        qnt._is_jumping = True
+        qnt._current_speed = qnt.max_speed
+        state = env._get_raw_state()
+        self.assertFalse(state.monster_is_grounded)
+        self.assertEqual(state.monster_type, 1)
+        self.assertAlmostEqual(state.monster_speed_ratio, 1.0)
+
+        # 4. WispGhost casting phase & WillOWisp dy/vx
+        wg = WispGhost(
+            x=300.0, y=240.0, patrol_min_x=300.0, patrol_max_x=300.0,
+            speed=0.0, float_amplitude=0.0, wisp_cycle=100, wisp_offset=20, wisp_mode="alternating",
+        )
+        env = GameEnvironment(obstacles=[], pits=[], ghosts=[wg], items=[])
+        state = env.reset()
+        self.assertAlmostEqual(state.wisp_cast_progress, 0.2)
+        self.assertAlmostEqual(state.wisp_ticks_to_cast, 80.0)
+        self.assertFalse(state.wisp_next_is_high)  # shot 0 at 0..99, next cast is shot 1 (low)
+
+        wisp = WillOWisp(x=180.0, y=250.0, vx=-3.4, vy=-2.0)
+        env.wisps.append(wisp)
+        state = env._get_raw_state()
+        self.assertAlmostEqual(state.wisp_dy, wisp.y - env.player.y)
+        self.assertAlmostEqual(state.wisp_vx, -3.4)
+
 if __name__ == "__main__":
     unittest.main()
