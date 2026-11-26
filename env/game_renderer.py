@@ -112,10 +112,24 @@ class GameRenderer:
     COLOR_SKY = (16, 10, 24)
     COLOR_MOON = (245, 240, 200)
     COLOR_STAR = (210, 220, 255)
-    COLOR_SOIL = (38, 46, 44)
-    COLOR_GRASS = (52, 78, 60)
+    COLOR_SOIL = (34, 26, 26)
+    COLOR_GRASS = (44, 62, 45)
     COLOR_TOMBSTONE = (115, 122, 136)
     COLOR_TOMBSTONE_DETAIL = (75, 80, 92)
+
+    # Gothic Cemetery Ground Tileset (Dark, damp, desolate graveyard earth & decayed moss)
+    COLOR_GRASS_HI = (68, 92, 65)        # Desaturated dark sage moss tip
+    COLOR_GRASS_MID = (44, 62, 45)       # Damp graveyard moss
+    COLOR_GRASS_DARK = (28, 40, 30)      # Shadow moss / decayed mulch
+    COLOR_GRASS_SHD = (16, 22, 18)       # Blackened grass root seam
+    COLOR_SOIL_LIGHT = (48, 38, 36)      # Cold dark damp topsoil
+    COLOR_SOIL_MID = (34, 26, 26)        # Dark earthen grave clay
+    COLOR_SOIL_DARK = (22, 16, 18)       # Shadowed grave dirt
+    COLOR_SOIL_DEEP = (12, 9, 12)        # Pitch-black subterranean bedrock
+    COLOR_PEBBLE = (80, 82, 88)          # Cold grey weathered tombstone chip
+    COLOR_PEBBLE_SHD = (45, 46, 52)      # Pebble drop shadow
+    COLOR_ROOT = (44, 30, 26)            # Decayed gnarled cemetery roots
+    COLOR_ROOT_DARK = (20, 14, 14)       # Deep root crevice shadow
 
     # Enhanced Tombstone & Granite Palettes
     COLOR_TOMB_GRANITE_HI = (195, 210, 228)    # Polished specular edge on black granite
@@ -658,32 +672,158 @@ class GameRenderer:
                 # Classic pale yellow moon (from original Hoá's Midnight Escape design)
                 self._draw_classic_moon(canvas, moon_cx, moon_cy, moon_theme="pale_yellow")
 
-        # 5. Graveyard soil & dark grass trim
-        pygame.draw.rect(
-            canvas,
-            self.COLOR_SOIL,
-            (0, env.floor_y, self.canvas_width, self.canvas_height - env.floor_y),
-        )
-        pygame.draw.rect(canvas, self.COLOR_GRASS, (0, env.floor_y, self.canvas_width, 6))
+        # 5. Rich Graveyard Ground Tileset (Grass clumps, soil stratification, pebbles)
+        self._draw_rich_ground(canvas, env, camera_x)
 
-        # 6. Carve out open grave pits and render flame hazards
-        pit_bg_color = sky_cfg.base_sky_color
+        # 6. Carve out open grave pits with deep abyss gradient and cliffside roots
+        self._draw_abyss_pits(canvas, env, camera_x, sky_cfg)
+
+    def _draw_rich_ground(self, canvas: pygame.Surface, env: "GameEnvironment", camera_x: float) -> None:
+        """Renders rich 16-bit stratified soil using camera viewport clipping (SOLID)."""
+        floor_y = env.floor_y
+        c_w = float(self.canvas_width)
+        c_h = float(self.canvas_height)
+
+        # 1. Viewport boundaries in world coordinates
+        view_left = camera_x
+        view_right = camera_x + c_w
+
+        # 2. Select only pits that overlap the current camera viewport
+        visible_pits = [
+            p for p in env.pits
+            if p.x_end > view_left and p.x_start < view_right
+        ]
+        visible_pits.sort(key=lambda p: p.x_start)
+
+        # 3. Partition viewport into visible solid ground spans
+        ground_spans = []
+        cur_x = view_left
+        for p in visible_pits:
+            pit_start = max(view_left, p.x_start)
+            if pit_start > cur_x:
+                ground_spans.append((cur_x, pit_start))
+            cur_x = max(cur_x, min(view_right, p.x_end))
+        if cur_x < view_right:
+            ground_spans.append((cur_x, view_right))
+
+        # 4. Render each solid ground span within camera view
+        h_soil = c_h - floor_y
+        y1 = floor_y
+        y2 = floor_y + h_soil * 0.28
+        y3 = floor_y + h_soil * 0.62
+
+        for span_start, span_end in ground_spans:
+            draw_sx = span_start - camera_x
+            draw_w = span_end - span_start
+            if draw_w <= 0:
+                continue
+
+            # Stratified soil gradient (upper loam -> earthy clay -> deep bedrock)
+            pygame.draw.rect(canvas, self.COLOR_SOIL_LIGHT, (draw_sx, y1, draw_w, y2 - y1))
+            pygame.draw.rect(canvas, self.COLOR_SOIL_MID, (draw_sx, y2, draw_w, y3 - y2))
+            pygame.draw.rect(canvas, self.COLOR_SOIL_DARK, (draw_sx, y3, draw_w, c_h - y3))
+
+            # Subterranean bedrock contour line at bottom
+            pygame.draw.rect(canvas, self.COLOR_SOIL_DEEP, (draw_sx, c_h - 10, draw_w, 10))
+
+            # Organic soil dappling & embedded pebbles
+            start_tile = int(span_start // 18) * 18
+            for world_x in range(start_tile, int(span_end), 18):
+                px = world_x - camera_x
+                if -20 < px < self.canvas_width + 20:
+                    py = int(floor_y) + 16 + ((world_x * 7) % int(h_soil - 28))
+                    pygame.draw.rect(canvas, self.COLOR_SOIL_LIGHT, (px, py, 3, 2))
+                    pygame.draw.rect(canvas, self.COLOR_SOIL_DEEP, (px + 1, py + 2, 2, 1))
+                    if (world_x % 72) == 0:
+                        pygame.draw.rect(canvas, self.COLOR_PEBBLE, (px + 4, py - 4, 3, 2))
+                        pygame.draw.rect(canvas, self.COLOR_PEBBLE_SHD, (px + 4, py - 2, 3, 1))
+
+            # Rich Pixel Grass Layer
+            pygame.draw.rect(canvas, self.COLOR_GRASS_MID, (draw_sx, floor_y, draw_w, 6))
+            pygame.draw.rect(canvas, self.COLOR_GRASS_HI, (draw_sx, floor_y, draw_w, 2))
+            pygame.draw.rect(canvas, self.COLOR_GRASS_DARK, (draw_sx, floor_y + 6, draw_w, 3))
+            pygame.draw.rect(canvas, self.COLOR_GRASS_SHD, (draw_sx, floor_y + 9, draw_w, 2))
+
+            # Hanging grass roots & teeth fringing into soil
+            start_grass = int(span_start // 8) * 8
+            for world_x in range(start_grass, int(span_end), 8):
+                gx = world_x - camera_x
+                if -8 < gx < self.canvas_width + 8:
+                    hang_h = 3 + ((world_x * 5) % 5)
+                    pygame.draw.line(canvas, self.COLOR_GRASS_DARK, (gx, floor_y + 8), (gx, floor_y + 8 + hang_h))
+                    pygame.draw.line(canvas, self.COLOR_GRASS_MID, (gx + 1, floor_y + 8), (gx + 1, floor_y + 7 + hang_h))
+
+            # Upward grass tufts and spectral wilted weeds
+            start_tufts = int(span_start // 14) * 14
+            for world_x in range(start_tufts, int(span_end) - 4, 14):
+                gx = world_x - camera_x
+                if -10 < gx < self.canvas_width + 10:
+                    tuft_h = 3 + ((world_x * 7) % 5)
+                    pygame.draw.line(canvas, self.COLOR_GRASS_MID, (gx, floor_y), (gx - 1, floor_y - tuft_h))
+                    pygame.draw.line(canvas, self.COLOR_GRASS_HI, (gx + 1, floor_y), (gx + 1, floor_y - tuft_h + 1))
+                    if (world_x % 56) == 0:
+                        pygame.draw.rect(canvas, (110, 145, 175), (gx, floor_y - tuft_h - 1, 2, 2))
+
+    def _draw_abyss_pits(
+        self,
+        canvas: pygame.Surface,
+        env: "GameEnvironment",
+        camera_x: float,
+        sky_cfg: SkyConfig,
+    ) -> None:
+        """Draws open grave pits with deep abyss gradient, cliff shadows, and hanging roots."""
+        floor_y = env.floor_y
+        c_h = self.canvas_height
+
         for pit in env.pits:
             pit_x = pit.x_start - camera_x
             pit_w = pit.x_end - pit.x_start
-            pygame.draw.rect(
-                canvas,
-                pit_bg_color,
-                (pit_x, env.floor_y, pit_w, self.canvas_height - env.floor_y),
-            )
+            if pit_x + pit_w < 0 or pit_x > self.canvas_width:
+                continue
 
+            # 1. Deep Abyss Gradient (from twilight dark purple to pitch black depths)
+            pit_h = int(c_h - floor_y)
+            for y_offset in range(pit_h):
+                y = int(floor_y) + y_offset
+                t = y_offset / max(1.0, float(pit_h))
+                # Gradient: starts at deep shadowy purple (36, 18, 52) and sinks to pitch black (4, 2, 6)
+                r = int(36 * (1.0 - t) + 4 * t)
+                g = int(18 * (1.0 - t) + 2 * t)
+                b = int(52 * (1.0 - t) + 6 * t)
+                pygame.draw.line(canvas, (r, g, b), (pit_x, y), (pit_x + pit_w, y))
+
+            # 2. Left Cliff Lip & Hanging Exposed Roots
+            pygame.draw.rect(canvas, self.COLOR_SOIL_DEEP, (pit_x, floor_y, 4, c_h - floor_y))
+            pygame.draw.polygon(canvas, self.COLOR_SOIL_DARK, [(pit_x, floor_y), (pit_x + 6, floor_y + 12), (pit_x, floor_y + 24)])
+            root_pts_left = [
+                (pit_x, floor_y + 8),
+                (pit_x + 4, floor_y + 18),
+                (pit_x + 2, floor_y + 32),
+                (pit_x + 6, floor_y + 44),
+                (pit_x + 3, floor_y + 54),
+            ]
+            pygame.draw.lines(canvas, self.COLOR_ROOT, False, root_pts_left, 2)
+            # Crumbling pebbles falling down left wall
+            pygame.draw.rect(canvas, self.COLOR_PEBBLE, (pit_x + 5, floor_y + 60, 3, 3))
+            pygame.draw.rect(canvas, self.COLOR_PEBBLE_SHD, (pit_x + 7, floor_y + 72, 2, 2))
+
+            # 3. Right Cliff Lip & Hanging Exposed Roots
+            pygame.draw.rect(canvas, self.COLOR_SOIL_DEEP, (pit_x + pit_w - 4, floor_y, 4, c_h - floor_y))
+            pygame.draw.polygon(canvas, self.COLOR_SOIL_DARK, [(pit_x + pit_w, floor_y), (pit_x + pit_w - 6, floor_y + 14), (pit_x + pit_w, floor_y + 26)])
+            root_pts_right = [
+                (pit_x + pit_w, floor_y + 8),
+                (pit_x + pit_w - 4, floor_y + 22),
+                (pit_x + pit_w - 2, floor_y + 36),
+                (pit_x + pit_w - 5, floor_y + 48),
+            ]
+            pygame.draw.lines(canvas, self.COLOR_ROOT, False, root_pts_right, 2)
+
+            # 4. Render Pit Fire & Embers if active
             if pit.has_fire:
                 phase = pit.get_fire_phase(env.step_count)
                 if phase == 1:
-                    # Warning phase: glowing pulsing embers at pit bottom
                     self._draw_pit_warning(canvas, pit_x, pit_w, env.floor_y, env.step_count)
                 elif phase == 2:
-                    # Active phase: blazing multi-spire pixel-art flame eruption!
                     self._draw_pit_flame(canvas, pit, pit_x, pit_w, env.floor_y, env.step_count)
 
     def _draw_pit_warning(

@@ -313,3 +313,23 @@ Lightweight keyboard runner (`A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `S`/`Dow
   - Evaluation uses fixed holdout seeds (e.g. `TEST_SEEDS = range(90000, 90100)`) for fair blind testing, preventing memorization and evaluating true generalization.
 - **Expanded Automated Test Suite (`tests/test_env.py`)**:
   - 24 automated unit tests verifying all curriculum stages, God Mode standard jump invariants, procedural reproducibility, seed divergence, and curriculum entity constraints.
+
+### 5.11 Fully Observable Behavioral States & Gothic Atmosphere Overhaul (Phase 6 — Complete)
+- **Fully Observable Behavioral MDP State Space (`core/base_env.py` & `env/game_env.py`)**:
+  - Solved the **Partially Observable MDP (POMDP) / Perceptual Aliasing** problem where AI was previously confused by static distance alone.
+  - Expanded `RawState` with comprehensive physical kinematics, cyclic timings, and ambush triggers:
+    - **Pit & Flame Hazards**: Added `pit_width` (distinguishes single vs double jump requirement), macro-cycle progress `pit_fire_cycle` ($[0.0 \to 1.0]$ for DQN), and micro-countdown `pit_fire_countdown` (remaining ticks until phase transition for tabular Q-learning action windows).
+    - **Ghost Wave Kinematics**: Added horizontal velocity `ghost_vx` (approaching vs retreating) and sinusoidal vertical velocity $v_y = A \cdot \omega \cdot \cos(\text{phase})$ (`ghost_vy`).
+    - **Laser Hazard**: Added instantaneous beam angle in radians `laser_angle` and ground-blocking flag `laser_is_blocking`.
+    - **Wisp & WispGhost**: Added projectile vertical velocity `wisp_vy`, ground-rolling flag `wisp_is_grounded`, and telegraph windup flag `wisp_ghost_charging` (active 25 ticks prior to firing).
+    - **Grave Monster Ambush**: Added `monster_state` (`DORMANT`, `EMERGING`, `ACTIVE`), chase speed `monster_vx`, airborne hopping flag `monster_is_grounded`, and proximity to sleeping grave ambush boundary `dist_to_monster_trigger`.
+- **Gothic Cemetery Ground Tileset & Visual Overhaul (`env/game_renderer.py`)**:
+  - **Eliminated Flat Rectangle Ground & Black Void Pits**: Replaced monochromatic floor rects with stratified 16-bit pixel-art earth and pitch-black pits with smooth **Abyss Gradients** ($r,g,b$ transitioning from twilight shadowy purple `(36, 18, 52)` at the lip to pitch-black abyss `(4, 2, 6)` at the bed).
+  - **Earthy Soil Stratification**: Cold damp topsoil `(48, 38, 36)`, dark grave clay `(34, 26, 26)`, and deep bedrock `(12, 9, 12)` with organic soil dappling, embedded granite pebbles `(80, 82, 88)`, and decaying cemetery tree roots `(44, 30, 26)`.
+  - **Decayed Graveyard Moss**: Desaturated dark sage moss `(68, 92, 65)` and shadow mulch `(28, 40, 30)` with spectral wilted weeds and ghost fungus `(110, 145, 175)`.
+  - **Cliff Lip Details**: Left and right pit edges feature jagged rock contours, overhangs, crumbling falling stones, and gnarled exposed roots.
+- **SOLID Camera Viewport Slicing Architecture**:
+  - Replaced hardcoded map length dependencies (`goal.x + 1500`) with **Screen-Space Viewport Clipping**.
+  - `_draw_rich_ground()` slices visible ground dynamically by intersecting camera bounds $[camera\_x, camera\_x + canvas\_width]$ with visible pits, operating in $O(k)$ time complexity independent of map length.
+- **Verification**:
+  - Full test suite passes 24/24 tests (`pytest tests/`). Verified visual rendering consistency across Levels 1, 2, 3, 7, and 8.
