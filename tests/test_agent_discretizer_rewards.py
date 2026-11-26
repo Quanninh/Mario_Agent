@@ -260,15 +260,20 @@ class TestRewards(unittest.TestCase):
         r_pit = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_pit, True)
         self.assertAlmostEqual(r_pit, -71.1)
 
-        # Death by monster: MUST be severely penalized
+        # Death by monster: MUST be severely penalized (uses default death_penalty=-100.0)
         ev_mon = GameEvents(dx=4.0, hit_monster=True)
         r_mon = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_mon, True)
-        self.assertAlmostEqual(r_mon, -71.1)
+        self.assertAlmostEqual(r_mon, -96.1)  # 4.0 - 100.0 - 0.1
 
         # Unified died event flag
         ev_died = GameEvents(dx=4.0, died=True)
         r_died = strategy.calculate_reward(self.s1, Action.RIGHT, self.s2, ev_died, True)
-        self.assertAlmostEqual(r_died, -71.1)
+        self.assertAlmostEqual(r_died, -96.1)
+
+        # Obstacle collision: no penalty
+        ev_obs = GameEvents(dx=0.0, hit_obstacle=True)
+        r_obs = strategy.calculate_reward(self.s1, Action.RIGHT, self.s1, ev_obs, False)
+        self.assertAlmostEqual(r_obs, -0.1)  # 0.0 - 0.1
 
         # Warmth item collection bonus
         ev_item = GameEvents(dx=4.0, collected_item=True)
