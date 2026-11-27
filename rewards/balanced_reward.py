@@ -1,3 +1,4 @@
+import math
 from typing import Optional
 from core.base_env import Action, RawState, GameEvents
 from core.interfaces import BaseRewardStrategy
@@ -188,9 +189,16 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         # 7. Takeoff-only Jump Penalty (prevents bunny-hopping & jumping into overhead ghosts)
         # ONLY evaluated when grounded and taking off (never in mid-air physics trajectory!)
         if prev_state.is_grounded and action in (Action.JUMP, Action.RIGHT_JUMP):
+            obs_dy = getattr(prev_state, "obstacle_dy", 0.0)
+            obs_height = getattr(prev_state, "obstacle_height", 0.0)
+            obs_overhead_cleared = (
+                obs_dy < 0.0
+                and (obs_dy + obs_height) <= -self.ghost_clearance_margin
+            )
             obs_far = (
                 prev_state.dist_to_obstacle < 0.0
                 or prev_state.dist_to_obstacle > self.obs_threat_distance
+                or obs_overhead_cleared
             )
             pit_far = (
                 prev_state.dist_to_pit < 0.0
@@ -198,12 +206,18 @@ class BalancedRewardStrategy(BaseRewardStrategy):
             )
             dist_ghost = getattr(prev_state, "dist_to_ghost", -1.0)
             ghost_y = getattr(prev_state, "ghost_y", 0.0)
+            ghost_dy = getattr(prev_state, "ghost_dy", 0.0)
             player_y = getattr(prev_state, "player_y", getattr(prev_state, "mario_y", 288.0))
 
-            ghost_overhead_cleared = (
-                ghost_y > 0.0
-                and (ghost_y + self.ghost_height) <= (player_y - self.ghost_clearance_margin)
-            )
+            if ghost_y > 0.0:
+                ghost_overhead_cleared = (
+                    (ghost_y + self.ghost_height) <= (player_y - self.ghost_clearance_margin)
+                )
+            else:
+                ghost_overhead_cleared = (
+                    ghost_dy < 0.0
+                    and (ghost_dy + self.ghost_height) <= -self.ghost_clearance_margin
+                )
             low_ghost_near = (
                 0.0 <= dist_ghost <= self.ghost_threat_distance
                 and not ghost_overhead_cleared
@@ -211,10 +225,16 @@ class BalancedRewardStrategy(BaseRewardStrategy):
             laser_near = 0.0 <= getattr(prev_state, "dist_to_laser", -1.0) <= self.laser_threat_distance
             dist_wisp = getattr(prev_state, "dist_to_wisp", -1.0)
             wisp_y = getattr(prev_state, "wisp_y", 0.0)
-            wisp_overhead_cleared = (
-                wisp_y > 0.0
-                and (wisp_y + self.wisp_radius) <= (player_y - self.ghost_clearance_margin)
-            )
+            wisp_dy = getattr(prev_state, "wisp_dy", 0.0)
+            if wisp_y > 0.0:
+                wisp_overhead_cleared = (
+                    (wisp_y + self.wisp_radius) <= (player_y - self.ghost_clearance_margin)
+                )
+            else:
+                wisp_overhead_cleared = (
+                    wisp_dy < 0.0
+                    and (wisp_dy + self.wisp_radius) <= -self.ghost_clearance_margin
+                )
             wisp_near = 0.0 <= dist_wisp <= self.wisp_threat_distance and not wisp_overhead_cleared
             monster_near = 0.0 <= getattr(prev_state, "dist_to_monster", -1.0) <= self.monster_threat_distance
 
@@ -226,19 +246,37 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         if not is_death:
             # A. Rotating Laser Timing Guidance:
             # Penalize rushing forward when laser is actively sweeping downward through the ground plane,
-            # blocking the path, or about to close the skyward window.
+            # blocking the path, or about to close the skyward window (including continuous tracking when dist_to_laser == -1.0).
             dist_laser = getattr(prev_state, "dist_to_laser", -1.0)
             laser_angle = getattr(prev_state, "laser_angle", -1.0)
-            laser_rot_speed = getattr(prev_state, "laser_rot_speed", 0.0)
+            laser_rot_speed = getattr(prev_state, "laser_angular_vel", 0.0)
+            if laser_rot_speed == 0.0:
+                laser_rot_speed = getattr(prev_state, "laser_rot_speed", 0.0)
             laser_blocking = getattr(prev_state, "laser_is_blocking", False)
-            if 0.0 <= dist_laser <= self.laser_threat_distance:
+            laser_ghost_dx = getattr(prev_state, "laser_ghost_dx", 0.0)
+            laser_length = getattr(prev_state, "laser_length", 0.0)
+            laser_angle_sin = getattr(prev_state, "laser_angle_sin", 0.0)
+            laser_angle_cos = getattr(prev_state, "laser_angle_cos", 1.0)
+
+            laser_in_range = (0.0 <= dist_laser <= self.laser_threat_distance) or (
+                laser_length > 0.0 and 0.0 <= laser_ghost_dx <= self.laser_threat_distance
+            )
+            if laser_in_range:
                 laser_sweeping_floor = laser_blocking
                 laser_closing_window = False
-                if laser_angle >= 0.0:
-                    two_pi = 6.283185307179586
-                    pi = 3.141592653589793
-                    norm_angle = laser_angle % two_pi
-                    laser_sweeping_floor = laser_sweeping_floor or (norm_angle < pi)
+                has_sin_cos = (laser_angle_sin != 0.0) or (laser_angle_cos != 1.0) or (laser_angle == 0.0)
+                if has_sin_cos and (dist_laser >= 0.0 or laser_length > 0.0):
+                    norm_angle = math.atan2(laser_angle_sin, laser_angle_cos) % (2.0 * math.pi)
+                elif laser_angle >= 0.0:
+                    norm_angle = laser_angle % (2.0 * math.pi)
+                else:
+                    norm_angle = -1.0
+
+                if norm_angle >= 0.0:
+                    two_pi = 2.0 * math.pi
+                    pi = math.pi
+                    if dist_laser >= 0.0:
+                        laser_sweeping_floor = laser_sweeping_floor or (norm_angle < pi)
                     next_angle = (norm_angle + laser_rot_speed * self.laser_lookahead_ticks) % two_pi
                     laser_closing_window = (norm_angle >= pi) and (laser_rot_speed != 0.0) and (next_angle < pi)
                 if laser_sweeping_floor or laser_closing_window:
@@ -271,14 +309,14 @@ class BalancedRewardStrategy(BaseRewardStrategy):
             if 0.0 <= dist_monster <= self.monster_threat_distance:
                 # 1. Quy Nhập Tràng (fast ground sprint demon):
                 # Staying flat on ground or walking into sprint is fatal; leaping over is required!
-                if monster_type == "quy_nhap_trang" or (monster_vx < -1.0 and monster_vy >= 0.0):
+                if monster_type in ("quy_nhap_trang", 1) or (monster_vx < -1.0 and monster_vy >= 0.0):
                     if prev_state.is_grounded and action in (Action.STAY, Action.CROUCH, Action.RIGHT):
                         reward += self.monster_ground_rush_penalty
                     elif action in (Action.JUMP, Action.RIGHT_JUMP):
                         reward += self.evasion_bonus
 
                 # 2. Cương Thi (Jiangshi / hopping vampire):
-                elif monster_type == "cuong_thi" or (not monster_grounded) or (monster_vy < -1.0):
+                elif monster_type in ("cuong_thi", 2) or (not monster_grounded) or (monster_vy < -1.0):
                     if (not monster_grounded) or (monster_vy < -1.0):
                         # Airborne hop: jumping up into it collides mid-air; wait/stay!
                         if action in (Action.JUMP, Action.RIGHT_JUMP):
@@ -313,9 +351,18 @@ class BalancedRewardStrategy(BaseRewardStrategy):
             wisp_dir = getattr(prev_state, "wisp_dir", 0)
             wisp_vx = getattr(prev_state, "wisp_vx", 0.0)
             wisp_y = getattr(prev_state, "wisp_y", 0.0)
+            wisp_dy = getattr(prev_state, "wisp_dy", 0.0)
             wisp_grounded = getattr(prev_state, "wisp_is_grounded", False)
-            wisp_charging = getattr(prev_state, "wisp_charging", False) or getattr(prev_state, "wisp_ghost_charging", False)
+            wisp_ghost_dx = getattr(prev_state, "wisp_ghost_dx", 0.0)
+            wisp_charging = getattr(prev_state, "wisp_charging", False) or (
+                getattr(prev_state, "wisp_ghost_charging", False) and 0.0 <= wisp_ghost_dx <= 150.0
+            )
             player_y = getattr(prev_state, "player_y", getattr(prev_state, "mario_y", 288.0))
+            if wisp_y > 0.0:
+                wisp_overhead = (wisp_y + self.wisp_radius) <= (player_y - self.ghost_clearance_margin)
+            else:
+                wisp_overhead = (wisp_dy < 0.0) and ((wisp_dy + self.wisp_radius) <= -self.ghost_clearance_margin)
+
             if 0.0 <= dist_wisp <= self.wisp_threat_distance:
                 if wisp_dir < 0 and wisp_vx > 0.0:
                     # Chasing from behind: standing still risks getting hit from the left
@@ -323,7 +370,7 @@ class BalancedRewardStrategy(BaseRewardStrategy):
                         reward += self.wisp_danger_penalty
                     elif action in (Action.RIGHT, Action.RIGHT_JUMP):
                         reward += self.evasion_bonus
-                elif (not wisp_grounded) and wisp_y > 0.0 and (wisp_y + self.wisp_radius) <= (player_y - self.ghost_clearance_margin):
+                elif (not wisp_grounded) and wisp_overhead:
                     # High parabolic arc overhead: jumping into it is fatal
                     if action in (Action.JUMP, Action.RIGHT_JUMP):
                         reward += self.wisp_danger_penalty

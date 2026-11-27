@@ -27,7 +27,7 @@ class DQNAgent(BaseAgent):
 
     def __init__(
         self,
-        state_dim: int = 32,
+        state_dim: int = 63,
         num_actions: int = Action.NUM_ACTIONS,
         learning_rate: float = 3e-4,
         gamma: float = 0.99,

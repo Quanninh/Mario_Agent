@@ -5,7 +5,7 @@ import pygame
 from core.base_env import Action, BaseEnvironment, GameEvents, RawState
 from env.entities import (
     Ghost, LaserGhost, WispGhost, WillOWisp, GoalFlag, Obstacle, Pit, Player, WarmthItem,
-    GraveMonster, GraveMonsterState
+    GraveMonster, GraveMonsterState, QuyNhapTrang, CuongThi
 )
 from .game_renderer import GameRenderer
 
@@ -384,9 +384,13 @@ class GameEnvironment(BaseEnvironment):
             nearest_obs = min(upcoming_obs, key=lambda o: o.x)
             dist_to_obstacle = max(0.0, nearest_obs.x - self.player.right)
             obstacle_height = nearest_obs.height
+            obstacle_dy = nearest_obs.y - self.player.y
+            obstacle_width = nearest_obs.width
         else:
             dist_to_obstacle = -1.0
             obstacle_height = 0.0
+            obstacle_dy = 0.0
+            obstacle_width = 0.0
 
         # 1. Nearest upcoming pit & fire timing
         upcoming_pits = [pit for pit in self.pits if pit.x_end > self.player.x]
@@ -414,6 +418,8 @@ class GameEnvironment(BaseEnvironment):
             pit_fire_state = 0
             pit_fire_cycle = 0.0
             pit_fire_countdown = 0.0
+        pit_fire_sin = math.sin(2.0 * math.pi * pit_fire_cycle)
+        pit_fire_cos = math.cos(2.0 * math.pi * pit_fire_cycle)
 
         # 2. Nearest upcoming ghost & kinematic velocities
         upcoming_ghosts = [g for g in self.ghosts if g.right > self.player.x]
@@ -424,30 +430,75 @@ class GameEnvironment(BaseEnvironment):
             ghost_vx = getattr(nearest_ghost, "speed", 0.0)
             # Vy of sinusoidal floating wave: d/dt [A * sin(phase)] = A * float_speed * cos(phase)
             ghost_vy = nearest_ghost.float_amplitude * nearest_ghost.float_speed * math.cos(nearest_ghost._phase)
+            ghost_dy = nearest_ghost.y - self.player.y
+            ghost_float_amplitude = nearest_ghost.float_amplitude
+            ghost_float_speed = nearest_ghost.float_speed
+            ghost_phase_sin = math.sin(nearest_ghost._phase)
+            ghost_phase_cos = math.cos(nearest_ghost._phase)
+            ghost_dist_to_left_bound = nearest_ghost.x - nearest_ghost.patrol_min_x
+            ghost_dist_to_right_bound = nearest_ghost.patrol_max_x - nearest_ghost.right
         else:
             dist_to_ghost = -1.0
             ghost_y = 0.0
             ghost_vx = 0.0
             ghost_vy = 0.0
+            ghost_dy = 0.0
+            ghost_float_amplitude = 0.0
+            ghost_float_speed = 0.0
+            ghost_phase_sin = 0.0
+            ghost_phase_cos = 1.0
+            ghost_dist_to_left_bound = 0.0
+            ghost_dist_to_right_bound = 0.0
 
-        # 3. Nearest upcoming rotating laser hazard
+        # 3. Nearest upcoming rotating laser hazard (continuous tracking even when pointed upward)
         dist_to_laser = -1.0
         laser_angle = -1.0
         laser_rot_speed = 0.0
         laser_is_blocking = False
-        for g in self.ghosts:
-            if not isinstance(g, LaserGhost):
-                continue
+        laser_ghost_dx = 0.0
+        laser_ghost_dy = 0.0
+        laser_angle_sin = 0.0
+        laser_angle_cos = 1.0
+        laser_angular_vel = 0.0
+        laser_length = 0.0
+        laser_sweep_amplitude = 0.0
+
+        upcoming_lasers = [
+            g for g in self.ghosts
+            if isinstance(g, LaserGhost) and (g.x + g.width / 2.0 + g.laser_length) > self.player.x
+        ]
+        if upcoming_lasers:
+            nearest_laser_ghost = min(upcoming_lasers, key=lambda g: g.x)
+            eye_cx = nearest_laser_ghost.x + nearest_laser_ghost.width / 2.0
+            eye_cy = nearest_laser_ghost.y + nearest_laser_ghost.height * 0.4
+            laser_ghost_dx = eye_cx - self.player.right
+            laser_ghost_dy = eye_cy - self.player.y
+            laser_length = nearest_laser_ghost.laser_length
+            laser_sweep_amplitude = nearest_laser_ghost.laser_sweep_amplitude
+            if nearest_laser_ghost.laser_sweep_amplitude > 0.0:
+                laser_angle = (
+                    nearest_laser_ghost.laser_initial_angle
+                    + nearest_laser_ghost.laser_sweep_amplitude
+                    * math.sin(self.step_count * nearest_laser_ghost.laser_rotation_speed)
+                )
+                laser_angular_vel = (
+                    nearest_laser_ghost.laser_sweep_amplitude
+                    * nearest_laser_ghost.laser_rotation_speed
+                    * math.cos(self.step_count * nearest_laser_ghost.laser_rotation_speed)
+                )
+            else:
+                laser_angle = (
+                    nearest_laser_ghost.laser_initial_angle
+                    + self.step_count * nearest_laser_ghost.laser_rotation_speed
+                ) % (2.0 * math.pi)
+                laser_angular_vel = nearest_laser_ghost.laser_rotation_speed
+            laser_angle_sin = math.sin(laser_angle)
+            laser_angle_cos = math.cos(laser_angle)
+
+        for g in upcoming_lasers:
             seg = g.get_laser_segment(self.step_count)
             if seg is None:
                 continue
-
-            # Calculate current laser angle
-            if g.laser_sweep_amplitude > 0.0:
-                cur_angle = g.laser_initial_angle + g.laser_sweep_amplitude * math.sin(self.step_count * g.laser_rotation_speed)
-            else:
-                cur_angle = (g.laser_initial_angle + self.step_count * g.laser_rotation_speed) % (2.0 * math.pi)
-            laser_angle = cur_angle
 
             (sx, sy), (ex, ey) = seg
             laser_min_x = min(sx, ex)
@@ -473,7 +524,7 @@ class GameEnvironment(BaseEnvironment):
                     if laser_max_y >= (self.floor_y - 48.0):
                         laser_is_blocking = True
 
-        # 4. Nearest upcoming wisp & WispGhost charging
+        # 4. Nearest upcoming wisp & WispGhost casting
         threatening_wisps = []
         for w in self.wisps:
             if not w.is_alive:
@@ -491,6 +542,9 @@ class GameEnvironment(BaseEnvironment):
             wisp_vy = nearest_wisp.vy
             wisp_y = nearest_wisp.y
             wisp_is_grounded = nearest_wisp.is_grounded
+            wisp_dy = nearest_wisp.y - self.player.y
+            wisp_vx = nearest_wisp.vx
+            wisp_roll_ticks_left = nearest_wisp.roll_ticks if nearest_wisp.is_grounded else 0
         else:
             dist_to_wisp = -1.0
             wisp_dir = 0
@@ -498,7 +552,11 @@ class GameEnvironment(BaseEnvironment):
             wisp_vy = 0.0
             wisp_y = 0.0
             wisp_is_grounded = False
+            wisp_dy = 0.0
+            wisp_vx = 0.0
+            wisp_roll_ticks_left = 0
 
+        # Nearest upcoming WispGhost ahead (telegraphing & cycle phase)
         wisp_charging = any(
             isinstance(g, WispGhost)
             and g.right > self.player.x
@@ -506,12 +564,30 @@ class GameEnvironment(BaseEnvironment):
             and g.is_charging_wisp(self.step_count)
             for g in self.ghosts
         )
-
-        # Check if any nearby WispGhost ahead is charging a projectile
-        wisp_ghost_charging = any(
-            isinstance(g, WispGhost) and g.right > self.player.x and g.is_charging_wisp(self.step_count)
-            for g in self.ghosts
-        )
+        upcoming_wisp_ghosts = [
+            g for g in self.ghosts
+            if isinstance(g, WispGhost) and g.right > self.player.x
+        ]
+        wisp_ghost_charging = any(g.is_charging_wisp(self.step_count) for g in upcoming_wisp_ghosts)
+        if upcoming_wisp_ghosts:
+            nearest_wg = min(upcoming_wisp_ghosts, key=lambda g: g.x)
+            wg_phase = (self.step_count + nearest_wg.wisp_offset) % nearest_wg.wisp_cycle
+            shot_number = (self.step_count + nearest_wg.wisp_offset) // nearest_wg.wisp_cycle
+            next_shot_number = shot_number if wg_phase == 0 else shot_number + 1
+            wisp_ghost_dx = nearest_wg.x - self.player.right
+            wisp_ghost_dy = nearest_wg.y - self.player.y
+            wisp_cast_progress = wg_phase / nearest_wg.wisp_cycle
+            wisp_ticks_to_cast = float(nearest_wg.wisp_cycle - wg_phase)
+            wisp_next_is_high = (
+                nearest_wg.wisp_mode == "high"
+                or (nearest_wg.wisp_mode == "alternating" and next_shot_number % 2 == 0)
+            )
+        else:
+            wisp_ghost_dx = 0.0
+            wisp_ghost_dy = 0.0
+            wisp_cast_progress = 0.0
+            wisp_ticks_to_cast = 0.0
+            wisp_next_is_high = False
 
         # 5. Grave Monsters (Active, Emerging & Dormant Triggers)
         upcoming_active_monsters = [
@@ -525,24 +601,42 @@ class GameEnvironment(BaseEnvironment):
             dist_to_monster = max(0.0, nearest_monster.x - self.player.right)
             monster_y = nearest_monster.y
             monster_state = nearest_monster.state
-            monster_vx = getattr(nearest_monster, "vx", 0.0)
-            monster_vy = getattr(nearest_monster, "vy", 0.0)
-            monster_is_grounded = getattr(nearest_monster, "is_grounded", True)
-            from .entities import CuongThi, QuyNhapTrang
-            if isinstance(nearest_monster, CuongThi):
-                monster_type = "cuong_thi"
-            elif isinstance(nearest_monster, QuyNhapTrang):
-                monster_type = "quy_nhap_trang"
+            monster_vx = nearest_monster.vx
+            monster_vy = nearest_monster.vy
+            monster_dy = nearest_monster.y - self.player.y
+            monster_is_sentry = nearest_monster.patrol_min_x is not None
+            monster_pause_progress = 0.0
+            monster_speed_ratio = 0.0
+            if isinstance(nearest_monster, QuyNhapTrang):
+                monster_type = 1
+                monster_is_grounded = not nearest_monster._is_jumping
+                speed_span = nearest_monster.max_speed - nearest_monster.base_speed
+                if speed_span > 0.0:
+                    monster_speed_ratio = (nearest_monster._current_speed - nearest_monster.base_speed) / speed_span
+            elif isinstance(nearest_monster, CuongThi):
+                monster_type = 2
+                monster_is_grounded = nearest_monster._is_grounded
+                if nearest_monster._is_grounded and nearest_monster.pause_duration > 0:
+                    monster_pause_progress = nearest_monster._pause_timer / nearest_monster.pause_duration
             else:
-                monster_type = "grave_monster"
+                monster_type = 0
+                monster_is_grounded = True
+
+            left_pits = [nearest_monster.x - p.x_end for p in self.pits if p.x_end <= nearest_monster.x]
+            monster_dist_to_pit = min(left_pits) if left_pits else -1.0
         else:
             dist_to_monster = -1.0
             monster_y = 0.0
             monster_state = GraveMonsterState.DORMANT
             monster_vx = 0.0
             monster_vy = 0.0
+            monster_dy = 0.0
             monster_is_grounded = True
-            monster_type = None
+            monster_type = 0
+            monster_is_sentry = False
+            monster_pause_progress = 0.0
+            monster_speed_ratio = 0.0
+            monster_dist_to_pit = -1.0
 
         # Check proximity to dormant grave triggers (sleeping monster ambush)
         dormant_monsters = [
@@ -607,6 +701,36 @@ class GameEnvironment(BaseEnvironment):
             monster_is_grounded=monster_is_grounded,
             dist_to_monster_trigger=dist_to_monster_trigger,
             monster_type=monster_type,
+            obstacle_dy=obstacle_dy,
+            obstacle_width=obstacle_width,
+            pit_fire_sin=pit_fire_sin,
+            pit_fire_cos=pit_fire_cos,
+            ghost_dy=ghost_dy,
+            ghost_float_amplitude=ghost_float_amplitude,
+            ghost_float_speed=ghost_float_speed,
+            ghost_phase_sin=ghost_phase_sin,
+            ghost_phase_cos=ghost_phase_cos,
+            ghost_dist_to_left_bound=ghost_dist_to_left_bound,
+            ghost_dist_to_right_bound=ghost_dist_to_right_bound,
+            laser_ghost_dx=laser_ghost_dx,
+            laser_ghost_dy=laser_ghost_dy,
+            laser_angle_sin=laser_angle_sin,
+            laser_angle_cos=laser_angle_cos,
+            laser_angular_vel=laser_angular_vel,
+            laser_length=laser_length,
+            laser_sweep_amplitude=laser_sweep_amplitude,
+            wisp_ghost_dx=wisp_ghost_dx,
+            wisp_ghost_dy=wisp_ghost_dy,
+            wisp_cast_progress=wisp_cast_progress,
+            wisp_ticks_to_cast=wisp_ticks_to_cast,
+            wisp_next_is_high=wisp_next_is_high,
+            wisp_dy=wisp_dy,
+            wisp_roll_ticks_left=wisp_roll_ticks_left,
+            monster_is_sentry=monster_is_sentry,
+            monster_dy=monster_dy,
+            monster_pause_progress=monster_pause_progress,
+            monster_speed_ratio=monster_speed_ratio,
+            monster_dist_to_pit=monster_dist_to_pit,
         )
 
     @staticmethod

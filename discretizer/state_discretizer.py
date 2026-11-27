@@ -200,11 +200,11 @@ class MarioStateDiscretizer(BaseDiscretizer):
         if dist_monster < 0.0 or dist_monster > self.monster_threat_distance:
             monster_bin = 0
         else:
-            if monster_type == "quy_nhap_trang" or monster_vx < -2.0:
+            if monster_type in ("quy_nhap_trang", 1) or monster_vx < -2.0:
                 monster_bin = 3  # Sprint demon rush
             elif not monster_grounded or monster_vy < -1.0:
                 monster_bin = 1  # Airborne hop
-            elif monster_type == "cuong_thi" or monster_vy != 0.0:
+            elif monster_type in ("cuong_thi", 2) or monster_vy != 0.0:
                 monster_bin = 2  # Paused / emerging on ground
             else:
                 monster_bin = 1
