@@ -223,6 +223,8 @@ class JobConfig:
     replay_ratio: float
     checkpoints_dir: str
     outputs_dir: str
+    map_seed: Optional[int]
+    map_seed_interval: int
     use_inline: bool
     is_multi_job: bool
 
@@ -280,6 +282,9 @@ def _run_single_job(job: JobConfig) -> Tuple[Tuple[str, str, str, Optional[int]]
         checkpoint_interval=job.checkpoint_interval,
         checkpoints_dir=job.checkpoints_dir,
         outputs_dir=job.outputs_dir,
+        map_seed=job.map_seed,
+        map_seed_interval=job.map_seed_interval,
+        seed=job.seed,
     )
 
     total_eps = len(job.levels) * job.episodes_per_level
@@ -474,6 +479,24 @@ def parse_args() -> argparse.Namespace:
         help="Directory to save JSON/CSV Member 4 data boards (default: 'outputs')",
     )
     parser.add_argument(
+        "--map-seed",
+        type=int,
+        default=None,
+        help=(
+            "Starting procedural map seed for Levels 1-7 "
+            "(default: None = fixed handcrafted maps; defaults to --seed if --map-seed-interval > 0)"
+        ),
+    )
+    parser.add_argument(
+        "--map-seed-interval",
+        type=int,
+        default=0,
+        help=(
+            "Rotate to a new random procedural map seed every N episodes per level for Levels 1-7 "
+            "(e.g. 3000 or 5000; 0 disables rotation)"
+        ),
+    )
+    parser.add_argument(
         "--smoke-test",
         action="store_true",
         help="Fast verification flag (5 eps/lvl, eval_interval=2, completes in seconds)",
@@ -556,6 +579,8 @@ def main() -> None:
                             replay_ratio=args.replay_ratio,
                             checkpoints_dir=args.checkpoints_dir,
                             outputs_dir=args.outputs_dir,
+                            map_seed=args.map_seed,
+                            map_seed_interval=args.map_seed_interval,
                             use_inline=use_inline,
                             is_multi_job=(len(seeds) > 1 or len(agents) > 1 or len(modes) > 1 or len(rewards) > 1),
                         )
@@ -564,10 +589,21 @@ def main() -> None:
     total_jobs = len(jobs)
     workers = max(1, min(args.workers, total_jobs, os.cpu_count() or 1))
 
+    if args.map_seed is not None:
+        map_seed_desc = args.map_seed
+    elif args.map_seed_interval > 0:
+        seed_label = args.seed if len(seeds) == 1 else "per-job seed"
+        map_seed_desc = f"random(seed={seed_label})"
+    else:
+        map_seed_desc = None
+
     print(
         f"[train.py] Executing {total_jobs} total job(s) across {workers} parallel worker(s): "
-        f"Agents={agents}, Modes={modes}, Rewards={rewards}, Seeds={seeds}, Levels={args.levels}"
+        f"Agents={agents}, Modes={modes}, Rewards={rewards}, Seeds={seeds}, Levels={args.levels}, "
+        f"MapSeed={map_seed_desc}, MapRotateInterval={args.map_seed_interval}"
     )
+    if (args.map_seed is not None or args.map_seed_interval > 0) and any(lvl > 7 for lvl in args.levels):
+        print("[train.py] Note: Procedural map seeds apply to Levels 1-7; Level 8 remains a fixed handcrafted layout.")
 
     all_results: Dict[Tuple[str, str, str, Optional[int]], Dict] = {}
     start_time = time.time()
