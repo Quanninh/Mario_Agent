@@ -801,11 +801,18 @@ class Trainer:
             "episode_history": episode_history,
         }
 
-        json_out_path = outputs_dir_path / f"training_board_{self.agent_tag}_{mode}_{self.reward_name}{seed_suffix}.json"
+        if len(levels) == 1:
+            levels_tag = f"_lvl{levels[0]}"
+        elif levels == list(range(levels[0], levels[-1] + 1)):
+            levels_tag = f"_lvl{levels[0]}-{levels[-1]}"
+        else:
+            levels_tag = "_lvl" + "-".join(str(lvl) for lvl in levels)
+
+        json_out_path = outputs_dir_path / f"training_board_{self.agent_tag}_{mode}_{self.reward_name}{levels_tag}{seed_suffix}.json"
         with open(json_out_path, "w", encoding="utf-8") as f:
             json.dump(board_data, f, indent=2)
 
-        csv_out_path = outputs_dir_path / f"training_metrics_{self.agent_tag}_{mode}_{self.reward_name}{seed_suffix}.csv"
+        csv_out_path = outputs_dir_path / f"training_metrics_{self.agent_tag}_{mode}_{self.reward_name}{levels_tag}{seed_suffix}.csv"
         csv_headers = [
             "global_episode",
             "level_episode",

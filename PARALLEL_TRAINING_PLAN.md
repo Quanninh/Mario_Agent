@@ -8,11 +8,11 @@ This execution plan guides an AI agent or automated script to perform distribute
 ## 1. Hardware & Process Budgeting
 
 * **Available CPU**: 32 logical cores
-* **Parallel Worker Pool (`-j / --workers`)**: **30 workers**
-* **Core Cushion**: 2 cores reserved for Windows OS background processes, thread scheduling, and non-blocking disk I/O (JSON/pickle serialization).
+* **Parallel Worker Pool (`-j / --workers`)**: **32 workers**
+* **Core Cushion**: 0 cores reserved (full 32-core saturation; OS scheduling & I/O shared across cores).
 * **Multi-Job Wave Math**:
-  $$\text{Jobs} = 2 \text{ Agents} \times 2 \text{ Modes} \times 3 \text{ Rewards} \times 10 \text{ Seeds} = 120 \text{ Jobs}$$
-  $$\text{Waves} = \frac{120 \text{ Jobs}}{30 \text{ Workers}} = 4.0 \text{ exact waves (zero tail latency or idle cores)}$$
+  $$\text{Jobs} = 2 \text{ Agents} \times 2 \text{ Modes} \times 3 \text{ Rewards} \times 8 \text{ Seeds} = 96 \text{ Jobs}$$
+  $$\text{Waves} = \frac{96 \text{ Jobs}}{32 \text{ Workers}} = 3.0 \text{ exact waves (zero tail latency or idle cores)}$$
 
 ---
 
@@ -20,16 +20,16 @@ This execution plan guides an AI agent or automated script to perform distribute
 
 | Hyperparameter | Value | Description |
 | :--- | :--- | :--- |
-| `--episodes` | `15000` | 15,000 training episodes per level stage |
+| `--episodes` | `10000` | 10,000 training episodes per level stage |
 | `--alpha` | `0.10` | Initial Q-learning / SARSA learning rate |
 | `--alpha-min` | `0.005` | Minimum decayed learning rate floor |
-| `--epsilon-decay` | `0.9995` | Multiplicative decay per episode: reaches $\epsilon_{\min}=0.01$ at ep ~9,210 |
+| `--epsilon-decay` | `0.999` | Multiplicative decay per episode: reaches $\epsilon_{\min}=0.01$ at ep ~4,603 |
 | `--epsilon-start` | `1.0` | Initial exploration rate (100% random) |
-| `--epsilon-min` | `0.01` | Exploration floor (1% exploration during final ~5,800 episodes) |
+| `--epsilon-min` | `0.01` | Exploration floor (1% exploration during final ~5,400 episodes) |
 | `--gamma` | `0.99` | Discount factor |
 | `--seed` | `42` | Base random seed |
-| `--num-seeds` | `10` | 10 independent seeds generated: `[42, 43, 44, 45, 46, 47, 48, 49, 50, 51]` |
-| `--workers` | `30` | 30 parallel worker processes (`multiprocessing.Pool`) |
+| `--num-seeds` | `8` | 8 independent seeds generated: `[42, 43, 44, 45, 46, 47, 48, 49]` |
+| `--workers` | `32` | 32 parallel worker processes (`multiprocessing.Pool`) |
 | `--no-progress-bar`| Active | Plain newline logging to prevent carriage return (`\r`) buffer scrambling |
 
 ---
@@ -41,7 +41,7 @@ This execution plan guides an AI agent or automated script to perform distribute
 | **Agent (`--agent`)** | 2 | `tabular` (Tabular Q-Learning), `hybrid` (Hybrid Q-SARSA, `--hybrid-mode expected`) |
 | **Mode (`--mode`)** | 2 | `curriculum` (stage transfer & replay), `separate` (fresh agent per level) |
 | **Reward (`--reward`)** | 3 | `balanced` (canonical), `sparse` (terminal only), `dense` (potential shaping) |
-| **Seeds (`--seeds`)** | 10 | Seeds 42, 43, 44, 45, 46, 47, 48, 49, 50, 51 |
+| **Seeds (`--seeds`)** | 8 | Seeds 42, 43, 44, 45, 46, 47, 48, 49 |
 
 ---
 
@@ -58,8 +58,8 @@ python train.py --smoke-test -j 8 --agent all --mode all --reward all --num-seed
 ### Track A: Primary Curriculum Stages (Levels 1 to 5)
 * **Target Levels**: `--levels 1 2 3 4 5`
 * **Focus**: Foundational mechanics — Quiet Graveyard, Pits, Whispering Ghosts, Nightmare Catacombs, and Valley of the Wisp Maidens.
-* **Volume**: 120 jobs (75,000 episodes/job).
-* **Estimated Runtime**: **~14 to 18 minutes** across 30 workers.
+* **Volume**: 96 jobs (50,000 episodes/job).
+* **Estimated Runtime**: **~8 to 10 minutes** across 32 workers.
 
 **Execution Command**:
 ```powershell
@@ -68,13 +68,13 @@ python train.py `
   --mode all `
   --reward all `
   --levels 1 2 3 4 5 `
-  --episodes 15000 `
+  --episodes 10000 `
   --alpha 0.10 `
   --alpha-min 0.005 `
-  --epsilon-decay 0.9995 `
+  --epsilon-decay 0.999 `
   --seed 42 `
-  --num-seeds 10 `
-  --workers 30 `
+  --num-seeds 8 `
+  --workers 32 `
   --no-progress-bar
 ```
 
@@ -83,8 +83,8 @@ python train.py `
 ### Track B: Advanced Ambush & Master Gauntlet (Levels 6, 7, 8)
 * **Target Levels**: `--levels 6 7 8`
 * **Focus**: Complex hazard navigation — Awakening of Corpse Demon (Quỷ Nhập Tràng ambushes), Cataclysm of the Undead (Jiangshi / Cương Thi bounds), and The Celestial Purgatory (7,200px gauntlet with hanging slide tunnels and aerial catwalks).
-* **Volume**: 120 jobs (45,000 episodes/job).
-* **Estimated Runtime**: **~18 to 25 minutes** across 30 workers.
+* **Volume**: 96 jobs (30,000 episodes/job).
+* **Estimated Runtime**: **~9 to 13 minutes** across 32 workers.
 
 **Execution Command**:
 ```powershell
@@ -93,13 +93,13 @@ python train.py `
   --mode all `
   --reward all `
   --levels 6 7 8 `
-  --episodes 15000 `
+  --episodes 10000 `
   --alpha 0.10 `
   --alpha-min 0.005 `
-  --epsilon-decay 0.9995 `
+  --epsilon-decay 0.999 `
   --seed 42 `
-  --num-seeds 10 `
-  --workers 30 `
+  --num-seeds 8 `
+  --workers 32 `
   --no-progress-bar
 ```
 
@@ -108,8 +108,8 @@ python train.py `
 ### Track C: Complete Grand Slam (Levels 1 through 8)
 * **Target Levels**: `--levels 1 2 3 4 5 6 7 8`
 * **Focus**: Full 8-stage end-to-end curriculum transfer evaluation.
-* **Volume**: 120 jobs (120,000 episodes/job).
-* **Estimated Runtime**: **~30 to 45 minutes** across 30 workers.
+* **Volume**: 96 jobs (80,000 episodes/job).
+* **Estimated Runtime**: **~15 to 23 minutes** across 32 workers.
 
 **Execution Command**:
 ```powershell
@@ -118,13 +118,13 @@ python train.py `
   --mode all `
   --reward all `
   --levels 1 2 3 4 5 6 7 8 `
-  --episodes 15000 `
+  --episodes 10000 `
   --alpha 0.10 `
   --alpha-min 0.005 `
-  --epsilon-decay 0.9995 `
+  --epsilon-decay 0.999 `
   --seed 42 `
-  --num-seeds 10 `
-  --workers 30 `
+  --num-seeds 8 `
+  --workers 32 `
   --no-progress-bar
 ```
 
@@ -140,45 +140,45 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host " STARTING PARALLEL RL BENCHMARK SUITE (32-CORE CPU)       " -ForegroundColor Cyan
-Write-Host " Workers: 30 | Episodes: 15,000 | Seeds: 10 (42..51)     " -ForegroundColor Cyan
+Write-Host " Workers: 32 | Episodes: 10,000 | Seeds: 8 (42..49)      " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 $TotalStartTime = Get-Date
 
 # 1. Run Track A (Levels 1 to 5)
-Write-Host "`n>>> [1/2] Launching Track A: Levels 1, 2, 3, 4, 5 (120 Jobs)..." -ForegroundColor Yellow
+Write-Host "`n>>> [1/2] Launching Track A: Levels 1, 2, 3, 4, 5 (96 Jobs)..." -ForegroundColor Yellow
 $TrackAStart = Get-Date
 python train.py `
     --agent all `
     --mode all `
     --reward all `
     --levels 1 2 3 4 5 `
-    --episodes 15000 `
+    --episodes 10000 `
     --alpha 0.10 `
     --alpha-min 0.005 `
-    --epsilon-decay 0.9995 `
+    --epsilon-decay 0.999 `
     --seed 42 `
-    --num-seeds 10 `
-    --workers 30 `
+    --num-seeds 8 `
+    --workers 32 `
     --no-progress-bar *>&1 | Tee-Object -FilePath "outputs\benchmark_trackA_levels1-5.log"
 $TrackADuration = (Get-Date) - $TrackAStart
 Write-Host ">>> Track A Finished in: $($TrackADuration.TotalMinutes.ToString('F2')) minutes." -ForegroundColor Green
 
 # 2. Run Track B (Levels 6, 7, 8)
-Write-Host "`n>>> [2/2] Launching Track B: Levels 6, 7, 8 (120 Jobs)..." -ForegroundColor Yellow
+Write-Host "`n>>> [2/2] Launching Track B: Levels 6, 7, 8 (96 Jobs)..." -ForegroundColor Yellow
 $TrackBStart = Get-Date
 python train.py `
     --agent all `
     --mode all `
     --reward all `
     --levels 6 7 8 `
-    --episodes 15000 `
+    --episodes 10000 `
     --alpha 0.10 `
     --alpha-min 0.005 `
-    --epsilon-decay 0.9995 `
+    --epsilon-decay 0.999 `
     --seed 42 `
-    --num-seeds 10 `
-    --workers 30 `
+    --num-seeds 8 `
+    --workers 32 `
     --no-progress-bar *>&1 | Tee-Object -FilePath "outputs\benchmark_trackB_levels6-8.log"
 $TrackBDuration = (Get-Date) - $TrackBStart
 Write-Host ">>> Track B Finished in: $($TrackBDuration.TotalMinutes.ToString('F2')) minutes." -ForegroundColor Green
