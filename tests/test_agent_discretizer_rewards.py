@@ -140,19 +140,22 @@ class TestDiscretizer(unittest.TestCase):
         s_dj = self.discretizer.discretize(raw_dj)
         self.assertEqual(s_dj[10], 1)  # double_jump_bin: 1
 
-        # Wisp ahead within threat distance
+        # Default discretizer suppresses wisp sensor to reduce L5 state fragmentation
         raw_wisp_ahead = make_raw_state(dist_to_wisp=30.0, wisp_dir=1)
-        s_wisp_ahead = self.discretizer.discretize(raw_wisp_ahead)
+        self.assertEqual(self.discretizer.discretize(raw_wisp_ahead)[8], 0)
+
+        wisp_enabled_disc = MarioStateDiscretizer(enable_wisp_sensor=True)
+        s_wisp_ahead = wisp_enabled_disc.discretize(raw_wisp_ahead)
         self.assertEqual(s_wisp_ahead[8], 1)  # wisp_bin: INCOMING_AHEAD
 
         # Wisp behind
         raw_wisp_behind = make_raw_state(dist_to_wisp=30.0, wisp_dir=-1)
-        s_wisp_behind = self.discretizer.discretize(raw_wisp_behind)
+        s_wisp_behind = wisp_enabled_disc.discretize(raw_wisp_behind)
         self.assertEqual(s_wisp_behind[8], 2)  # wisp_bin: CHASING_BEHIND
 
         # Wisp far
         raw_wisp_far = make_raw_state(dist_to_wisp=100.0, wisp_dir=1)
-        s_wisp_far = self.discretizer.discretize(raw_wisp_far)
+        s_wisp_far = wisp_enabled_disc.discretize(raw_wisp_far)
         self.assertEqual(s_wisp_far[8], 0)  # wisp_bin: SAFE
 
         # Monster approaching
@@ -233,15 +236,21 @@ class TestRewards(unittest.TestCase):
         r_jump_monster_far = strategy.calculate_reward(s_monster_far, Action.RIGHT_JUMP, s_monster_far, ev, False)
         self.assertAlmostEqual(r_jump_monster_far - r_walk, -15.0)
 
-        # 4. Jump when wisp is incoming at 55px (<= 65px threshold) -> EXEMPT
+        # 4. Jump when wisp is incoming at 55px: penalized by default (-1.0), exempt when wisp_threat_distance=65.0
         s_wisp = make_raw_state(is_grounded=True, dist_to_wisp=55.0, wisp_dir=1)
-        r_jump_wisp = strategy.calculate_reward(s_wisp, Action.RIGHT_JUMP, s_wisp, ev, False)
-        self.assertAlmostEqual(r_jump_wisp, r_walk)
+        r_jump_wisp_default = strategy.calculate_reward(s_wisp, Action.RIGHT_JUMP, s_wisp, ev, False)
+        self.assertAlmostEqual(r_jump_wisp_default - r_walk, -15.0)
+        wisp_strategy = BalancedRewardStrategy(unnecessary_jump_penalty=-15.0, wisp_threat_distance=65.0)
+        r_jump_wisp_enabled = wisp_strategy.calculate_reward(s_wisp, Action.RIGHT_JUMP, s_wisp, ev, False)
+        self.assertAlmostEqual(r_jump_wisp_enabled, r_walk)
 
-        # 5. Jump when laser is threatening at 50px (<= 55px threshold) -> EXEMPT
+        # 5. Jump when laser is nearby at 50px: penalized by default (-1.0), exempt when laser_threat_distance=85.0
         s_laser = make_raw_state(is_grounded=True, dist_to_laser=50.0)
         r_jump_laser = strategy.calculate_reward(s_laser, Action.RIGHT_JUMP, s_laser, ev, False)
-        self.assertAlmostEqual(r_jump_laser, r_walk)
+        self.assertAlmostEqual(r_jump_laser - r_walk, -15.0)
+        laser_strategy = BalancedRewardStrategy(unnecessary_jump_penalty=-15.0, laser_threat_distance=85.0)
+        r_jump_laser_exempt = laser_strategy.calculate_reward(s_laser, Action.RIGHT_JUMP, s_laser, ev, False)
+        self.assertAlmostEqual(r_jump_laser_exempt, r_walk)
 
         # 6. Airborne double jump (is_grounded=False) -> NEVER penalized by unnecessary_jump_penalty
         s_air = make_raw_state(is_grounded=False, can_double_jump=True)

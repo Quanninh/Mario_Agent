@@ -28,12 +28,14 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         step_penalty: float = -0.1,
         unnecessary_jump_penalty: float = -15.0,
         timeout_penalty: float = -50.0,
+        early_double_jump_penalty: float = -3.0,
+        fast_ascend_threshold: float = -3.0,
         obs_threat_distance: float = 50.0,
-        pit_threat_distance: float = 45.0,
+        pit_threat_distance: float = 65.0,
         ghost_threat_distance: float = 80.0,
-        laser_threat_distance: float = 55.0,
-        wisp_threat_distance: float = 65.0,
-        monster_threat_distance: float = 75.0,
+        laser_threat_distance: float = -1.0,
+        wisp_threat_distance: float = -1.0,
+        monster_threat_distance: float = 95.0,
         ghost_height: float = 28.0,
         ghost_clearance_margin: float = 4.0,
     ):
@@ -51,6 +53,8 @@ class BalancedRewardStrategy(BaseRewardStrategy):
         self.step_penalty = step_penalty
         self.unnecessary_jump_penalty = unnecessary_jump_penalty
         self.timeout_penalty = timeout_penalty
+        self.early_double_jump_penalty = early_double_jump_penalty
+        self.fast_ascend_threshold = fast_ascend_threshold
         self.obs_threat_distance = obs_threat_distance
         self.pit_threat_distance = pit_threat_distance
         self.ghost_threat_distance = ghost_threat_distance
@@ -138,11 +142,24 @@ class BalancedRewardStrategy(BaseRewardStrategy):
                 0.0 <= dist_ghost <= self.ghost_threat_distance
                 and not ghost_overhead_cleared
             )
-            laser_near = 0.0 <= getattr(prev_state, "dist_to_laser", -1.0) <= self.laser_threat_distance
+            laser_near = (
+                self.laser_threat_distance >= 0.0
+                and 0.0 <= getattr(prev_state, "dist_to_laser", -1.0) <= self.laser_threat_distance
+            )
             wisp_near = 0.0 <= getattr(prev_state, "dist_to_wisp", -1.0) <= self.wisp_threat_distance
             monster_near = 0.0 <= getattr(prev_state, "dist_to_monster", -1.0) <= self.monster_threat_distance
             if obs_far and pit_far and not low_ghost_near and not laser_near and not wisp_near and not monster_near:
                 reward += self.unnecessary_jump_penalty
+
+        # 10b. Early Double-Jump Penalty (burning double jump while ascending fast wastes jump height)
+        if (
+            not prev_state.is_grounded
+            and bool(getattr(prev_state, "can_double_jump", False))
+            and not bool(getattr(prev_state, "is_crouching", False))
+            and action in (Action.JUMP, Action.RIGHT_JUMP)
+            and prev_state.velocity_y < self.fast_ascend_threshold
+        ):
+            reward += self.early_double_jump_penalty
 
         # 11. Timeout Penalty (Ensure deaths are never penalized as timeouts)
         is_hazard_death = (

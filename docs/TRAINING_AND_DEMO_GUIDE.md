@@ -45,16 +45,16 @@ The training harness runs headless RL experiments without rendering overhead, pr
 
 ### 2.2 Standard Training Workflows
 
-#### Workflow A: Recommended 4-Run Balanced Benchmark (2,000 Episodes / Level)
-Trains both `TabularQAgent` and `HybridQSARSAAgent` across `curriculum` and `separate` modes on the production `balanced` reward:
+#### Workflow A: Recommended 4-Run Balanced Benchmark (Stage-Scaled L1–L5 + Eligibility Trace Floor)
+Trains both `TabularQAgent` and `HybridQSARSAAgent` across `curriculum` and `separate` modes on the production `balanced` reward using the default stage-scaled schedule (`800 / 1200 / 1800 / 5000 / 6000`), `--lambda 0.65` (decaying to `--lambda-min 0.35` at 75% per stage), `--alpha-min 0.005`, `--eval-interval 25`, `--rewarm-epsilon-hard 0.50`, and `--max-steps-cap 2400`:
 ```bash
-python train.py --agent all --mode all --reward balanced --episodes 2000
+python train.py --agent all --mode all --reward balanced --lambda 0.65 --lambda-min 0.35 --alpha-min 0.005 --eval-interval 25 --rewarm-epsilon-hard 0.50 --max-steps-cap 2400 --no-progress-bar
 ```
 
 #### Workflow B: Canonical Single Production Run (Tabular Curriculum Balanced)
 Trains the primary baseline agent across Levels 1 $\to$ 5 in curriculum mode. Saves the global best model directly to root [`checkpoints/q_table_best.json`](file:///d:/Study%20Resources/Year%204/Elective%20Compulsory%201/Mario_Agent/checkpoints/q_table_best.json):
 ```bash
-python train.py --agent tabular --mode curriculum --reward balanced --episodes 2000
+python train.py --agent tabular --mode curriculum --reward balanced --lambda 0.65 --no-progress-bar
 ```
 
 #### Workflow C: Fast Smoke Test (Verification in ~10 Seconds)
@@ -64,15 +64,15 @@ python train.py --smoke-test --agent all --reward balanced
 ```
 
 #### Workflow D: Full 12-Run Experimental Matrix (All Rewards)
-Executes all 2 Agents $\times$ 2 Modes $\times$ 3 Rewards for research reports and Member 4 evaluation boards:
+Executes all 2 Agents $\times$ 2 Modes $\times$ 3 Rewards across the stage-scaled schedule for research reports and Member 4 evaluation boards:
 ```bash
-python train.py --agent all --mode all --reward all --episodes 2000 --no-progress-bar
+python train.py --agent all --mode all --reward all --lambda 0.65 --max-steps-cap 2400 --no-progress-bar
 ```
 
 #### Workflow E: Single Level Training (Separate Mode)
 To train an independent agent exclusively on Level 4 or Level 5:
 ```bash
-python train.py --agent tabular --mode separate --reward balanced --levels 4 --episodes 2000
+python train.py --agent hybrid --hybrid-mode expected --mode separate --reward balanced --levels 4 --episodes 5000 --lambda 0.65
 ```
 
 ---
@@ -86,12 +86,20 @@ python train.py --agent tabular --mode separate --reward balanced --levels 4 --e
 | **`--mode`** | `"all"` | Mode: `curriculum`, `separate`, or `all`. |
 | **`--reward`** | `"all"` | Reward strategy: `balanced`, `sparse`, `dense`, or `all`. |
 | **`--levels`** | `1 2 3 4 5` | Levels to include in the run (space-separated). |
-| **`--episodes`** | `2000` | Number of training episodes per level. |
+| **`--episodes`** | Stage-scaled | Flat episodes per level; omit to use `{1: 800, 2: 1200, 3: 1800, 4: 5000, 5: 6000}`. |
+| **`--lambda`** | `0.0` | Starting replacing eligibility trace decay $\lambda \in [0.0, 1.0]$ (`0.65` recommended). |
+| **`--lambda-min`** | `0.35` | Minimum trace floor reached linearly at 75% of each stage (`--lambda 0.0` stays exact `0.0`). |
+| **`--alpha-min`** | `0.005` | Final per-stage learning rate after linear annealing from `0.12`. |
+| **`--max-steps-cap`**| `2400` | Trainer-side episode step cap (`0` disables cap; clamps L5's 10,000-step horizon). |
+| **`--epsilon-decay`**| Auto | Explicit decay multiplier; omit to auto-compute per stage (`0.03` at 75% budget). |
 | **`--seed`** | `42` | Random seed for deterministic reproducibility. |
-| **`--rewarm-epsilon`** | `0.30` | Exploration rate when transitioning to Levels 2–3 in curriculum mode. |
-| **`--rewarm-epsilon-ghost`**| `0.35` | Exploration rate when transitioning to ghost levels (Levels 4–5). |
-| **`--replay-ratio`** | `0.35` | Probability of background replay episodes from earlier levels in curriculum mode. |
-| **`--no-progress-bar`** | `False` | Disables in-place carriage returns (`\r`) in favor of clean newline log lines (recommended when logging to files or Slurm). |
+| **`--rewarm-epsilon`** | `0.30` | Exploration rate when transitioning to Level 2 in curriculum mode. |
+| **`--rewarm-epsilon-ghost`**| `0.35` | Exploration rate when transitioning to Level 3 in curriculum mode. |
+| **`--rewarm-epsilon-hard`** | `0.50` | Exploration rate when transitioning to hard Levels $\ge 4$ in curriculum mode. |
+| **`--replay-ratio`** | `0.35` | Probability of background replay episodes across all earlier levels `1 .. lvl-1`. |
+| **`--eval-interval`** | `25` | Episodes between periodic greedy checkpoints (`10`-ep probe). |
+| **`--enable-wisp-sensor`**| `False` | Enable `wisp_bin` proximity sensor (`False` suppresses L5 overhead noise in `55,296` states; `True` uses `110,592` states). |
+| **`--no-progress-bar`** | `False` | Disables in-place carriage returns (`\r`) in favor of clean newline log lines (recommended when logging to files). |
 | **`--smoke-test`** | `False` | Overrides parameters for fast 5-episode smoke test verification. |
 
 ---
@@ -147,6 +155,8 @@ Useful for inspecting exact jump take-off margins and ghost clearance:
 python play_agent.py --level 4 --fps 20
 ```
 
+> **Note (`--enable-wisp-sensor`):** By default, `play_agent.py` leaves `--enable-wisp-sensor` disabled (`False`) to match the `55,296`-state trained L1–L5 policies. Pass `--enable-wisp-sensor` only when evaluating legacy checkpoints trained with `110,592` states.
+
 ---
 
 ### 3.2 In-Game Interactive Hotkeys
@@ -190,7 +200,7 @@ Follow these 4 steps to run a complete experiment from scratch and watch the age
 ### Step 1: Run Training
 Execute the 4-run balanced benchmark:
 ```bash
-python train.py --agent all --mode all --reward balanced --episodes 2000
+python train.py --agent all --mode all --reward balanced --lambda 0.65 --max-steps-cap 2400
 ```
 Wait for the run to complete. You will see the final evaluation comparison table printed to the terminal.
 

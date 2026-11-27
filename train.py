@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 import random
 import sys
 import time
@@ -10,6 +11,7 @@ from discretizer import MarioStateDiscretizer
 from env import create_env
 from rewards import create_reward_strategy
 from training import Trainer
+from training.trainer import DEFAULT_EPISODE_SCHEDULE
 
 
 class ProgressTracker:
@@ -22,12 +24,14 @@ class ProgressTracker:
         reward: str,
         total_episodes: int,
         use_inline: bool,
+        state_space_max: int = 110592,
     ) -> None:
         self.agent_tag = agent_tag
         self.mode = mode
         self.reward = reward
         self.total_episodes = total_episodes
         self.use_inline = use_inline
+        self.state_space_max = state_space_max
         self.start_time = time.time()
         self.last_update_time = 0.0
 
@@ -63,7 +67,7 @@ class ProgressTracker:
                     f"Lvl {data['level_id']} ({lvl_ep}/{ep_per_lvl}) | "
                     f"Win50: {data['rolling_win_rate_50']:5.1f}% | "
                     f"R: {data['total_reward']:+7.1f} | eps: {data['epsilon']:.3f} | "
-                    f"States: {data['states_discovered']:4d}/1152 | ETA: {eta_str}"
+                    f"States: {data['states_discovered']:5d}/{self.state_space_max} | ETA: {eta_str}"
                 )
                 sys.stdout.write(line)
                 if is_level_end:
@@ -74,26 +78,26 @@ class ProgressTracker:
             if current_ep == 1 or current_ep % 100 == 0 or is_level_end:
                 print(
                     f"[{self.agent_tag.upper()} | {self.mode.capitalize()} | {self.reward.upper()}] "
-                    f"Global Ep {current_ep:4d}/{total_ep:4d} | "
+                    f"Global Ep {current_ep:5d}/{total_ep:5d} | "
                     f"Lvl {data['level_id']} ({lvl_ep:4d}/{ep_per_lvl:4d}) | "
                     f"Win50: {data['rolling_win_rate_50']:5.1f}% | "
                     f"R: {data['total_reward']:+7.1f} | eps: {data['epsilon']:.3f} | "
-                    f"States: {data['states_discovered']:4d}/1152 | ETA: {eta_str}"
+                    f"States: {data['states_discovered']:5d}/{self.state_space_max} | ETA: {eta_str}"
                 )
                 sys.stdout.flush()
 
 
 def print_comparison_table(all_results: Dict[Tuple[str, str, str], Dict], levels: List[int]) -> None:
     """Prints a clear comparison table across all completed (agent, mode, reward) experiments."""
-    print("\n" + "=" * 135)
-    print(" " * 48 + "EXPERIMENT EVALUATION COMPARISON SUMMARY")
-    print("=" * 135)
+    print("\n" + "=" * 150)
+    print(" " * 55 + "EXPERIMENT EVALUATION COMPARISON SUMMARY")
+    print("=" * 150)
     header = (
-        f"{'Agent':<16} {'Mode':<12} {'Reward':<10} {'Level':<14} {'Untrained Win%':<16} "
-        f"{'Trained Win%':<14} {'Untrained R':<14} {'Trained R':<14} {'Clear Steps':<14} {'Items'}"
+        f"{'Agent':<16} {'Mode':<11} {'Reward':<9} {'Level':<14} {'Untr%':<7} "
+        f"{'Final%':<8} {'BestCP%':<8} {'Untr R':<9} {'Final R':<10} {'Best R':<10} {'Steps':<8} {'BestSt':<8} {'Items'}"
     )
     print(header)
-    print("-" * 135)
+    print("-" * 150)
 
     for (agent_tag, mode, reward_name), res in all_results.items():
         summary = res.get("evaluation_summary", {})
@@ -103,39 +107,35 @@ def print_comparison_table(all_results: Dict[Tuple[str, str, str], Dict], levels
 
             untrained_win = f"{stats.get('untrained_win_rate', 0.0):.1f}%"
             trained_win = f"{stats.get('trained_win_rate', 0.0):.1f}%"
+            best_win = f"{stats.get('best_checkpoint_win_rate', stats.get('trained_win_rate', 0.0)):.1f}%"
             untrained_r = f"{stats.get('untrained_avg_reward', 0.0):+.1f}"
             trained_r = f"{stats.get('trained_avg_reward', 0.0):+.1f}"
+            best_r = f"{stats.get('best_checkpoint_avg_reward', stats.get('trained_avg_reward', 0.0)):+.1f}"
 
             clear_steps_val = stats.get("avg_completion_steps", -1.0)
             clear_steps = f"{clear_steps_val:.1f}" if clear_steps_val > 0 else "N/A"
+            best_steps_val = stats.get("best_checkpoint_completion_steps", clear_steps_val)
+            best_steps = f"{best_steps_val:.1f}" if best_steps_val > 0 else "N/A"
             items = f"{stats.get('avg_items_collected', 0.0):.1f}"
 
-            print(
-                f"{agent_tag:<16} {mode:<12} {reward_name:<10} {f'Level {lvl}':<14} {untrained_win:<16} "
-                f"{trained_win:<14} {untrained_r:<14} {trained_r:<14} {clear_steps:<14} {items}"
-            )
+            # Print zero-shot notes dynamically before each target level in curriculum order
+            zs_key = f"level_{lvl}_zero_shot"
+            if mode == "curriculum" and zs_key in summary:
+                zs = summary[zs_key]
+                zs_win = f"{zs.get('win_rate', 0.0):.1f}%"
+                zs_r = f"{zs.get('avg_reward', 0.0):+.1f}"
+                zs_items = f"{zs.get('avg_items_collected', 0.0):.1f}"
+                print(
+                    f"{'':<16} {'':<11} {'':<9} {f'  -> L{lvl} ZeroShot':<14} {'--':<7} "
+                    f"{zs_win:<8} {'--':<8} {'--':<9} {zs_r:<10} {'--':<10} {'--':<8} {'--':<8} {zs_items}"
+                )
 
-            # Print zero-shot notes for curriculum
-            if mode == "curriculum":
-                if lvl == 2 and "level_3_zero_shot" in summary:
-                    z3 = summary["level_3_zero_shot"]
-                    z3_win = f"{z3.get('win_rate', 0.0):.1f}%"
-                    z3_r = f"{z3.get('avg_reward', 0.0):+.1f}"
-                    z3_items = f"{z3.get('avg_items_collected', 0.0):.1f}"
-                    print(
-                        f"{'':<16} {'':<12} {'':<10} {'  -> L3 ZeroShot':<14} {'--':<16} "
-                        f"{z3_win:<14} {'--':<14} {z3_r:<14} {'--':<14} {z3_items}"
-                    )
-                elif lvl == 4 and "level_5_zero_shot" in summary:
-                    z5 = summary["level_5_zero_shot"]
-                    z5_win = f"{z5.get('win_rate', 0.0):.1f}%"
-                    z5_r = f"{z5.get('avg_reward', 0.0):+.1f}"
-                    z5_items = f"{z5.get('avg_items_collected', 0.0):.1f}"
-                    print(
-                        f"{'':<16} {'':<12} {'':<10} {'  -> L5 ZeroShot':<14} {'--':<16} "
-                        f"{z5_win:<14} {'--':<14} {z5_r:<14} {'--':<14} {z5_items}"
-                    )
-        print("-" * 135)
+            print(
+                f"{agent_tag:<16} {mode:<11} {reward_name:<9} {f'Level {lvl}':<14} {untrained_win:<7} "
+                f"{trained_win:<8} {best_win:<8} {untrained_r:<9} {trained_r:<10} {best_r:<10} "
+                f"{clear_steps:<8} {best_steps:<8} {items}"
+            )
+        print("-" * 150)
 
 
 def parse_args() -> argparse.Namespace:
@@ -176,14 +176,26 @@ def parse_args() -> argparse.Namespace:
         "--levels",
         nargs="+",
         type=int,
-        default=[1, 2, 3, 4, 5],
-        help="Levels to train/evaluate on (default: 1 2 3 4 5)",
+        default=[1, 2, 3, 4, 6, 5],
+        help="Levels to train/evaluate on in execution order (default: 1 2 3 4 6 5)",
     )
     parser.add_argument(
         "--episodes",
         type=int,
-        default=2000,
-        help="Number of training episodes per level (default: 2000)",
+        default=None,
+        help="Flat training episodes per level; omit to use stage-scaled schedule (800/1200/1800/7000/3500/30000)",
+    )
+    parser.add_argument(
+        "--l5-episodes",
+        type=int,
+        default=None,
+        help="Explicit episode budget override for Level 5 (e.g., 30000 or 50000)",
+    )
+    parser.add_argument(
+        "--l6-episodes",
+        type=int,
+        default=None,
+        help="Explicit episode budget override for Level 6 (default: 3500)",
     )
     parser.add_argument(
         "--seed",
@@ -198,22 +210,51 @@ def parse_args() -> argparse.Namespace:
         help="Action repeat ticks per decision step (default: 1)",
     )
     parser.add_argument(
+        "--max-steps-cap",
+        type=int,
+        default=2400,
+        help="Trainer-side episode step cap; pass 0 for uncapped (default: 2400)",
+    )
+    parser.add_argument(
         "--rewarm-epsilon",
         type=float,
         default=0.30,
-        help="Exploration re-warming epsilon when entering new level in curriculum (default: 0.30)",
+        help="Exploration re-warming epsilon when entering Level 2 in curriculum (default: 0.30)",
     )
     parser.add_argument(
         "--rewarm-epsilon-ghost",
         type=float,
         default=0.35,
-        help="Exploration re-warming epsilon when entering ghost levels >=4 in curriculum (default: 0.35)",
+        help="Exploration re-warming epsilon when entering Level 3 in curriculum (default: 0.35)",
+    )
+    parser.add_argument(
+        "--rewarm-epsilon-hard",
+        type=float,
+        default=0.45,
+        help="Exploration re-warming epsilon when entering Level 4 in curriculum (default: 0.45)",
+    )
+    parser.add_argument(
+        "--rewarm-epsilon-l5",
+        type=float,
+        default=0.40,
+        help="Exploration re-warming epsilon when entering Level 5 in curriculum (default: 0.40)",
+    )
+    parser.add_argument(
+        "--rewarm-epsilon-l6",
+        type=float,
+        default=0.40,
+        help="Exploration re-warming epsilon when entering Level 6 in curriculum (default: 0.40)",
     )
     parser.add_argument(
         "--replay-ratio",
         type=float,
         default=0.35,
         help="Probability of interleaving background replay from earlier levels in curriculum (default: 0.35)",
+    )
+    parser.add_argument(
+        "--enable-wisp-sensor",
+        action="store_true",
+        help="Enable discrete wisp proximity sensor (default: False to suppress Level 5 overhead noise)",
     )
     parser.add_argument(
         "--alpha",
@@ -224,14 +265,52 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--alpha-min",
         type=float,
-        default=0.02,
-        help="Minimum Q-learning learning rate alpha after decay (default: 0.02)",
+        default=0.003,
+        help="Minimum Q-learning learning rate alpha after decay (default: 0.003)",
     )
     parser.add_argument(
         "--gamma",
         type=float,
         default=0.99,
         help="Discount factor gamma (default: 0.99)",
+    )
+    parser.add_argument(
+        "--lambda",
+        dest="trace_decay",
+        type=float,
+        default=0.0,
+        help="Replacing eligibility trace decay lambda in [0.0, 1.0] (default: 0.0 for 1-step TD)",
+    )
+    parser.add_argument(
+        "--lambda-min",
+        dest="trace_decay_min",
+        type=float,
+        default=0.35,
+        help="Minimum eligibility trace decay floor reached at 75%% of each stage (default: 0.35)",
+    )
+    parser.add_argument(
+        "--lambda-polish-zero",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable two-phase trace schedule with polish tail ramping lambda->0.0, eps->0.005, alpha->alpha_min (default: True)",
+    )
+    parser.add_argument(
+        "--polish-epsilon-min",
+        type=float,
+        default=0.005,
+        help="Target epsilon floor during the final 85%-100% polish tail when --lambda-polish-zero is enabled (default: 0.005)",
+    )
+    parser.add_argument(
+        "--polish-anchor-best",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Reload stage-best Q-weights at Polish Tail onset and roll back mid-polish regressions (default: True)",
+    )
+    parser.add_argument(
+        "--main-collapse-guard",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable main-phase anti-collapse recovery guard on long stages >= 5000 eps (default: True)",
     )
     parser.add_argument(
         "--epsilon-start",
@@ -248,14 +327,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--epsilon-decay",
         type=float,
-        default=0.997,
-        help="Per-episode epsilon decay multiplier (default: 0.997)",
+        default=None,
+        help="Explicit per-episode epsilon decay multiplier (default: auto-computed per stage)",
     )
     parser.add_argument(
         "--eval-interval",
         type=int,
-        default=50,
-        help="Interval of episodes between greedy evaluations for best model checkpointing (default: 50)",
+        default=25,
+        help="Interval of episodes between greedy evaluations for best model checkpointing (default: 25)",
     )
     parser.add_argument(
         "--checkpoint-interval",
@@ -291,22 +370,50 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    # Smoke-test parameter overrides
+    max_steps_cap = None if args.max_steps_cap == 0 else args.max_steps_cap
+
+    # Episode schedule & smoke-test overrides
     if args.smoke_test:
         print("[train.py] Smoke-test mode active: overriding parameters for fast verification.")
         episodes_per_level = 5
+        episodes_schedule = {lvl: 5 for lvl in args.levels}
         eval_interval = 2
         eval_episodes_periodic = 2
         final_eval_episodes = 3
         untrained_eval_episodes = 2
         checkpoint_interval = 5
-    else:
+    elif args.episodes is not None:
         episodes_per_level = args.episodes
+        episodes_schedule = {lvl: args.episodes for lvl in args.levels}
         eval_interval = args.eval_interval
         eval_episodes_periodic = 10
         final_eval_episodes = 50
         untrained_eval_episodes = 30
         checkpoint_interval = args.checkpoint_interval
+    else:
+        episodes_schedule = {
+            lvl: DEFAULT_EPISODE_SCHEDULE.get(lvl, 10000) for lvl in args.levels
+        }
+        if args.l5_episodes is not None and 5 in episodes_schedule:
+            episodes_schedule[5] = int(args.l5_episodes)
+        if args.l6_episodes is not None and 6 in episodes_schedule:
+            episodes_schedule[6] = int(args.l6_episodes)
+        episodes_per_level = max(episodes_schedule.values()) if episodes_schedule else 2000
+        eval_interval = args.eval_interval
+        eval_episodes_periodic = 10
+        final_eval_episodes = 50
+        untrained_eval_episodes = 30
+        checkpoint_interval = args.checkpoint_interval
+
+    if not args.smoke_test and args.episodes is not None:
+        if args.l5_episodes is not None and 5 in episodes_schedule:
+            episodes_schedule[5] = int(args.l5_episodes)
+        if args.l6_episodes is not None and 6 in episodes_schedule:
+            episodes_schedule[6] = int(args.l6_episodes)
+        episodes_per_level = max(episodes_schedule.values()) if episodes_schedule else episodes_per_level
+
+    auto_epsilon_decay = args.epsilon_decay is None
+    init_epsilon_decay = 0.997 if args.epsilon_decay is None else args.epsilon_decay
 
     # Determine experiment grid
     agents = ["tabular", "hybrid"] if args.agent == "all" else [args.agent]
@@ -316,7 +423,11 @@ def main() -> None:
     total_experiments = len(agents) * len(modes) * len(rewards)
     print(
         f"[train.py] Executing {total_experiments} experiment(s): "
-        f"Agents={agents}, Modes={modes}, Rewards={rewards}, Levels={args.levels}"
+        f"Agents={agents}, Modes={modes}, Rewards={rewards}, Levels={args.levels}, "
+        f"Schedule={episodes_schedule}, Lambda={args.trace_decay}->{args.trace_decay_min:.2f}"
+        f"{'->0(polish)' if args.lambda_polish_zero else ''}, "
+        f"PolishAnchor={args.polish_anchor_best}, AlphaMin={args.alpha_min}, "
+        f"WispSensor={args.enable_wisp_sensor}, MaxStepsCap={max_steps_cap}"
     )
 
     use_inline = sys.stdout.isatty() and not args.no_progress_bar
@@ -348,7 +459,8 @@ def main() -> None:
                             discount_factor=args.gamma,
                             epsilon=args.epsilon_start,
                             epsilon_min=args.epsilon_min,
-                            epsilon_decay=args.epsilon_decay,
+                            epsilon_decay=init_epsilon_decay,
+                            trace_decay=args.trace_decay,
                             seed=args.seed,
                         )
                 else:
@@ -358,14 +470,20 @@ def main() -> None:
                             discount_factor=args.gamma,
                             epsilon=args.epsilon_start,
                             epsilon_min=args.epsilon_min,
-                            epsilon_decay=args.epsilon_decay,
+                            epsilon_decay=init_epsilon_decay,
                             mode=args.hybrid_mode,
                             beta=args.beta,
+                            trace_decay=args.trace_decay,
                             seed=args.seed,
                         )
 
-                reward_strategy = create_reward_strategy(reward_name)
-                discretizer = MarioStateDiscretizer()
+                reward_kwargs = (
+                    {"wisp_threat_distance": 65.0 if args.enable_wisp_sensor else -1.0}
+                    if reward_name == "balanced"
+                    else {}
+                )
+                reward_strategy = create_reward_strategy(reward_name, **reward_kwargs)
+                discretizer = MarioStateDiscretizer(enable_wisp_sensor=args.enable_wisp_sensor)
 
                 trainer = Trainer(
                     env_factory=create_env,
@@ -375,9 +493,19 @@ def main() -> None:
                     agent_type=agent_type,
                     hybrid_mode=args.hybrid_mode,
                     beta=args.beta,
+                    trace_decay=args.trace_decay,
+                    trace_decay_min=args.trace_decay_min,
+                    lambda_polish_zero=args.lambda_polish_zero,
+                    polish_epsilon_min=args.polish_epsilon_min,
+                    polish_anchor_best=args.polish_anchor_best,
+                    main_collapse_guard=args.main_collapse_guard,
+                    max_steps_cap=max_steps_cap,
                     action_repeat=args.action_repeat,
                     rewarm_epsilon=args.rewarm_epsilon,
                     rewarm_epsilon_ghost=args.rewarm_epsilon_ghost,
+                    rewarm_epsilon_hard=args.rewarm_epsilon_hard,
+                    rewarm_epsilon_l5=args.rewarm_epsilon_l5,
+                    rewarm_epsilon_l6=args.rewarm_epsilon_l6,
                     alpha_min=args.alpha_min,
                     replay_ratio=args.replay_ratio,
                     eval_interval=eval_interval,
@@ -387,19 +515,26 @@ def main() -> None:
                     checkpoint_interval=checkpoint_interval,
                     checkpoints_dir=args.checkpoints_dir,
                     outputs_dir=args.outputs_dir,
+                    seed=args.seed,
                 )
 
-                total_eps = len(args.levels) * episodes_per_level
+                total_eps = sum(episodes_schedule.values())
                 tracker = ProgressTracker(
                     agent_tag=agent_tag,
                     mode=mode,
                     reward=reward_name,
                     total_episodes=total_eps,
                     use_inline=use_inline,
+                    state_space_max=discretizer.state_space_size,
                 )
 
+                using_default_dirs = (
+                    Path(args.checkpoints_dir) == Path("checkpoints")
+                    and Path(args.outputs_dir) == Path("outputs")
+                )
                 is_canonical = (
-                    mode == "curriculum"
+                    using_default_dirs
+                    and mode == "curriculum"
                     and reward_name == "balanced"
                     and agent_tag == "tabular"
                 )
@@ -409,6 +544,8 @@ def main() -> None:
                     mode=mode,
                     levels=args.levels,
                     episodes_per_level=episodes_per_level,
+                    episodes_schedule=episodes_schedule,
+                    auto_epsilon_decay=auto_epsilon_decay,
                     is_canonical_production=is_canonical,
                     progress_callback=tracker.callback,
                 )

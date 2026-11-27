@@ -247,6 +247,11 @@ def parse_args() -> argparse.Namespace:
         default=60,
         help="Render frame rate (default: 60)",
     )
+    parser.add_argument(
+        "--enable-wisp-sensor",
+        action="store_true",
+        help="Enable discrete wisp proximity sensor (default: False matching trained L1-L5 policies)",
+    )
     return parser.parse_args()
 
 
@@ -259,6 +264,7 @@ def play_autonomous(
     reward: str = "balanced",
     variant: str = "best",
     fps: int = 60,
+    enable_wisp_sensor: bool = False,
 ) -> None:
     """
     Main playback function for autonomous agents (TabularQAgent or HybridAgent).
@@ -272,7 +278,7 @@ def play_autonomous(
     current_hybrid_mode = hybrid_mode
     explicit_checkpoint = checkpoint_path
 
-    discretizer = MarioStateDiscretizer()
+    discretizer = MarioStateDiscretizer(enable_wisp_sensor=enable_wisp_sensor)
 
     # Determine initial checkpoint and agent class
     initial_cp = resolve_checkpoint_path(
@@ -319,8 +325,13 @@ def play_autonomous(
     print("  [Esc]               Quit")
     print("=" * 70 + "\n")
 
-    raw_state = env.reset()
-    discrete_state = discretizer.discretize(raw_state)
+    def reset_playback_episode():
+        if hasattr(discretizer, "reset"):
+            discretizer.reset()
+        rs = env.reset()
+        return rs, discretizer.discretize(rs)
+
+    raw_state, discrete_state = reset_playback_episode()
     steps = 0
     items_collected = 0
     paused = False
@@ -378,10 +389,10 @@ def play_autonomous(
             cfg = get_level(current_level)
             items_total = len(getattr(env, "items", []))
             print(f"\n[AI Player] Switched to Level {current_level}: {cfg.name}")
-            if current_mode == "separate" and explicit_checkpoint is None:
+            if current_mode == "separate":
+                explicit_checkpoint = None
                 reload_policy()
-            raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            raw_state, discrete_state = reset_playback_episode()
             steps = 0
             items_collected = 0
             episode = 1
@@ -402,9 +413,9 @@ def play_autonomous(
 
         if new_reward is not None and new_reward != current_reward:
             current_reward = new_reward
+            explicit_checkpoint = None
             reload_policy()
-            raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            raw_state, discrete_state = reset_playback_episode()
             steps = 0
             items_collected = 0
             episode = 1
@@ -417,9 +428,9 @@ def play_autonomous(
         # Variant toggle (T)
         if just_pressed(pygame.K_t):
             current_variant = "final" if current_variant == "best" else "best"
+            explicit_checkpoint = None
             reload_policy()
-            raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            raw_state, discrete_state = reset_playback_episode()
             steps = 0
             items_collected = 0
             episode = 1
@@ -443,9 +454,9 @@ def play_autonomous(
                 else "TabularQAgent (Pure Q-Learning)"
             )
             print(f"\n[AI Player] Switched Agent Architecture live: {agent_display_name}")
+            explicit_checkpoint = None
             reload_policy()
-            raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            raw_state, discrete_state = reset_playback_episode()
             steps = 0
             items_collected = 0
             episode = 1
@@ -473,8 +484,7 @@ def play_autonomous(
 
         # Reset episode (R)
         if just_pressed(pygame.K_r):
-            raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            raw_state, discrete_state = reset_playback_episode()
             steps = 0
             items_collected = 0
             action_name = "STAY"
@@ -559,8 +569,7 @@ def play_autonomous(
                 f"[AI Player] Episode {episode}: {outcome_str} in {steps} steps | "
                 f"Items: {items_collected}/{items_total}"
             )
-            raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            raw_state, discrete_state = reset_playback_episode()
             steps = 0
             items_collected = 0
             episode += 1
@@ -581,6 +590,7 @@ def main() -> None:
         reward=args.reward,
         variant=args.variant,
         fps=args.fps,
+        enable_wisp_sensor=args.enable_wisp_sensor,
     )
 
 

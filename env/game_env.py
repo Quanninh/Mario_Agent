@@ -391,7 +391,12 @@ class GameEnvironment(BaseEnvironment):
             pit_fire_state = 0
 
         # Nearest upcoming ghost
-        upcoming_ghosts = [g for g in self.ghosts if g.right > self.player.x]
+        upcoming_ghosts = [
+            g for g in self.ghosts
+            if g.right > self.player.x
+            and g.bottom >= (self.player.y - 85.0)
+            and g.y <= (self.player.bottom + 85.0)
+        ]
         if upcoming_ghosts:
             nearest_ghost = min(upcoming_ghosts, key=lambda g: g.x)
             dist_to_ghost = max(0.0, nearest_ghost.x - self.player.right)
