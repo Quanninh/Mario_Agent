@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import pickle
+import random
 from typing import Optional, Type, Union
 import pygame
 
@@ -247,6 +248,12 @@ def parse_args() -> argparse.Namespace:
         default=60,
         help="Render frame rate (default: 60)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Optional procedural LevelGenerator seed (Levels 1-5) to test generalization",
+    )
     return parser.parse_args()
 
 
@@ -259,6 +266,7 @@ def play_autonomous(
     reward: str = "balanced",
     variant: str = "best",
     fps: int = 60,
+    seed: Optional[int] = None,
 ) -> None:
     """
     Main playback function for autonomous agents (TabularQAgent or HybridAgent).
@@ -270,6 +278,7 @@ def play_autonomous(
     current_variant = variant
     current_agent_choice = agent_type
     current_hybrid_mode = hybrid_mode
+    current_seed = seed
     explicit_checkpoint = checkpoint_path
 
     discretizer = MarioStateDiscretizer()
@@ -295,8 +304,8 @@ def play_autonomous(
 
     reload_policy()
 
-    env = create_env(current_level)
-    cfg = get_level(current_level)
+    env = create_env(current_level, seed=current_seed)
+    cfg = get_level(current_level, seed=current_seed)
     items_total = len(getattr(env, "items", []))
 
     agent_display_name = (
@@ -306,11 +315,12 @@ def play_autonomous(
     )
 
     print("\n" + "=" * 70)
-    print(f"[AI Player] Playing Level {current_level}: {cfg.name}")
+    print(f"[AI Player] Playing Level {current_level}: {cfg.name} (seed={current_seed})")
     print(f"[AI Player] Mode: {current_mode.upper()} | Reward: {current_reward.upper()} | Variant: {current_variant.upper()}")
     print(f"[AI Player] Active Agent: {agent_display_name}")
     print("Controls:")
     print("  [1 - 8]             Switch Level live (1..8)")
+    print("  [N / C]             New random procedural seed (N) / Canonical map (C)")
     print("  [F1 / F2 / F3]      Swap Q-Table: Balanced (F1), Sparse (F2), Dense (F3)")
     print("  [T]                 Toggle Variant: Best <-> Final")
     print("  [H / A]             Toggle Agent: TabularQAgent <-> HybridAgent")
@@ -374,12 +384,31 @@ def play_autonomous(
         if new_lvl is not None and new_lvl != current_level:
             env.close()
             current_level = new_lvl
-            env = create_env(current_level)
-            cfg = get_level(current_level)
+            env = create_env(current_level, seed=current_seed)
+            cfg = get_level(current_level, seed=current_seed)
             items_total = len(getattr(env, "items", []))
-            print(f"\n[AI Player] Switched to Level {current_level}: {cfg.name}")
+            print(f"\n[AI Player] Switched to Level {current_level}: {cfg.name} (seed={current_seed})")
             if current_mode == "separate" and explicit_checkpoint is None:
                 reload_policy()
+            raw_state = env.reset()
+            discrete_state = discretizer.discretize(raw_state)
+            steps = 0
+            items_collected = 0
+            episode = 1
+            env.render()
+            if not getattr(env, "is_running", True):
+                break
+            prev_keys = list(keys)
+            continue
+
+        # Procedural seed controls (N = random seed, C = canonical static map)
+        if just_pressed(pygame.K_n) or just_pressed(pygame.K_c):
+            current_seed = random.randint(1, 999999) if just_pressed(pygame.K_n) else None
+            env.close()
+            env = create_env(current_level, seed=current_seed)
+            cfg = get_level(current_level, seed=current_seed)
+            items_total = len(getattr(env, "items", []))
+            print(f"\n[AI Player] Reloaded Level {current_level}: {cfg.name} (seed={current_seed})")
             raw_state = env.reset()
             discrete_state = discretizer.discretize(raw_state)
             steps = 0
@@ -581,6 +610,7 @@ def main() -> None:
         reward=args.reward,
         variant=args.variant,
         fps=args.fps,
+        seed=args.seed,
     )
 
 

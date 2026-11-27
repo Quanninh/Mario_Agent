@@ -37,6 +37,9 @@ class Trainer:
         checkpoint_interval: int = 200,
         checkpoints_dir: str = "checkpoints",
         outputs_dir: str = "outputs",
+        seed_rotate_episodes: int = 5,
+        seed: int = 42,
+        include_canonical_seed: bool = True,
     ) -> None:
         self.env_factory = env_factory
         self.discretizer = discretizer
@@ -58,6 +61,56 @@ class Trainer:
         self.checkpoint_interval = checkpoint_interval
         self.checkpoints_dir = checkpoints_dir
         self.outputs_dir = outputs_dir
+        self.seed_rotate_episodes = max(0, int(seed_rotate_episodes))
+        self.seed = int(seed)
+        self.include_canonical_seed = include_canonical_seed
+
+    def _build_env(self, level_id: int, seed: Optional[int] = None) -> BaseEnvironment:
+        """Create an environment for level_id, passing seed when supported by env_factory."""
+        if seed is None:
+            return self.env_factory(level_id)
+        try:
+            return self.env_factory(level_id, seed=seed)
+        except TypeError:
+            return self.env_factory(level_id)
+
+    def _select_stage_seed(self, level_id: int, level_episode: int) -> Optional[int]:
+        """Select the procedural LevelGenerator seed (or None for canonical) for the current episode."""
+        if self.seed_rotate_episodes <= 0:
+            return None
+        rot_idx = (max(1, level_episode) - 1) // self.seed_rotate_episodes
+        if self.include_canonical_seed and rot_idx % 5 == 0:
+            return None
+        return self.seed + level_id * 10000 + rot_idx
+
+    def _compute_reverse_spawns(
+        self,
+        env: BaseEnvironment,
+        level_id: int,
+        episodes_per_level: int,
+        mode: str,
+    ) -> Optional[List[Optional[float]]]:
+        """Compute safe reverse-curriculum spawn x-coordinates for the given environment."""
+        goal_obj = getattr(env, "goal", None)
+        lvl_goal_x = getattr(goal_obj, "x", 1000.0) if goal_obj is not None else 1000.0
+        if mode == "curriculum":
+            if level_id >= 4 and episodes_per_level >= 50:
+                return [
+                    self._find_safe_spawn_x(env, lvl_goal_x * 0.80),
+                    self._find_safe_spawn_x(env, lvl_goal_x * 0.60),
+                    self._find_safe_spawn_x(env, lvl_goal_x * 0.40),
+                    self._find_safe_spawn_x(env, lvl_goal_x * 0.20),
+                    None,
+                ]
+            return [None]
+
+        if level_id >= 4 and episodes_per_level >= 20:
+            return [
+                self._find_safe_spawn_x(env, lvl_goal_x * 0.75),
+                self._find_safe_spawn_x(env, lvl_goal_x * 0.50),
+                self._find_safe_spawn_x(env, lvl_goal_x * 0.25),
+            ]
+        return None
 
     @staticmethod
     def _find_safe_spawn_x(env: BaseEnvironment, target_x: float) -> float:
@@ -423,19 +476,12 @@ class Trainer:
                         f"[Trainer] Re-warmed exploration epsilon: {current_eps:.3f} -> {new_eps:.3f} (target: {rewarm_target:.3f})"
                     )
 
-                env = self.env_factory(lvl)
+                current_seed = self._select_stage_seed(lvl, 1)
+                env = self._build_env(lvl, seed=current_seed)
                 try:
-                    goal_obj = getattr(env, "goal", None)
-                    lvl_goal_x = getattr(goal_obj, "x", 1000.0) if goal_obj is not None else 1000.0
-                    reverse_spawns: List[Optional[float]] = [None]
-                    if lvl >= 4 and episodes_per_level >= 50:
-                        reverse_spawns = [
-                            self._find_safe_spawn_x(env, lvl_goal_x * 0.80),
-                            self._find_safe_spawn_x(env, lvl_goal_x * 0.60),
-                            self._find_safe_spawn_x(env, lvl_goal_x * 0.40),
-                            self._find_safe_spawn_x(env, lvl_goal_x * 0.20),
-                            None,
-                        ]
+                    reverse_spawns = self._compute_reverse_spawns(
+                        env, lvl, episodes_per_level, mode="curriculum"
+                    )
                     seg_idx = 0
                     seg_ep = 0
                     seg_cap = max(1, episodes_per_level // 7)
@@ -443,6 +489,21 @@ class Trainer:
                     for lvl_ep in range(1, episodes_per_level + 1):
                         global_episode += 1
                         seg_ep += 1
+
+                        if (
+                            self.seed_rotate_episodes > 0
+                            and lvl_ep > 1
+                            and (lvl_ep - 1) % self.seed_rotate_episodes == 0
+                        ):
+                            next_seed = self._select_stage_seed(lvl, lvl_ep)
+                            if next_seed != current_seed:
+                                env.close()
+                                current_seed = next_seed
+                                env = self._build_env(lvl, seed=current_seed)
+                                reverse_spawns = self._compute_reverse_spawns(
+                                    env, lvl, episodes_per_level, mode="curriculum"
+                                )
+                                winning_trajectories[lvl].clear()
 
                         # Linear learning-rate decay (alpha_start -> alpha_min) per stage
                         if hasattr(agent, "alpha"):
@@ -643,20 +704,29 @@ class Trainer:
                 recent_wins: deque = deque(maxlen=50)  # Reset per level
                 best_stage_score = (-1.0, float("-inf"))
 
-                env = self.env_factory(lvl)
+                current_seed = self._select_stage_seed(lvl, 1)
+                env = self._build_env(lvl, seed=current_seed)
                 try:
-                    goal_obj = getattr(env, "goal", None)
-                    lvl_goal_x = getattr(goal_obj, "x", 1000.0) if goal_obj is not None else 1000.0
-                    reverse_spawns = None
-                    if lvl >= 4 and episodes_per_level >= 20:
-                        reverse_spawns = [
-                            self._find_safe_spawn_x(env, lvl_goal_x * 0.75),
-                            self._find_safe_spawn_x(env, lvl_goal_x * 0.50),
-                            self._find_safe_spawn_x(env, lvl_goal_x * 0.25),
-                        ]
+                    reverse_spawns = self._compute_reverse_spawns(
+                        env, lvl, episodes_per_level, mode="separate"
+                    )
 
                     for lvl_ep in range(1, episodes_per_level + 1):
                         global_episode += 1
+
+                        if (
+                            self.seed_rotate_episodes > 0
+                            and lvl_ep > 1
+                            and (lvl_ep - 1) % self.seed_rotate_episodes == 0
+                        ):
+                            next_seed = self._select_stage_seed(lvl, lvl_ep)
+                            if next_seed != current_seed:
+                                env.close()
+                                current_seed = next_seed
+                                env = self._build_env(lvl, seed=current_seed)
+                                reverse_spawns = self._compute_reverse_spawns(
+                                    env, lvl, episodes_per_level, mode="separate"
+                                )
 
                         # Linear learning-rate decay (alpha_start -> alpha_min) per stage
                         if hasattr(agent, "alpha"):
@@ -776,6 +846,7 @@ class Trainer:
                 "training_mode": mode,
                 "reward_profile": self.reward_name,
                 "action_repeat": self.action_repeat,
+                "seed_rotate_episodes": self.seed_rotate_episodes,
                 "episodes_per_level": episodes_per_level,
                 "levels": levels,
                 "rewarm_epsilon": round(float(self.rewarm_epsilon), 4),

@@ -285,6 +285,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable in-place carriage return progress updates and use plain newline logs",
     )
+    parser.add_argument(
+        "--seed-rotate-episodes",
+        type=int,
+        default=5,
+        help="Rotate procedural LevelGenerator seed every K episodes (0 disables rotation; default: 5)",
+    )
     return parser.parse_args()
 
 
@@ -387,6 +393,8 @@ def main() -> None:
                     checkpoint_interval=checkpoint_interval,
                     checkpoints_dir=args.checkpoints_dir,
                     outputs_dir=args.outputs_dir,
+                    seed_rotate_episodes=args.seed_rotate_episodes,
+                    seed=args.seed,
                 )
 
                 total_eps = len(args.levels) * episodes_per_level
