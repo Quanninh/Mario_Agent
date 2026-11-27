@@ -8,9 +8,11 @@ import pygame
 
 from agent.tabular_q_agent import TabularQAgent
 from agent.hybrid_q_sarsa_agent import HybridQSARSAAgent, HybridAgent
+from agent.dqn_agent import DQNAgent
 from core.base_env import Action
 from core.interfaces import BaseAgent
 from discretizer.state_discretizer import MarioStateDiscretizer
+from discretizer.vector_extractor import ContinuousStateExtractor
 from env import create_env, get_level
 
 ACTION_NAMES = {
@@ -33,6 +35,9 @@ def resolve_agent_class(
     """
     clean_type = agent_type.strip().lower() if agent_type else "auto"
 
+    if clean_type in ("dqn", "dqn_agent", "deep_q", "d3qn"):
+        return DQNAgent
+
     if clean_type in ("hybrid", "hybridagent", "hybrid_agent", "hybrid_q_sarsa", "sarsa"):
         return HybridQSARSAAgent
 
@@ -43,6 +48,10 @@ def resolve_agent_class(
     if checkpoint_path:
         path = Path(checkpoint_path)
         parts = [p.lower() for p in path.parts]
+
+        # PyTorch checkpoint detection
+        if path.suffix == ".pt" or any("dqn" in p for p in parts):
+            return DQNAgent
 
         # Directory / Filename hints
         if any("hybrid" in p or "sarsa" in p for p in parts):
@@ -72,6 +81,8 @@ def resolve_agent_class(
 
 def make_agent_instance(agent_cls: Type[BaseAgent], hybrid_mode: str = "expected") -> BaseAgent:
     """Helper to instantiate agent class with hybrid mode if applicable."""
+    if issubclass(agent_cls, DQNAgent):
+        return agent_cls()
     if issubclass(agent_cls, HybridQSARSAAgent):
         return agent_cls(mode=hybrid_mode)
     return agent_cls()
@@ -111,10 +122,10 @@ def resolve_checkpoint_path(
             ]
         else:
             candidates = [
-                tagged_dir / f"q_table_{variant}.json",
-                tagged_dir / f"q_table_{variant}.pkl",
                 tagged_dir / f"q_table_lvl{level}_{variant}.json",
                 tagged_dir / f"q_table_lvl{level}_{variant}.pkl",
+                tagged_dir / f"q_table_{variant}.json",
+                tagged_dir / f"q_table_{variant}.pkl",
             ]
         for c in candidates:
             if c is not None and c.exists():
@@ -129,10 +140,10 @@ def resolve_checkpoint_path(
         ]
     else:
         legacy_candidates = [
-            legacy_dir / f"q_table_{variant}.json",
-            legacy_dir / f"q_table_{variant}.pkl",
             legacy_dir / f"q_table_lvl{level}_{variant}.json",
             legacy_dir / f"q_table_lvl{level}_{variant}.pkl",
+            legacy_dir / f"q_table_{variant}.json",
+            legacy_dir / f"q_table_{variant}.pkl",
         ]
     for c in legacy_candidates:
         if c.exists():
@@ -175,18 +186,22 @@ def load_agent_policy(
     )
     if cp_path.exists():
         agent.load(str(cp_path))
-        arch_name = "HybridAgent" if isinstance(agent, (HybridAgent, HybridQSARSAAgent)) else "TabularQAgent"
-        if len(agent.q_table) == 0:
-            print(
-                f"[AI Player] Warning: Loaded '{cp_path}' but Q-table has 0 states (empty/uninitialized policy)."
-            )
+        if isinstance(agent, DQNAgent):
+            arch_name = "DQNAgent (Dueling Double DQN)"
+            print(f"[AI Player] Loaded neural policy ({arch_name}) from {cp_path}.")
         else:
-            print(
-                f"[AI Player] Loaded {mode.upper()} {reward.upper()} [{variant.upper()}] "
-                f"({arch_name}) from {cp_path} ({len(agent.q_table)} states)."
-            )
+            arch_name = "HybridAgent" if isinstance(agent, (HybridAgent, HybridQSARSAAgent)) else "TabularQAgent"
+            if len(getattr(agent, "q_table", {})) == 0:
+                print(
+                    f"[AI Player] Warning: Loaded '{cp_path}' but Q-table has 0 states (empty/uninitialized policy)."
+                )
+            else:
+                print(
+                    f"[AI Player] Loaded {mode.upper()} {reward.upper()} [{variant.upper()}] "
+                    f"({arch_name}) from {cp_path} ({len(agent.q_table)} states)."
+                )
     else:
-        print(f"[AI Player] Note: Checkpoint '{cp_path}' not found. Policy is uninitialized (0 states).")
+        print(f"[AI Player] Note: Checkpoint '{cp_path}' not found. Policy is uninitialized.")
     agent.set_mode(training=False)
     return cp_path
 
@@ -197,8 +212,8 @@ def parse_args() -> argparse.Namespace:
         "--agent",
         type=str,
         default="auto",
-        choices=["auto", "tabular", "hybrid", "tabular_q", "hybrid_agent"],
-        help="Agent architecture to use: 'tabular' (TabularQAgent), 'hybrid' (HybridAgent), or 'auto' (default: 'auto')",
+        choices=["auto", "tabular", "hybrid", "tabular_q", "hybrid_agent", "dqn", "dqn_agent"],
+        help="Agent architecture to use: 'tabular', 'hybrid', 'dqn', or 'auto' (default: 'auto')",
     )
     parser.add_argument(
         "--hybrid-mode",
@@ -273,6 +288,12 @@ def play_autonomous(
     explicit_checkpoint = checkpoint_path
 
     discretizer = MarioStateDiscretizer()
+    vector_extractor = ContinuousStateExtractor()
+
+    def get_agent_state(rs):
+        if isinstance(agent, DQNAgent):
+            return vector_extractor.extract(rs)
+        return discretizer.discretize(rs)
 
     # Determine initial checkpoint and agent class
     initial_cp = resolve_checkpoint_path(
@@ -299,11 +320,12 @@ def play_autonomous(
     cfg = get_level(current_level)
     items_total = len(getattr(env, "items", []))
 
-    agent_display_name = (
-        f"HybridAgent (Hybrid Q-SARSA: {current_hybrid_mode})"
-        if isinstance(agent, (HybridAgent, HybridQSARSAAgent))
-        else "TabularQAgent (Pure Q-Learning)"
-    )
+    if isinstance(agent, DQNAgent):
+        agent_display_name = "DQNAgent (Dueling Double DQN)"
+    elif isinstance(agent, (HybridAgent, HybridQSARSAAgent)):
+        agent_display_name = f"HybridAgent (Hybrid Q-SARSA: {current_hybrid_mode})"
+    else:
+        agent_display_name = "TabularQAgent (Pure Q-Learning)"
 
     print("\n" + "=" * 70)
     print(f"[AI Player] Playing Level {current_level}: {cfg.name}")
@@ -320,7 +342,7 @@ def play_autonomous(
     print("=" * 70 + "\n")
 
     raw_state = env.reset()
-    discrete_state = discretizer.discretize(raw_state)
+    discrete_state = get_agent_state(raw_state)
     steps = 0
     items_collected = 0
     paused = False
@@ -378,10 +400,10 @@ def play_autonomous(
             cfg = get_level(current_level)
             items_total = len(getattr(env, "items", []))
             print(f"\n[AI Player] Switched to Level {current_level}: {cfg.name}")
-            if current_mode == "separate" and explicit_checkpoint is None:
+            if explicit_checkpoint is None:
                 reload_policy()
             raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            discrete_state = get_agent_state(raw_state)
             steps = 0
             items_collected = 0
             episode = 1
@@ -404,7 +426,7 @@ def play_autonomous(
             current_reward = new_reward
             reload_policy()
             raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            discrete_state = get_agent_state(raw_state)
             steps = 0
             items_collected = 0
             episode = 1
@@ -419,7 +441,7 @@ def play_autonomous(
             current_variant = "final" if current_variant == "best" else "best"
             reload_policy()
             raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            discrete_state = get_agent_state(raw_state)
             steps = 0
             items_collected = 0
             episode = 1
@@ -445,7 +467,7 @@ def play_autonomous(
             print(f"\n[AI Player] Switched Agent Architecture live: {agent_display_name}")
             reload_policy()
             raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            discrete_state = get_agent_state(raw_state)
             steps = 0
             items_collected = 0
             episode = 1
@@ -474,7 +496,7 @@ def play_autonomous(
         # Reset episode (R)
         if just_pressed(pygame.K_r):
             raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            discrete_state = get_agent_state(raw_state)
             steps = 0
             items_collected = 0
             action_name = "STAY"
@@ -522,7 +544,7 @@ def play_autonomous(
         if events.collected_item:
             items_collected += 1
 
-        discrete_state = discretizer.discretize(next_raw_state)
+        discrete_state = get_agent_state(next_raw_state)
 
         # Render frame (env.render() handles 60 FPS clock ticking and event pump)
         env.render()
@@ -560,7 +582,7 @@ def play_autonomous(
                 f"Items: {items_collected}/{items_total}"
             )
             raw_state = env.reset()
-            discrete_state = discretizer.discretize(raw_state)
+            discrete_state = get_agent_state(raw_state)
             steps = 0
             items_collected = 0
             episode += 1
