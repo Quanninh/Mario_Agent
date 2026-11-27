@@ -276,6 +276,24 @@ def parse_args() -> argparse.Namespace:
         help="Directory to save JSON/CSV Member 4 data boards (default: 'outputs')",
     )
     parser.add_argument(
+        "--map-seed",
+        type=int,
+        default=None,
+        help=(
+            "Starting procedural map seed for Levels 1-7 "
+            "(default: None = fixed handcrafted maps; defaults to --seed if --map-seed-interval > 0)"
+        ),
+    )
+    parser.add_argument(
+        "--map-seed-interval",
+        type=int,
+        default=0,
+        help=(
+            "Rotate to a new random procedural map seed every N episodes per level for Levels 1-7 "
+            "(e.g. 3000 or 5000; 0 disables rotation)"
+        ),
+    )
+    parser.add_argument(
         "--smoke-test",
         action="store_true",
         help="Fast verification flag (5 eps/lvl, eval_interval=2, completes in seconds)",
@@ -316,8 +334,12 @@ def main() -> None:
     total_experiments = len(agents) * len(modes) * len(rewards)
     print(
         f"[train.py] Executing {total_experiments} experiment(s): "
-        f"Agents={agents}, Modes={modes}, Rewards={rewards}, Levels={args.levels}"
+        f"Agents={agents}, Modes={modes}, Rewards={rewards}, Levels={args.levels}, "
+        f"MapSeed={args.map_seed if args.map_seed is not None else (f'random(seed={args.seed})' if args.map_seed_interval > 0 else None)}, "
+        f"MapRotateInterval={args.map_seed_interval}"
     )
+    if (args.map_seed is not None or args.map_seed_interval > 0) and any(lvl > 7 for lvl in args.levels):
+        print("[train.py] Note: Procedural map seeds apply to Levels 1-7; Level 8 remains a fixed handcrafted layout.")
 
     use_inline = sys.stdout.isatty() and not args.no_progress_bar
 
@@ -387,6 +409,9 @@ def main() -> None:
                     checkpoint_interval=checkpoint_interval,
                     checkpoints_dir=args.checkpoints_dir,
                     outputs_dir=args.outputs_dir,
+                    map_seed=args.map_seed,
+                    map_seed_interval=args.map_seed_interval,
+                    seed=args.seed,
                 )
 
                 total_eps = len(args.levels) * episodes_per_level

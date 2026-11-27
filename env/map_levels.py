@@ -1155,10 +1155,10 @@ LEVEL_BUILDERS: Dict[int, Callable[[], LevelConfig]] = {
 def get_level(level_id: int, seed: Optional[int] = None) -> LevelConfig:
     """
     Return a LevelConfig for the requested level_id.
-    If seed is provided (for Levels 1-5), synthesizes a procedural fair instance.
+    If seed is provided (for Levels 1-7), synthesizes a procedural fair instance.
     If seed is None, returns the handcrafted default curriculum stage.
     """
-    if seed is not None and 1 <= level_id <= 5:
+    if seed is not None and 1 <= level_id <= 7:
         from .level_generator import LevelGenerator
         return LevelGenerator.generate(level_id=level_id, seed=seed)
 
@@ -1171,7 +1171,7 @@ def get_level(level_id: int, seed: Optional[int] = None) -> LevelConfig:
 def create_env(level_id: int = 1, seed: Optional[int] = None) -> GameEnvironment:
     """
     Build a GameEnvironment configured with the chosen level.
-    Accepts an optional seed for fair procedural blind testing on Levels 1-5.
+    Accepts an optional seed for fair procedural blind testing on Levels 1-7.
     """
     cfg_level = get_level(level_id, seed=seed)
     return GameEnvironment(

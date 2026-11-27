@@ -1,6 +1,6 @@
 # Complete Training & Visual Demo Guide for Hoá's Midnight Escape
 
-This guide provides step-by-step instructions for training reinforcement learning agents (`train.py`) and launching the interactive 60 FPS visual playback demonstration (`play_agent.py`). It is designed to work on any teammate's machine across Windows, macOS, or Linux.
+This guide provides step-by-step instructions for training reinforcement learning agents (`train.py` and `train_dqn.py`) and launching the interactive 60 FPS visual playback demonstration (`play_agent.py`). It is designed to work on any teammate's machine across Windows, macOS, or Linux.
 
 ---
 
@@ -8,12 +8,15 @@ This guide provides step-by-step instructions for training reinforcement learnin
 
 ### 1.1 Prerequisites
 - **Python Version:** Python 3.10 or higher
-- **Required Packages:** `pygame` ($\ge 2.6.0$) and `numpy` ($\ge 1.24.0$)
+- **Required Packages (Tabular / Hybrid & Visual Demo):** `pygame` ($\ge 2.6.0$) and `numpy` ($\ge 1.24.0$)
+- **Optional Package (DQN via `train_dqn.py`):** `torch` (PyTorch)
 
 Install the dependencies into your active Python environment (virtualenv or conda):
 
 ```bash
 pip install pygame numpy
+# Optional for train_dqn.py:
+pip install torch
 ```
 
 *(Alternatively, if using Conda: `conda install pygame numpy`)*
@@ -23,6 +26,7 @@ Ensure your target environment is activated, then run the scripts from the repos
 
 ```bash
 python train.py [OPTIONS]
+python train_dqn.py [OPTIONS]
 python play_agent.py [OPTIONS]
 ```
 
@@ -75,9 +79,19 @@ To train an independent agent exclusively on Level 4 or Level 5:
 python train.py --agent tabular --mode separate --reward balanced --levels 4 --episodes 2000
 ```
 
+#### Workflow F: Procedural Map-Seed Rotation (Levels 1–7 Generalization)
+To rotate procedural obstacle/pit/enemy layouts on **Levels 1–7** to a new random seed every $N$ episodes per level (e.g., `3000` or `5000`) while keeping evaluation on the fixed handcrafted benchmark maps:
+```bash
+# Start on seed 100 and switch to a new random map seed every 3,000 episodes per level
+python train.py --agent hybrid --mode curriculum --reward balanced --levels 1 2 3 4 5 6 7 --episodes 9000 --map-seed 100 --map-seed-interval 3000
+
+# Omit --map-seed to select random seeds seeded from --seed (default 42) every 5,000 episodes
+python train.py --agent all --mode curriculum --reward balanced --episodes 10000 --map-seed-interval 5000
+```
+
 ---
 
-### 2.3 CLI Flags Reference
+### 2.3 CLI Flags Reference (`train.py`)
 
 | Flag | Default | Description |
 | :--- | :---: | :--- |
@@ -87,7 +101,9 @@ python train.py --agent tabular --mode separate --reward balanced --levels 4 --e
 | **`--reward`** | `"all"` | Reward strategy: `balanced`, `sparse`, `dense`, or `all`. |
 | **`--levels`** | `1 2 3 4 5` | Levels to include in the run (space-separated). |
 | **`--episodes`** | `2000` | Number of training episodes per level. |
-| **`--seed`** | `42` | Random seed for deterministic reproducibility. |
+| **`--seed`** | `42` | Random seed for agent/RNG reproducibility (also base RNG seed for random map rotation when `--map-seed` is omitted). |
+| **`--map-seed`** | `None` | Starting procedural map seed for Levels 1–7 (`None` uses fixed handcrafted maps unless `--map-seed-interval > 0`). |
+| **`--map-seed-interval`** | `0` | Rotate to a new random procedural map seed every $N$ episodes per level on Levels 1–7 (e.g., `3000` or `5000`; `0` disables rotation). |
 | **`--rewarm-epsilon`** | `0.30` | Exploration rate when transitioning to Levels 2–3 in curriculum mode. |
 | **`--rewarm-epsilon-ghost`**| `0.35` | Exploration rate when transitioning to ghost levels (Levels 4–5). |
 | **`--replay-ratio`** | `0.35` | Probability of background replay episodes from earlier levels in curriculum mode. |
@@ -96,7 +112,48 @@ python train.py --agent tabular --mode separate --reward balanced --levels 4 --e
 
 ---
 
-### 2.4 Training Output Artifacts
+### 2.4 Procedural Map-Seed Rotation Behavior
+
+When `--map-seed` or `--map-seed-interval` is enabled:
+
+- **Random Block Rotation Schedule (Levels 1–7):** Each stage is partitioned into interval blocks $b = \lfloor (e - 1) / \text{map\_seed\_interval} \rfloor$ for per-level episode $e \ge 1$.
+  - If `--map-seed` is set, block $0$ (`1..interval`) uses that exact initial `--map-seed`; each subsequent block draws a new pseudo-random 31-bit seed deterministically derived from `(base_seed, level_id, b)`.
+  - Setting `--map-seed` with `--map-seed-interval 0` holds that single procedural seed fixed for the stage.
+  - Because the seed sequence is derived per block (isolated from global agent exploration RNG), re-running the same command with identical `--seed` and `--map-seed` reproduces the exact map progression while yielding distinct random layouts across intervals and levels.
+- **Level 8 Remains Fixed:** Procedural generation (`LevelGenerator`) covers **Levels 1–7** (including Quỷ Nhập Tràng / Cương Thi ambushes and floating platforms on Levels 6–7). **Level 8** stays on its fixed 7,200 px handcrafted layout (`map_seed = None`).
+- **Environment Rebuild & Reverse Spawns:** Whenever the resolved seed changes, the trainer closes the old environment, instantiates the new procedural layout, and recomputes safe reverse-curriculum spawn coordinates (Levels 4–7 segments). In `curriculum` mode, background replay episodes use the current rotated seed schedule as well.
+- **Fixed-Map Evaluation:** Untrained baselines, periodic checkpoint evaluations (`--eval-interval`), and final greedy evaluations always run on **fixed handcrafted maps** (`seed=None`) so win rates remain comparable across runs.
+
+---
+
+### 2.5 Deep Q-Network Training (`train_dqn.py`)
+
+`train_dqn.py` trains a Dueling Double DQN agent across `--levels` and supports the same procedural map-seed rotation controls:
+
+```bash
+# Train DQN across Levels 1-7, rotating to a new random map seed every 3,000 episodes,
+# and evaluate 20 greedy episodes per stage on the fixed handcrafted maps
+python train_dqn.py --levels 1 2 3 4 5 6 7 --episodes 6000 --map-seed 100 --map-seed-interval 3000 --eval-episodes 20
+```
+
+| Flag | Default | Description |
+| :--- | :---: | :--- |
+| **`--levels`** | `1 2 3 4` | Levels to train sequentially (space-separated). |
+| **`--episodes`** | `150` | Number of training episodes per level. |
+| **`--lr`** | `3e-4` | Optimizer learning rate. |
+| **`--batch-size`** | `64` | Replay buffer mini-batch size. |
+| **`--frame-skip`** | `1` | Action repeat ticks per decision (`1` or `2`). |
+| **`--checkpoint-dir`** | `"checkpoints/dqn"` | Output directory for `.pt` model checkpoints. |
+| **`--pretrained`** | `None` | Optional `.pt` checkpoint path to warm-start from. |
+| **`--device`** | `None` | Compute device (`cpu`, `cuda`, or `mps`). |
+| **`--seed`** | `42` | Random seed (also base RNG seed for random map rotation). |
+| **`--map-seed`** | `None` | Starting procedural map seed for Levels 1–7 (`None` = fixed handcrafted maps). |
+| **`--map-seed-interval`** | `0` | Rotate to a new random procedural map seed every $N$ episodes per level on Levels 1–7 (e.g., `3000` or `5000`). |
+| **`--eval-episodes`** | `0` | Optional greedy evaluation episodes run on fixed handcrafted maps after each stage. |
+
+---
+
+### 2.6 Training Output Artifacts
 
 Training automatically saves models and telemetry across two main folders:
 
@@ -105,9 +162,10 @@ Training automatically saves models and telemetry across two main folders:
    - `checkpoints/tabular/separate_balanced/` $\to$ `q_table_lvl{1..5}_best.{json,pkl}`, `q_table_lvl{1..5}_final.{json,pkl}`.
    - `checkpoints/hybrid_expected/curriculum_balanced/` $\to$ matching layout for hybrid agent.
    - `checkpoints/q_table_best.{json,pkl}` $\to$ canonical production mirror.
+   - `checkpoints/dqn/` $\to$ `dqn_level_{id}_best.pt` and `dqn_final.pt` (when running `train_dqn.py`).
 2. **Metrics & Data Boards ([`outputs/`](file:///d:/Study%20Resources/Year%204/Elective%20Compulsory%201/Mario_Agent/outputs)):**
-   - `outputs/training_board_<agent_tag>_<mode>_<reward>.json` $\to$ complete training metadata, evaluation summary, and episode history.
-   - `outputs/training_metrics_<agent_tag>_<mode>_<reward>.csv` $\to$ per-episode CSV data for pandas/matplotlib analysis.
+   - `outputs/training_board_<agent_tag>_<mode>_<reward>.json` $\to$ complete training metadata (including `map_seed` and `map_seed_interval`), evaluation summary, and per-episode history (`map_seed` recorded per episode).
+   - `outputs/training_metrics_<agent_tag>_<mode>_<reward>.csv` $\to$ per-episode CSV data (including `map_seed` column) for pandas/matplotlib analysis.
 
 ---
 
@@ -223,6 +281,9 @@ python play_agent.py --agent hybrid --level 4
 
 ### Q: Why is the progress bar printing on multiple lines instead of updating in-place?
 - **A:** Some terminals or embedded IDE consoles do not support carriage returns (`\r`). Pass `--no-progress-bar` to `train.py` for clean newline logging every 100 episodes.
+
+### Q: Why does `--map-seed` / `--map-seed-interval` log `MapSeed: None` or stay fixed on Level 8?
+- **A:** Procedural `LevelGenerator` layouts currently apply to **Levels 1–7**. **Level 8** always uses its fixed 7,200 px handcrafted map (`map_seed = None`), and greedy evaluations always run on fixed handcrafted maps to keep benchmark metrics consistent.
 
 ### Q: Can I run human manual play to compare against the agent?
 - **A:** Yes! Run Member 1's human player script:

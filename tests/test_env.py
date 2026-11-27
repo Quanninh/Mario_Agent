@@ -449,8 +449,9 @@ class TestGameEnvironment(unittest.TestCase):
         self.assertEqual(events2.monster_type, "quy_nhap_trang")
 
     def test_procedural_generator_solvability_and_reproducibility(self) -> None:
-        """Procedural generator for Levels 1-5 produces deterministic, fair, physics-compliant levels."""
+        """Procedural generator for Levels 1-7 produces deterministic, fair, physics-compliant levels."""
         from env import LevelGenerator
+        from env.entities import CuongThi, QuyNhapTrang
 
         # 1. Reproducibility test: Same seed must produce identical objects
         cfg_a1 = LevelGenerator.generate(1, seed=42)
@@ -464,7 +465,7 @@ class TestGameEnvironment(unittest.TestCase):
         self.assertNotEqual(cfg_a1.obstacles[0].x, cfg_b.obstacles[0].x)
 
         # 2. Physics & Invariant Fairness Checks across multiple random seeds
-        for lvl in range(1, 6):
+        for lvl in range(1, 8):
             for seed in [101, 202, 303]:
                 cfg = LevelGenerator.generate(lvl, seed=seed)
                 env = create_env(lvl, seed=seed)
@@ -492,6 +493,35 @@ class TestGameEnvironment(unittest.TestCase):
                 elif lvl == 5:
                     # Level 5: Has WispGhost
                     self.assertTrue(any(isinstance(g, WispGhost) for g in cfg.ghosts))
+                elif lvl == 6:
+                    # Level 6: Tombs + Pits + Ghosts/Laser/Wisp + QuyNhapTrang ambushes anchored 1-to-1 to ground graves
+                    self.assertTrue(all((p.x_end - p.x_start) <= 85.0 for p in cfg.pits))
+                    self.assertTrue(any(isinstance(g, LaserGhost) for g in cfg.ghosts))
+                    self.assertTrue(any(isinstance(g, WispGhost) for g in cfg.ghosts))
+                    self.assertIsNotNone(cfg.monsters)
+                    self.assertGreaterEqual(len(cfg.monsters), 2)
+                    self.assertTrue(any(isinstance(m, QuyNhapTrang) for m in cfg.monsters))
+                    grave_coords = [m._start_x for m in cfg.monsters]
+                    self.assertEqual(len(grave_coords), len(set(grave_coords)))
+                    ground_xs = {o.x for o in cfg.obstacles if o.style != "platform"}
+                    for gx in grave_coords:
+                        self.assertIn(gx, ground_xs)
+                elif lvl == 7:
+                    # Level 7: All entities including platforms, CuongThi + QuyNhapTrang ambushes (1 per ground grave)
+                    self.assertTrue(all((p.x_end - p.x_start) <= 85.0 for p in cfg.pits))
+                    self.assertTrue(any(p.has_fire for p in cfg.pits))
+                    self.assertTrue(any(o.style == "platform" for o in cfg.obstacles))
+                    self.assertTrue(any(isinstance(g, LaserGhost) for g in cfg.ghosts))
+                    self.assertTrue(any(isinstance(g, WispGhost) for g in cfg.ghosts))
+                    self.assertIsNotNone(cfg.monsters)
+                    self.assertEqual(len(cfg.monsters), 4)
+                    self.assertTrue(any(isinstance(m, CuongThi) for m in cfg.monsters))
+                    self.assertTrue(any(isinstance(m, QuyNhapTrang) for m in cfg.monsters))
+                    grave_coords = [m._start_x for m in cfg.monsters]
+                    self.assertEqual(len(grave_coords), len(set(grave_coords)))
+                    ground_xs = {o.x for o in cfg.obstacles if o.style != "platform"}
+                    for gx in grave_coords:
+                        self.assertIn(gx, ground_xs)
 
 if __name__ == "__main__":
     unittest.main()
