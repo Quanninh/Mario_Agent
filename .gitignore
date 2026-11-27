@@ -21,3 +21,6 @@ venv/
 # logs/
 
 specs/
+outputs/
+checkpoints/
+evaluation/

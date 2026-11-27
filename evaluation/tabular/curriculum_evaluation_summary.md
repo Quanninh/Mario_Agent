@@ -2,7 +2,7 @@
 
 **Architecture**: `tabular` (Tabular Q-Learning)  
 **Source Data**: `evaluation/tabular/data/` (Processed from `outputs/training_metrics_tabular_*.csv`)  
-**Random Seeds Evaluated**: 16 seeds for Curriculum Balanced (seed42–seed57); 1 seed (seed1) for baseline comparisons  
+**Random Seeds Evaluated**: 8 seeds for Curriculum Balanced (seed42–seed49); 1 seed (seed1) for baseline comparisons  
 **Scope**: 6 Experiments = 2 Modes (`curriculum`, `separate`) × 3 Reward Strategies (`balanced`, `dense`, `sparse`) across 5 Progressive Levels
 
 ---
@@ -26,21 +26,30 @@ $$\text{WinRate}_{\text{final}} = \left( \frac{1}{100} \sum_{i=1901}^{2000} \mat
 
 | Level | Reward Strategy | Separate Win Rate (Final 100 Ep) | Curriculum Win Rate (Final 100 Ep) | Separate Ep to 80% WR | Curriculum Ep to 80% WR | Separate Adaptation Steps | Curriculum Adaptation Steps | Pre-Training Steps (Levels $1..k-1$) | Curriculum Global Steps to 80% WR |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Level 1 | Balanced | 100.0% | 100.0 ± 0.0% | 50.0 | 68.4 ± 3.4 | 32652.0 | 49526.8 ± 2328.0 | 0 | 49526.8 ± 2328.0 |
-| Level 1 | Dense | 100.0% | 100.0% | 50.0 | 50.0 | 32514.0 | 32514.0 | 0 | 32514.0 |
-| Level 1 | Sparse | 100.0% | 100.0% | 398.0 | 398.0 | 265660.0 | 265660.0 | 0 | 265660.0 |
-| Level 2 | Balanced | 95.0% | 85.7 ± 20.7% | 948.0 | 667.2 ± 131.2 | 208186.0 | 185784.9 ± 31861.8 | 523822.8 ± 9366.3 | 709607.8 ± 35908.5 |
-| Level 2 | Dense | 99.0% | 91.0% | 835.0 | 955.0 | 184186.0 | 240409.0 | 449516.0 | 689925.0 |
-| Level 2 | Sparse | 0.0% | 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
-| Level 3 | Balanced | 94.0% | 41.9 ± 29.1% | 1182.0 | 1325.8 ± 231.0 | 230674.0 | 459294.8 ± 65537.7 | 1066142.5 ± 47164.9 | 1525437.3 ± 71099.5 |
-| Level 3 | Dense | 96.0% | 99.0% | 1037.0 | 817.0 | 201101.0 | 194983.0 | 948510.0 | 1143493.0 |
-| Level 3 | Sparse | 0.0% | 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
-| Level 4 | Balanced | 87.0% | 0.0 ± 0.0% | 999.0 | DNC | 291235.0 | DNC | DNC | DNC |
-| Level 4 | Dense | 3.0% | 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
-| Level 4 | Sparse | 0.0% | 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
-| Level 5 | Balanced | 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
-| Level 5 | Dense | 0.0% | 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
-| Level 5 | Sparse | 0.0% | 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 1 | Balanced | 100.0 ± 0.0% | 100.0 ± 0.0% | 144.5 ± 9.4 | 130.5 ± 9.0 | 110025.1 ± 6931.2 | 99211.9 ± 6584.2 | 0 | 99211.9 ± 6584.2 |
+| Level 1 | Dense | 100.0 ± 0.0% | 100.0 ± 0.0% | 142.5 ± 9.3 | 134.5 ± 13.6 | 108264.0 ± 6744.9 | 102045.6 ± 9741.5 | 0 | 102045.6 ± 9741.5 |
+| Level 1 | Sparse | 99.2 ± 2.1% | 98.8 ± 2.4% | 624.1 ± 154.9 | 1286.3 ± 225.1 | 469665.9 ± 104075.3 | 927495.2 ± 145308.4 | 0 | 927495.2 ± 145308.4 |
+| Level 2 | Balanced | 82.1 ± 26.9% | 90.8 ± 5.5% | 2782.1 ± 314.5 | 2968.6 ± 326.8 | 759496.1 ± 103342.0 | 612802.9 ± 80930.7 | 2050584.0 ± 19217.6 | 2663386.9 ± 76483.9 |
+| Level 2 | Dense | 86.5 ± 9.3% | 41.8 ± 36.4% | 3431.0 ± 518.0 | 3271.1 ± 1515.7 | 808673.5 ± 150025.7 | 551637.6 ± 210203.9 | 2439163.2 ± 46155.2 | 2990800.9 ± 219445.7 |
+| Level 2 | Sparse | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 3 | Balanced | 80.5 ± 7.5% | 69.6 ± 30.1% | 4420.4 ± 1056.0 | 4627.7 ± 1641.0 | 1431030.6 ± 473349.4 | 1163516.9 ± 416554.7 | 4431502.7 ± 80937.9 | 5595019.6 ± 438845.5 |
+| Level 3 | Dense | 16.5 ± 25.4% | 14.6 ± 30.9% | 5118.0 ± 868.3 | 9437.0 | 1198969.0 ± 192946.8 | 2244574.0 | 4591198.0 | 6835772.0 |
+| Level 3 | Sparse | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 4 | Balanced | 2.9 ± 8.1% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 4 | Dense | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 4 | Sparse | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 5 | Balanced | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 5 | Dense | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 5 | Sparse | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 6 | Balanced | 30.8 ± 27.9% | 16.1 ± 23.9% | 4730.7 ± 2966.5 | 7338.0 ± 1517.5 | 748211.0 ± 652243.4 | 1553913.0 ± 283308.0 | 0.0 ± 0.0 | 1553913.0 ± 283308.0 |
+| Level 6 | Dense | 1.5 ± 4.2% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 6 | Sparse | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 7 | Balanced | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 7 | Dense | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 7 | Sparse | 0.0 ± 0.0% | 0.0 ± 0.0% | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 8 | Balanced | DNC | DNC | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 8 | Dense | DNC | DNC | DNC | DNC | DNC | DNC | DNC | DNC |
+| Level 8 | Sparse | DNC | DNC | DNC | DNC | DNC | DNC | DNC | DNC |
 
 ---
 

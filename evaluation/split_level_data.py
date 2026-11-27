@@ -35,7 +35,7 @@ EVAL_DIR = PROJECT_ROOT / "evaluation"
 # e.g. training_metrics_hybrid_expected_separate_dense_seed2.csv -> (hybrid_expected, separate, dense, seed2)
 # e.g. training_metrics_curriculum_balanced.csv -> (tabular [default], curriculum, balanced, seed1)
 FILENAME_PATTERN = re.compile(
-    r"^training_metrics_(?:(tabular|hybrid_expected)_)?(curriculum|separate)_(balanced|dense|sparse)(?:_(seed\w+|\d+))?\.csv$"
+    r"^training_metrics_(?:(tabular|hybrid_expected)_)?(curriculum|separate)_(balanced|dense|sparse)(?:_lvl\d+-\d+)?(?:_(seed\w+|\d+))?\.csv$"
 )
 
 
@@ -59,6 +59,7 @@ def split_all_master_files(
     outputs_dir: Path = OUTPUTS_DIR,
     eval_dir: Path = EVAL_DIR,
     arch_filter: str = "all",
+    clean: bool = False,
 ) -> Dict[str, List[Path]]:
     """
     Discovers all master training metrics CSVs, parses metadata,
@@ -71,6 +72,18 @@ def split_all_master_files(
 
     seen_keys: Dict[Tuple[str, str, str, str], str] = {}
     generated_by_arch: Dict[str, List[Path]] = {}
+
+    if clean:
+        archs_to_clean = ["tabular", "hybrid_expected"] if arch_filter == "all" else [arch_filter]
+        for a in archs_to_clean:
+            d = eval_dir / a / "data"
+            if d.exists():
+                removed = 0
+                for old_csv in d.glob("*.csv"):
+                    old_csv.unlink()
+                    removed += 1
+                if removed:
+                    print(f"[Splitter] Cleaned {removed} stale CSV(s) from {d}")
 
     # Discover which (arch, mode, strategy) have explicit multi-seed runs (e.g. _seed42..57)
     explicit_seed_combos = set()
@@ -93,7 +106,9 @@ def split_all_master_files(
             print(f"  -> Skipping legacy unseeded {file_path.name} in favor of multi-seed run files.")
             continue
 
-        key = (arch, mode, strategy, seed)
+        lvl_match = re.search(r"_(lvl\d+-\d+)", file_path.name)
+        lvl_range = lvl_match.group(1) if lvl_match else ""
+        key = (arch, mode, strategy, seed, lvl_range)
 
         if key in seen_keys:
             raise ValueError(
@@ -121,6 +136,10 @@ def split_all_master_files(
         missing = required_cols - set(df.columns)
         if missing:
             raise ValueError(f"File {file_path.name} is missing required columns: {missing}")
+
+        # Drop incomplete rows (e.g. from interrupted writes) and normalize integer level_id
+        df = df.dropna(subset=list(required_cols)).copy()
+        df["level_id"] = df["level_id"].astype(int)
 
         # Ensure correct episode ordering
         if "global_episode" in df.columns:
@@ -166,8 +185,13 @@ def main():
         default="all",
         help="Architecture to process (default: all)",
     )
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Remove existing split CSVs in evaluation/<arch>/data/ before splitting.",
+    )
     args = parser.parse_args()
-    split_all_master_files(arch_filter=args.arch)
+    split_all_master_files(arch_filter=args.arch, clean=args.clean)
 
 
 if __name__ == "__main__":
