@@ -1,302 +1,313 @@
 \section{Experimental Results \& Evaluation}
 \label{sec:eval}
 
-This section presents an empirical evaluation of our autonomous game agent, authored by Member~4. We benchmark learning dynamics, knowledge transfer across levels, reward shaping strategies, sample efficiency, and comparative performance between pure off-policy Tabular Q-Learning and our unified Hybrid Expected Q-SARSA architecture across a 5-stage progressive curriculum.
+This section reports the test results for our agents across Levels~1--7. We compare two learning algorithms, two training modes, and three reward settings, and then look at sample efficiency, failure causes, and how well the saved agents work on new maps.
 
-\subsection{Experimental Setup and Benchmark Protocol}
+\subsection{Setup}
 \label{subsec:setup}
-To evaluate the agent's adaptability under increasing environmental complexity, we designed 5 progressive levels based on the difficulty of \textit{Ho{\'a}'s Midnight Escape}:
-\begin{enumerate}
-    \item \textbf{Level 1 (Basic Ground Traversal \& Low Hurdles)}: Goal distance $x_{\text{goal}} = 720.0\text{ px}$ with timeout $T_{\max} = 800$. Contains only low tombstones ($44\text{--}48\text{ px}$), no open chasms, and no dynamic adversaries. Exploration starts at $\epsilon_0 = 1.0$ and decays at $\lambda = 0.997$ toward $\epsilon_{\min} = 0.01$.
-    \item \textbf{Level 2 (Variable Obstacle Heights \& Isolated Chasms)}: Goal distance $x_{\text{goal}} = 1100.0\text{ px}$ ($T_{\max} = 1000$), introducing mixed hurdles ($44\text{--}68\text{ px}$) and two open grave chasms ($65\text{--}75\text{ px}$). In Curriculum mode, exploration warm-starts at $\epsilon_0 = 0.30$ to learn pit timing without losing ground movement.
-    \item \textbf{Level 3 (Compound Chasms \& Collectible Objectives)}: Goal distance $x_{\text{goal}} = 1120.0\text{ px}$ ($T_{\max} = 1000$). Places tall hurdles immediately adjacent to pits, requiring precise jump timing, and adds 3 warmth collectibles. Warm-start exploration is initialized at $\epsilon_0 = 0.30$.
-    \item \textbf{Level 4 (Dynamic Patrolling Adversaries \& Pit Traversal)}: Goal distance $x_{\text{goal}} = 1100.0\text{ px}$ ($T_{\max} = 1000$). Introduces moving ghost hazards with periodic patrol trajectories alongside compound pits and 3 collectibles. Warm-start exploration is set to $\epsilon_0 = 0.40$ to give the agent room to explore adversary avoidance timing.
-    \item \textbf{Level 5 (Full Graveyard Gauntlet)}: Goal distance $x_{\text{goal}} = 1100.0\text{ px}$ ($T_{\max} = 1000$). The complete gauntlet combining multi-tier hurdles, variable-width chasms, mixed-altitude ghosts (high vs.\ low), and 4 warmth items. Exploration warm-starts at $\epsilon_0 = 0.40$.
-\end{enumerate}
 
-\paragraph{Experiment Matrix and Hyperparameters.}
-The benchmark evaluates two core algorithmic formulations: \textbf{Pure Tabular Q-Learning} (off-policy $\max$ bootstrap) and \textbf{Hybrid Expected Q-SARSA} (policy expectation bootstrap). Both agents are tested across two training paradigms: \textbf{Curriculum Transfer} (where the agent transfers knowledge from earlier levels with exploration warm-start $\epsilon_0 \in \{0.30, 0.40\}$) and \textbf{Separate Training} (where the agent trains on each level independently from scratch, starting at $\epsilon_0 = 1.0$). Both paradigms are evaluated across three reward strategies: \textbf{Balanced} (asymmetric progress shaping), \textbf{Dense} (Euclidean goal distance), and \textbf{Sparse} (terminal victory reward only).
+We run all experiments on Levels~1--7 of \textit{Ho{\'a}'s Midnight Escape}. (The training script ran Levels~1--8 sequentially, and this evaluation focuses on the 7 core levels.) Each level runs for $10{,}000$ episodes, giving $70{,}000$ episodes across Levels~1--7. Every setting is repeated with $8$ independent random seeds ($42$ to $49$), which control both the agent and the environment.
 
-Each level stage trains for exactly $2{,}000$ episodes ($10{,}000$ episodes across all 5 levels in a curriculum run), with checkpointing every 400 episodes. The learning rate decays linearly from $\alpha_{\text{start}} = 0.12$ to $\alpha_{\min} = 0.02$, with discount factor $\gamma = 0.99$. To prevent catastrophic forgetting when training on complex stages (Levels 3--5), we employ an experience replay rehearsal mechanism inspired by continual reinforcement learning~\cite{rolnick2019experience,isele2018selective}. Specifically, a replay ratio of $\rho = 0.35$ executes transitions from previous levels. This allows the Q-table to learn the current level's hazards while ensuring it does not forget how to navigate prior levels~\cite{narvekar2020curriculum}.
-
-\paragraph{Metric Formalization and Compute Accounting.}
-Policy performance is evaluated via the \textit{Final Converged Win Rate} ($\text{WR}_{\text{final}}$), defined as the percentage of victories over the final 100 episodes (Episodes 1,901--2,000) under minimal exploration noise ($\epsilon = 0.01$):
-\begin{equation}
-\text{WR}_{\text{final}} = \left( \frac{1}{100} \sum_{i=1901}^{2000} \mathbb{I}(\text{won}_i) \right) \times 100\%
-\end{equation}
-Sample efficiency is measured by the number of episodes and within-level simulation steps needed to first achieve an $80.0\%$ rolling win rate (over a 50-episode window). For complete compute transparency, we report both within-level adaptation steps ($\text{Steps}_{\text{adapt}}$) and total simulator training steps across all preceding stages: $\text{Steps}_{\text{global}} = \sum_{j=1}^{k-1} \text{Steps}_j + \text{Steps}_{\text{adapt}}$.
-
-\subsection{Curriculum Transfer vs.\ Cold-Start Training}
-\label{subsec:comparisons}
-Table~\ref{tab:curriculum_benchmark} summarizes quantitative benchmark performance across all five curriculum levels for both training paradigms and all three reward strategies under the baseline Tabular Q-Learning agent.
-
-\begin{table}[t]
-\caption{Comprehensive performance benchmark across 5 progressive levels for Tabular Q-Learning comparing Separate (cold-start) and Curriculum training across Balanced, Dense, and Sparse reward strategies. Values represent asymptotic converged win rate (final 100 episodes) and sample efficiency metrics to reach $80\%$ rolling win rate. DNC indicates Did Not Converge.}
-\label{tab:curriculum_benchmark}
-\centering
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{llccccccc}
-\toprule
-\textbf{Level} & \textbf{Reward Strategy} & \multicolumn{2}{c}{\textbf{Converged Win Rate} $\uparrow$} & \multicolumn{2}{c}{\textbf{Episodes to 80\% WR} $\downarrow$} & \multicolumn{2}{c}{\textbf{Adaptation Steps to 80\%} $\downarrow$} & \textbf{Curriculum Global} \\
-\cmidrule(lr){3-4} \cmidrule(lr){5-6} \cmidrule(lr){7-8}
-& & \textbf{Separate} & \textbf{Curriculum} & \textbf{Separate} & \textbf{Curriculum} & \textbf{Separate} & \textbf{Curriculum} & \textbf{Steps to 80\% WR} $\downarrow$ \\
-\midrule
-Level 1 & Balanced & 100.0\% & \textbf{100.0\%} & 50.0 & \textbf{50.0} & 32,652 & \textbf{32,652} & 32,652 \\
-        & Dense    & 100.0\% & 100.0\% & 50.0 & 50.0 & 32,514 & 32,514 & 32,514 \\
-        & Sparse   & 100.0\% & 100.0\% & 398.0 & 398.0 & 265,660 & 265,660 & 265,660 \\
-\midrule
-Level 2 & Balanced & 95.0\%  & \textbf{84.0\%} & 948.0 & \textbf{716.0} & 208,186 & \textbf{182,844} & 609,651 \\
-        & Dense    & 99.0\%  & 91.0\%  & 835.0 & 955.0 & 184,186 & 240,409 & 689,925 \\
-        & Sparse   & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
-\midrule
-Level 3 & Balanced & 94.0\%  & \textbf{99.0\%} & 1,182.0 & \textbf{615.0} & 230,674 & \textbf{140,981} & 1,079,098 \\
-        & Dense    & 96.0\%  & 99.0\%  & 1,037.0 & 817.0 & 201,101 & 194,983 & 1,143,493 \\
-        & Sparse   & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
-\midrule
-Level 4 & Balanced & 87.0\%  & \textbf{3.0\%}  & 999.0 & \textbf{760.0} & 291,235 & \textbf{231,949} & 1,678,890 \\
-        & Dense    & 3.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
-        & Sparse   & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
-\midrule
-Level 5 & Balanced & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
-        & Dense    & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
-        & Sparse   & 0.0\%   & 0.0\%   & DNC   & DNC   & DNC     & DNC     & DNC \\
-\bottomrule
-\end{tabular}%
-}
-\end{table}
-
-\begin{figure}[t]
-\centering
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/tabular_figure_1_win_rate.pdf}
-    \caption{Pure Tabular Q-Learning}
-    \label{fig:tabular_win_rate}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hybrid_figure_1_win_rate.pdf}
-    \caption{Hybrid Expected Q-SARSA}
-    \label{fig:hybrid_win_rate}
-\end{subfigure}
-\caption{Continuous multi-stage learning curves tracking 50-episode rolling win rate (\%) across Levels 1--5 for Curriculum Transfer (solid blue) versus Separate Scratch Training (dashed orange), under Balanced rewards: (a) Pure Tabular Q-Learning suffers catastrophic collapse in adversary tiers (Level 4: 3.0\% WR, Level 5: 0.0\% WR); (b) Hybrid Expected Q-SARSA resolves adversary avoidance, achieving a 98.0\% converged win rate on Level 4 and 23.0\% on Level 5. The secondary axis depicts exploration rate ($\epsilon$).}
-\label{fig:curriculum_win_rate}
-\end{figure}
-
-\paragraph{Forward Knowledge Transfer on Intermediate Tiers.}
-Curriculum transfer consistently accelerates policy acquisition on intermediate static hurdles:
+We compare two agents: \textbf{Tabular Q-Learning} (which updates with the max next Q-value) and \textbf{Hybrid Expected SARSA} (which weights the next Q-values by the $\epsilon$-greedy policy). Both agents are tested in two training modes:
 \begin{itemize}
-    \item \textbf{Level 2}: Curriculum reaches the 80\% rolling win rate threshold in $716.0$ episodes ($182{,}844$ adaptation steps), compared to $948.0$ episodes ($208{,}186$ steps) for Separate training. This represents a \textbf{24.5\% reduction in episodes} and a \textbf{12.2\% reduction in adaptation steps}.
-    \item \textbf{Level 3}: On compound hurdles and chasms, Curriculum achieves the 80\% milestone in $615.0$ episodes ($140{,}981$ steps) versus $1{,}182.0$ episodes ($230{,}674$ steps) for Separate training---\textbf{47.9\% fewer episodes} and \textbf{38.9\% fewer adaptation steps}. Under Dense rewards, Curriculum similarly reduces adaptation episodes from $1{,}037.0$ down to $817.0$.
-    \item \textbf{Level 4}: While Curriculum Tabular Q reaches the 80\% mark early in episode $760.0$ ($231{,}949$ steps), it subsequently degrades to a $3.0\%$ converged win rate due to exploratory collision traps near patrolling ghosts.
+    \item \textbf{Curriculum}: One Q-table starts on Level~1 and keeps training from Level~1 through Level~7. When entering a new level, exploration $\epsilon$ re-warms to at least $0.30$ on Levels~2--3 and $0.35$ on Levels~4--7. To reduce forgetting, after Level~1 the trainer also runs background replay episodes on earlier levels in round-robin order (configured with \texttt{replay\_ratio} $= 0.35$, implemented in \texttt{training/trainer.py} as a $\max(0.35, 0.5) = 0.50$ chance per episode of one greedy replay on a prior level, alongside replay of up to 5 stored winning paths).
+    \item \textbf{Separate}: A fresh Q-table starts from scratch on each level with $\epsilon = 1.0$, without carry-over or prior-level replay.
 \end{itemize}
 
-Figure~\ref{fig:curriculum_win_rate} contrasts the continuous 10,000-episode win rate trajectories of Tabular Q-Learning against Hybrid Expected Q-SARSA. When entering new levels, the curriculum policies experience a brief dip during transfer re-warmup ($\epsilon_0 = 0.30/0.40$), followed by rapid recovery, whereas cold-start separate agents exhibit prolonged stagnation.
+We also test three reward functions: \textbf{Balanced} (our main shaped reward with forward/backward progress, item bonuses, hazard-timing guidance, and strong death/timeout penalties), \textbf{Dense} (goal-distance progress shaping with weaker penalties and no hazard-timing terms), and \textbf{Sparse} (only terminal goal/death signals and item bonuses).
 
-\begin{figure}[t]
-\centering
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/tabular_figure_2_rewards.pdf}
-    \caption{Tabular Q-Learning}
-    \label{fig:tabular_rewards}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hybrid_figure_2_rewards.pdf}
-    \caption{Hybrid Expected Q-SARSA}
-    \label{fig:hybrid_rewards}
-\end{subfigure}
-\caption{Continuous episode reward trajectories across Levels 1--5 for Sparse (top), Balanced (middle), and Dense (bottom) reward strategies, comparing Curriculum Transfer (solid) with Separate Scratch Training (dashed): (a) Tabular Q-Learning; (b) Hybrid Expected Q-SARSA. Shaded bands represent 50-episode rolling standard deviations.}
-\label{fig:reward_trajectories}
-\end{figure}
-
-\subsection{Ablation Study: Reward Formulations and Failure Modes}
-\label{subsec:ablation}
-Figure~\ref{fig:reward_trajectories} illustrates the continuous reward profiles across all five levels for Sparse, Balanced, and Dense formulations, while Table~\ref{tab:reward_ablation} details converged returns, failure mode distributions, and terminal outcomes.
+For Levels~4--7, \texttt{training/trainer.py} uses a reverse-spawn schedule so the agent first practices closer to the goal and then moves back toward the start. In Curriculum mode, spawns step backward through fractions $(0.80, 0.60, 0.40, 0.20)$ of the goal distance before reaching the normal start, advancing when the agent passes a greedy check every 25 episodes or hits $1{,}428$ episodes in a segment (with $\epsilon$ reset to $0.30$ or $0.25$ and decay $0.985$ during reverse segments). In Separate mode, spawns follow fixed blocks of the $10{,}000$ episodes: $0.75$ of goal distance for episodes $1$--$1{,}800$ ($1.8\text{k}$), $0.50$ for $1{,}801$--$3{,}600$ ($3.6\text{k}$), $0.25$ for $3{,}601$--$5{,}400$ ($5.4\text{k}$), and the normal start for $5{,}401$--$10{,}000$, without re-warming $\epsilon$ between blocks. Table~\ref{tab:hyperparams} lists the shared training settings.
 
 \begin{table}[t]
-\caption{Reward strategy ablation benchmark across Levels 1, 4, and 5 in the converged regime (final 100 episodes, Episodes 1,901--2,000). Outcome distributions classify terminal states into Victories, Pit Deaths, Ghost Deaths, and Timeouts for both Tabular and Hybrid architectures.}
-\label{tab:reward_ablation}
+\caption{Main training hyperparameters used across Levels~1--7 (8 seeds: 42--49).}
+\label{tab:hyperparams}
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Setting} & \textbf{Value} \\
+\midrule
+Episodes per level & $10{,}000$ ($70{,}000$ for Levels~1--7) \\
+Learning rate ($\alpha$) & Linear decay $0.10 \to 0.005$ per level \\
+Discount factor ($\gamma$) & $0.99$ \\
+Exploration ($\epsilon$) & $1.0 \to 0.01$, decay $0.999$ per episode \\
+Curriculum re-warm $\epsilon$ & $0.30$ (Levels~2--3), $0.35$ (Levels~4--7) \\
+Replay ratio & $0.35$ (effective $0.50$ greedy prior-level replay) \\
+Action repeat & $1$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+To avoid mixing metrics, we define our four evaluation numbers clearly:
+\begin{enumerate}
+    \item \textbf{Train100}: Mean win rate over the last $100$ training episodes of a level (episodes $9{,}901$--$10{,}000$), averaged across the $8$ seeds (mean $\pm$ SD). Exploration is near $\epsilon = 0.01$ here.
+    \item \textbf{Greedy50}: Mean win rate over $50$ pure greedy episodes ($\epsilon = 0.0$) run right after each level ends, averaged across the $8$ seeds.
+    \item \textbf{All-10k Training Outcomes} (Section~\ref{subsec:failures}): Outcome shares (win, timeout, pit death, and hazard/entity death) averaged across all $10{,}000$ training episodes of a level.
+    \item \textbf{1,000-Episode Procedural Test} (Section~\ref{subsec:checkpoint_eval}): Blind greedy evaluation ($\epsilon = 0.0$) of each saved best per-level checkpoint across $1{,}000$ newly generated procedural maps per level.
+\end{enumerate}
+
+\subsection{Overall Results \& Reward Choice}
+\label{subsec:overall_rewards}
+
+Table~\ref{tab:overall_winrates} gives the full scoreboard across all 7 levels, 2 agents, 2 training modes, and 3 rewards, and Fig.~\ref{fig:reward_trajectories} plots the smoothed episode returns over training.
+
+\begin{table}[t]
+\caption{Final Train100 and Greedy50 win rates (mean $\pm$ SD across 8 seeds) for Levels~1--7. $\Delta$ equals Hybrid minus Tabular on Train100.}
+\label{tab:overall_winrates}
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{llcccccc}
 \toprule
-\textbf{Arch / Level} & \textbf{Strategy} & \textbf{Mean Return} $\uparrow$ & \textbf{Win Rate (\%)} $\uparrow$ & \textbf{Pit Death (\%)} $\downarrow$ & \textbf{Ghost Death (\%)} $\downarrow$ & \textbf{Timeout (\%)} $\downarrow$ & \textbf{Primary Failure Mode} \\
+\textbf{Level} & \textbf{Reward} & \textbf{Tabular Curr} & \textbf{Hybrid Curr} & \textbf{$\Delta$ Curr} & \textbf{Tabular Sep} & \textbf{Hybrid Sep} & \textbf{$\Delta$ Sep} \\
+ & & \textbf{(Train100 / Greedy50)} & \textbf{(Train100 / Greedy50)} & \textbf{(Train100)} & \textbf{(Train100 / Greedy50)} & \textbf{(Train100 / Greedy50)} & \textbf{(Train100)} \\
 \midrule
-\multicolumn{8}{l}{\textbf{Tabular Q-Learning:}} \\
-Level 1 & Sparse   & $100.0 \pm 0.0$    & 100.0\% & 0.0\%  & 0.0\%  & 0.0\%   & None (Optimal) \\
-        & Dense    & $912.8 \pm 3.8$    & 100.0\% & 0.0\%  & 0.0\%  & 0.0\%   & None (Optimal) \\
-        & Balanced & $823.4 \pm 2.3$    & 100.0\% & 0.0\%  & 0.0\%  & 0.0\%   & None (Optimal) \\
-\cmidrule{2-8}
-Level 4 & Sparse   & $9.9 \pm 1.0$      & 0.0\%   & 0.0\%  & 0.0\%  & 100.0\% & Timeout (Zero Gradient) \\
-        & Dense    & $800.0 \pm 76.9$   & 0.0\%   & 26.0\% & 74.0\% & 0.0\%   & Reckless Ghost Collision \\
-        & Balanced & $632.9 \pm 190.1$  & 3.0\%   & 94.0\% & 3.0\%  & 0.0\%   & Chasm Trapping \\
-\cmidrule{2-8}
-Level 5 & Sparse   & $9.6 \pm 2.0$      & 0.0\%   & 0.0\%  & 0.0\%  & 100.0\% & Timeout (Zero Gradient) \\
-        & Dense    & $649.3 \pm 301.5$  & 0.0\%   & 74.0\% & 26.0\% & 0.0\%   & Chasm Trapping \\
-        & Balanced & $368.8 \pm 330.4$  & 0.0\%   & 54.0\% & 16.0\% & 30.0\%  & Chasm Trapping \& Timeout \\
+Level 1 & Balanced & 100.0 $\pm$ 0.0\% / 100.0 $\pm$ 0.0\% & 100.0 $\pm$ 0.0\% / 100.0 $\pm$ 0.0\% & +0.0\% & 100.0 $\pm$ 0.0\% / 100.0 $\pm$ 0.0\% & 100.0 $\pm$ 0.0\% / 100.0 $\pm$ 0.0\% & +0.0\% \\
+Level 1 & Dense & 100.0 $\pm$ 0.0\% / 87.5 $\pm$ 35.4\% & 100.0 $\pm$ 0.0\% / 100.0 $\pm$ 0.0\% & +0.0\% & 100.0 $\pm$ 0.0\% / 100.0 $\pm$ 0.0\% & 100.0 $\pm$ 0.0\% / 100.0 $\pm$ 0.0\% & +0.0\% \\
+Level 1 & Sparse & 99.0 $\pm$ 2.1\% / 62.5 $\pm$ 51.8\% & 87.5 $\pm$ 19.5\% / 50.0 $\pm$ 53.5\% & -11.5\% & 99.2 $\pm$ 2.1\% / 87.5 $\pm$ 35.4\% & 100.0 $\pm$ 0.0\% / 100.0 $\pm$ 0.0\% & +0.8\% \\
 \midrule
-\multicolumn{8}{l}{\textbf{Hybrid Expected Q-SARSA:}} \\
-Level 1 & Balanced & $827.5 \pm 0.4$    & 100.0\% & 0.0\%  & 0.0\%  & 0.0\%   & None (Optimal) \\
-Level 4 & Dense    & $1509.8 \pm 174.0$ & 96.0\%  & 0.0\%  & 4.0\%  & 0.0\%   & Rare Ghost Collision \\
-        & Balanced & $1304.5 \pm 139.9$ & \textbf{98.0\%} & \textbf{2.0\%}  & \textbf{0.0\%}  & \textbf{0.0\%}   & None (Mastered) \\
-Level 5 & Dense    & $1349.9 \pm 204.6$ & 0.0\%   & 0.0\%  & 100.0\%& 0.0\%   & High/Low Ghost Aliasing \\
-        & Balanced & $1200.2 \pm 249.7$ & \textbf{23.0\%} & \textbf{1.0\%}  & \textbf{76.0\%} & \textbf{0.0\%}   & Ghost Timing Misstep \\
+Level 2 & Balanced & 90.8 $\pm$ 5.5\% / 100.0 $\pm$ 0.0\% & 60.6 $\pm$ 41.7\% / 62.5 $\pm$ 51.8\% & -30.1\% & 82.1 $\pm$ 26.9\% / 75.0 $\pm$ 46.3\% & 95.4 $\pm$ 5.4\% / 100.0 $\pm$ 0.0\% & +13.2\% \\
+Level 2 & Dense & 41.8 $\pm$ 36.4\% / 53.8 $\pm$ 50.4\% & 55.0 $\pm$ 41.8\% / 50.0 $\pm$ 53.5\% & +13.2\% & 86.5 $\pm$ 9.3\% / 100.0 $\pm$ 0.0\% & 59.9 $\pm$ 42.4\% / 62.5 $\pm$ 51.8\% & -26.6\% \\
+Level 2 & Sparse & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
+\midrule
+Level 3 & Balanced & 69.6 $\pm$ 30.1\% / 75.0 $\pm$ 46.3\% & 26.0 $\pm$ 32.9\% / 25.0 $\pm$ 46.3\% & -43.6\% & 80.5 $\pm$ 7.5\% / 100.0 $\pm$ 0.0\% & 67.6 $\pm$ 27.4\% / 87.5 $\pm$ 35.4\% & -12.9\% \\
+Level 3 & Dense & 14.6 $\pm$ 30.9\% / 12.5 $\pm$ 35.4\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & -14.6\% & 16.5 $\pm$ 25.4\% / 25.0 $\pm$ 46.3\% & 60.8 $\pm$ 34.9\% / 75.0 $\pm$ 46.3\% & +44.2\% \\
+Level 3 & Sparse & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
+\midrule
+Level 4 & Balanced & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 2.9 $\pm$ 8.1\% / 12.5 $\pm$ 35.4\% & 19.6 $\pm$ 19.0\% / 37.5 $\pm$ 51.8\% & +16.8\% \\
+Level 4 & Dense & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
+Level 4 & Sparse & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
+\midrule
+Level 5 & Balanced & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
+Level 5 & Dense & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
+Level 5 & Sparse & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
+\midrule
+Level 6 & Balanced & 21.2 $\pm$ 27.0\% / 25.0 $\pm$ 46.3\% & 7.8 $\pm$ 21.9\% / 12.5 $\pm$ 35.4\% & -13.5\% & 30.8 $\pm$ 27.9\% / 50.0 $\pm$ 53.5\% & 11.2 $\pm$ 15.7\% / 12.5 $\pm$ 35.4\% & -19.5\% \\
+Level 6 & Dense & 0.2 $\pm$ 0.5\% / 0.0 $\pm$ 0.0\% & 0.8 $\pm$ 1.8\% / 0.0 $\pm$ 0.0\% & +0.5\% & 1.5 $\pm$ 4.2\% / 0.0 $\pm$ 0.0\% & 0.9 $\pm$ 2.5\% / 0.0 $\pm$ 0.0\% & -0.6\% \\
+Level 6 & Sparse & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
+\midrule
+Level 7 & Balanced & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
+Level 7 & Dense & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
+Level 7 & Sparse & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & 0.0 $\pm$ 0.0\% / 0.0 $\pm$ 0.0\% & +0.0\% \\
 \bottomrule
 \end{tabular}%
 }
 \end{table}
-
-\paragraph{Sparse Reward Bottleneck.}
-The sparse formulation provides a scalar reward of $+100.0$ strictly upon crossing the goal flag, with zero intermediate feedback. In Level~1, where the course span is short ($720\text{ px}$) and free of lethal hazards, unguided random exploration eventually reaches the flag, converging to a $100.0\%$ win rate. However, Sparse requires $398.0$ episodes and $265,660$ simulation steps to reach an 80\% win rate---an \textbf{8.1$\times$ sample efficiency penalty} compared to Balanced and Dense (50 episodes, $32,652$ steps). On Levels 2--5, Sparse completely breaks down, recording a \textbf{0.0\% win rate} and a \textbf{100.0\% timeout rate}. Without intermediate reward guidance, the chance of jumping across multiple chasms and dodging ghosts purely by random chance within $1{,}000$ steps is practically zero ($p < 10^{-6}$).
-
-\paragraph{Dense Reward Trap (Local Optima and Rushing).}
-Dense reward shaping provides a continuous positive increment proportional to Euclidean goal displacement ($\Delta x > 0$). While this accelerates learning on Levels 1--3 where forward progress is safe, it causes severe policy failure when moving adversaries appear in Levels 4 and 5. Because the agent receives immediate positive reinforcement for advancing rightward, it learns a rushing policy that charges directly into oncoming patrolling ghosts to collect short-term position delta instead of learning jump timing. As reported in Table~\ref{tab:reward_ablation}, Dense suffers a \textbf{74.0\% ghost fatality rate} on Level~4 (yielding 0.0\% win rate for Tabular Q) and collapses completely to \textbf{0.0\% win rate} on Level~5.
-
-\paragraph{The Balanced Shaping Advantage.}
-The \texttt{BalancedRewardStrategy} resolves these issues. By imposing a $1.5\times$ asymmetric penalty on backward motion ($-1.5 \cdot |\Delta x|$) while penalizing obstacle collisions ($-3.0$) and pit/ghost deaths ($-75.0$), the policy eliminates backward stalling without rewarding reckless forward sprinting into hazards. Consequently, under Balanced rewards with Hybrid Expected Q-SARSA, the agent attains a \textbf{98.0\% win rate} on Level~4 and \textbf{23.0\%} on Level~5, confirming that asymmetric progress penalties combined with targeted hazard costs are necessary for robust navigation.
-
-\subsection{Comparative Evaluation: Pure Tabular Q-Learning vs.\ Hybrid Expected Q-SARSA}
-\label{subsec:comparative_hybrid}
-To evaluate the theoretical trade-offs between pure off-policy Q-learning and policy-expectation control, we performed a direct head-to-head empirical comparison between \textbf{Tabular Q-Learning} and \textbf{Hybrid Expected Q-SARSA} across the complete 5-stage curriculum. Both agents were executed on identical seeds and environment configurations under Curriculum Balanced and Curriculum Dense reward regimes. Table~\ref{tab:hybrid_vs_tabular} summarizes the converged performance and failure dynamics.
-
-\begin{table}[t]
-\caption{Head-to-head performance comparison between Pure Tabular Q-Learning (Tab) and Hybrid Expected Q-SARSA (Hyb) across Levels 1--5 under Curriculum Balanced and Curriculum Dense regimes. Metrics reflect final converged 100 episodes (mean $\pm$ std). DNC denotes Did Not Converge to 80\% rolling win rate.}
-\label{tab:hybrid_vs_tabular}
-\centering
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{llcccccccc}
-\toprule
-\textbf{Lvl} & \textbf{Strategy} & \multicolumn{2}{c}{\textbf{Win Rate (\%)} $\uparrow$} & \multicolumn{2}{c}{\textbf{Mean Return} $\uparrow$} & \multicolumn{2}{c}{\textbf{Ep to 80\%} $\downarrow$} & \multicolumn{2}{c}{\textbf{Fatality Rates (\% Pit / \% Ghost)} $\downarrow$} \\
-\cmidrule(lr){3-4} \cmidrule(lr){5-6} \cmidrule(lr){7-8} \cmidrule(lr){9-10}
-& & \textbf{Tabular} & \textbf{Hybrid} & \textbf{Tabular} & \textbf{Hybrid} & \textbf{Tabular} & \textbf{Hybrid} & \textbf{Tabular} & \textbf{Hybrid} \\
-\midrule
-1 & Balanced & 100.0\% & 100.0\% & $823.4 \pm 2.3$ & $\mathbf{827.5 \pm 0.4}$ & 50 & 50 & 0\% / 0\% & 0\% / 0\% \\
-  & Dense    & 100.0\% & 100.0\% & $912.8 \pm 3.8$ & $\mathbf{920.6 \pm 0.1}$ & 50 & 50 & 0\% / 0\% & 0\% / 0\% \\
-\midrule
-2 & Balanced & 84.0\%  & \textbf{97.0\%} & $1090.2 \pm 255.6$ & $\mathbf{1178.6 \pm 110.9}$ & 716 & \textbf{509} & 16\% / 0\% & \textbf{3\% / 0\%} \\
-  & Dense    & 91.0\%  & \textbf{98.0\%} & $1316.7 \pm 181.4$ & $\mathbf{1358.3 \pm 90.6}$  & 955 & \textbf{931} & 9\% / 0\% & \textbf{2\% / 0\%} \\
-\midrule
-3 & Balanced & \textbf{99.0\%}  & 0.0\%   & $\mathbf{1263.9 \pm 55.4}$ & $695.0 \pm 9.1$    & \textbf{615} & DNC & \textbf{1\% / 0\%} & 100\% / 0\% \\
-  & Dense    & \textbf{99.0\%}  & 98.0\%  & $\mathbf{1452.7 \pm 55.2}$ & $1446.4 \pm 77.4$  & 817 & \textbf{685} & 1\% / 0\% & 2\% / 0\% \\
-\midrule
-4 & Balanced & 3.0\%   & \textbf{98.0\%} & $632.9 \pm 190.1$  & $\mathbf{1304.5 \pm 139.9}$ & 760* & \textbf{883} & 94\% / 3\% & \textbf{2\% / 0\%} \\
-  & Dense    & 0.0\%   & \textbf{96.0\%} & $800.0 \pm 76.9$   & $\mathbf{1509.8 \pm 174.0}$ & DNC & \textbf{672} & 26\% / 74\% & \textbf{0\% / 4\%} \\
-\midrule
-5 & Balanced & 0.0\%   & \textbf{23.0\%} & $368.8 \pm 330.4$  & $\mathbf{1200.2 \pm 249.7}$ & DNC & DNC & 54\% / 16\% & \textbf{1\% / 76\%} \\
-  & Dense    & 0.0\%   & 0.0\%   & $649.3 \pm 301.5$  & $\mathbf{1349.9 \pm 204.6}$ & DNC & DNC & 74\% / 26\% & \textbf{0\% / 100\%} \\
-\bottomrule
-\end{tabular}%
-}
-\end{table}
-
-\paragraph{Static Obstacle Baselines (Levels 1--2).}
-On Level~1 (static hurdles), both Tabular Q-learning and Hybrid Expected Q-SARSA achieve identical $100.0\%$ win rates within the minimum 50 evaluation episodes ($\approx 31{,}500\text{--}32{,}600$ steps). On Level~2 (isolated chasms), Hybrid Expected Q-SARSA exhibits markedly superior sample efficiency and safety: under Balanced rewards, it reaches the $80\%$ rolling win rate milestone in \textbf{509 episodes} ($109{,}148$ adaptation steps) versus $716$ episodes ($182{,}844$ steps) for Tabular Q-learning---a \textbf{40.3\% reduction in simulation steps}. Furthermore, the Expected SARSA target suppresses pit fatalities from $16.0\%$ down to $3.0\%$, achieving a $97.0\%$ converged win rate compared to $84.0\%$ for Tabular Q-learning.
-
-\paragraph{The Level 4 Adversary Divergence (Maximization Bias vs.\ Policy Expectation).}
-The most striking empirical finding appears on Level~4, where dynamic moving ghosts patrol between chasms. Here, Tabular Q-learning suffers catastrophic policy degradation: under Balanced rewards, its converged win rate collapses to \textbf{3.0\%} (with $94.0\%$ pit deaths), and under Dense rewards, it collapses to \textbf{0.0\%} (with $74.0\%$ ghost fatalities). In sharp contrast, Hybrid Expected Q-SARSA dominates decisively:
-\begin{itemize}
-    \item Under Curriculum Balanced, Hybrid Expected attains a \textbf{98.0\% converged win rate} (average return $1304.5 \pm 139.9$), recording \textbf{0.0\% ghost deaths} and only $2.0\%$ pit deaths, reaching the 80\% win rate threshold in 883 episodes ($270{,}821$ steps).
-    \item Under Curriculum Dense, Hybrid Expected achieves a \textbf{96.0\% converged win rate} (average return $1509.8 \pm 174.0$), completely eliminating pit fatalities ($0.0\%$) and suffering only $4.0\%$ ghost collisions, reaching 80\% WR in 672 episodes ($206{,}569$ steps).
-\end{itemize}
-
-\textit{Theoretical Insight}: Why does pure Tabular Q-learning fail so decisively in the presence of dynamic adversaries while Expected SARSA thrives? In classic Q-learning, the bootstrap target $\max_{a'} Q(s', a')$ assumes greedy, optimal execution at every future step. However, during curriculum transfer and adaptation, the agent explores with probability $\epsilon > 0$. Near dynamic moving adversaries and chasm edges, taking an unintended exploratory action (such as \texttt{STAY} or \texttt{LEFT} while a ghost approaches, or jumping too late) is fatal. Because pure Q-learning ignores this exploration risk during TD updates, it overestimates the expected value of hazard-adjacent states---a severe manifestation of \textit{maximization bias}~\cite{van2009theoretical,sutton2018reinforcement}. Expected SARSA, by contrast, weights future state values by the exact behavior policy:
-\begin{equation}
-\mathcal{T}_{\text{Expected}} = r_{t+1} + \gamma \left[ (1 - \epsilon) \max_{a'} Q(s', a') + \frac{\epsilon}{|\mathcal{A}|} \sum_{a' \in \mathcal{A}} Q(s', a') \right]
-\end{equation}
-The inclusion of the uniform exploration term $\frac{\epsilon}{|\mathcal{A}|} \sum_{a'} Q(s', a')$ automatically discounts the value of boundary states where stochastic actions lead to death. Consequently, the Expected SARSA agent learns conservative stand-off distances and committed jump timings, maintaining safe clearance buffers around moving ghosts.
-
-\paragraph{Level 5 Gauntlet Dynamics.}
-On Level~5, which combines multi-tier hurdles, variable chasms, and mixed-altitude ghosts, Tabular Q-learning achieves a $0.0\%$ win rate in Balanced, plagued by $54.0\%$ pit falls and $30.0\%$ timeouts (mean return $368.8 \pm 330.4$). Hybrid Expected Q-SARSA achieves a \textbf{23.0\% win rate} with zero timeouts ($0.0\%$) and virtually zero pit deaths ($1.0\%$), lifting the mean return to $\mathbf{1200.2 \pm 249.7}$ ($3.25\times$ higher return). The remaining failure mode on Level~5 for the Hybrid agent is ghost collisions ($76.0\%$), caused by perceptual aliasing between high-flying and low-flying ghosts in compound configurations.
-
-\subsection{Sample Efficiency and Simulator Compute Accounting}
-\label{subsec:efficiency}
-Figure~\ref{fig:sample_efficiency} presents sample efficiency in terms of both training episodes and simulation steps for both Tabular and Hybrid architectures. In Table~\ref{tab:curriculum_benchmark}, we disclose both within-level adaptation steps and total global simulation steps:
-\begin{itemize}
-    \item On Level~2, Tabular takes $182{,}844$ adaptation steps ($609{,}651$ global steps), while Hybrid takes only $109{,}148$ adaptation steps ($545{,}861$ global steps).
-    \item On Level~3, Tabular achieves the 80\% threshold in $140{,}981$ steps ($1{,}079{,}098$ global steps), while Hybrid Dense accomplishes this in $152{,}128$ steps ($1{,}069{,}947$ global steps).
-    \item On Level~4, Hybrid Expected solves the level in $270{,}821$ adaptation steps ($1{,}626{,}984$ global steps in Balanced; $206{,}569$ adaptation steps in Dense), whereas Tabular Q collapses asymptotically to a $3.0\%$ win rate.
-\end{itemize}
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/tabular_figure_3_efficiency.pdf}
-    \caption{Tabular Q-Learning}
-    \label{fig:tabular_efficiency}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{figures/hybrid_figure_3_efficiency.pdf}
-    \caption{Hybrid Expected Q-SARSA}
-    \label{fig:hybrid_efficiency}
-\end{subfigure}
-\caption{Dual sample efficiency benchmark comparing Curriculum Transfer against Separate Scratch Training across Levels 1--5 under Balanced (blue), Dense (green), and Sparse (orange) reward strategies: (a) Tabular Q-Learning; (b) Hybrid Expected Q-SARSA. Top panels depict training episodes to reach 80\% rolling win rate; bottom panels report cumulative within-level adaptation steps.}
+\includegraphics[width=\textwidth]{figures/fig1_reward_trajectories.pdf}
+\caption{100-episode rolling reward trajectories (mean $\pm$ 1 SD across 8 seeds) for Sparse (top), Balanced (middle), and Dense (bottom) rewards under Curriculum (left) and Separate (right) training across Levels~1--7.}
+\label{fig:reward_trajectories}
+\end{figure}
+
+Comparing the three reward settings shows a clear pattern:
+\begin{itemize}
+    \item \textbf{Sparse fails after Level~1.} On Level~1, agents still reach $87.5\%$--$100.0\%$ Train100 win rates ($50.0\%$--$100.0\%$ Greedy50). From Level~2 to Level~7, every agent and mode ends at $0.0 \pm 0.0\%$. Without step-by-step reward feedback, random exploration rarely finishes a full stage. In Fig.~\ref{fig:reward_trajectories} (top row), Sparse returns on Levels~4--7 briefly rise near $0$--$10$ during reverse-spawn segments close to the goal, but drop back once the spawn shifts to the normal start.
+    \item \textbf{Dense encourages rushing and fails on Levels~4--7.} Dense gives $+1.2$ per pixel decrease in goal distance, with a smaller death penalty ($-60.0$) and no hazard-timing penalties. It learns Level~1 ($100.0\%$ Train100) and gets moderate results on Level~2 ($41.8\%$--$86.5\%$ Train100) and Level~3 ($0.0\%$--$60.8\%$), though usually worse than Balanced. On Levels~4--7, Dense gets $0.0\%$ on Levels~4, 5, and 7, and at most $1.5\%$ Train100 ($0.0\%$ Greedy50) on Level~6. Even when Dense shows high return curves in Fig.~\ref{fig:reward_trajectories} (around $+500$ to $+1{,}300$), the agent is only collecting forward-movement points before running into hazards.
+    \item \textbf{Balanced is the best reward choice.} Balanced wins $100.0\%$ on Level~1, up to $95.4\%$ Train100 ($100.0\%$ Greedy50) on Level~2, and up to $80.5\%$ Train100 ($100.0\%$ Greedy50) on Level~3. It is also the only reward that wins on Level~4 ($19.6\%$ Train100 / $37.5\%$ Greedy50 for Hybrid Separate) and gets solid wins on Level~6 ($30.8\%$ Train100 / $50.0\%$ Greedy50 for Tabular Separate). For this reason, we keep Reward fixed to \textbf{Balanced} in Sections~\ref{subsec:curr_vs_sep}--\ref{subsec:failures}.
+\end{itemize}
+
+\subsection{Curriculum vs.\ Separate \& Agent Comparison}
+\label{subsec:curr_vs_sep}
+
+With Reward fixed to \textbf{Balanced}, Fig.~\ref{fig:balanced_overview} shows the full 7-level rolling win-rate curves for both agents and training modes, and Fig.~\ref{fig:spotlight_l3_l4_l6} zooms in on Levels~3, 4, and 6.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig2_balanced_overview.pdf}
+\caption{Balanced-reward 100-episode rolling win rate (mean $\pm$ 1 SD) and exploration rate $\epsilon$ across Levels~1--7 for Curriculum Transfer (top) and Separate Training (bottom).}
+\label{fig:balanced_overview}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig3_spotlight_l3_l4_l6.pdf}
+\caption{Within-level rolling win rate on Levels~3, 4, and 6 under Balanced reward for Curriculum Transfer (top) and Separate Training (bottom).}
+\label{fig:spotlight_l3_l4_l6}
+\end{figure}
+
+Across the two agents, neither wins everywhere. Both reach $100.0 \pm 0.0\%$ on Level~1. On Level~2, Tabular beats Hybrid in Curriculum ($90.8 \pm 5.5\%$ vs.\ $60.6 \pm 41.7\%$ Train100; $100.0\%$ vs.\ $62.5\%$ Greedy50), while Hybrid beats Tabular in Separate ($95.4 \pm 5.4\%$ vs.\ $82.1 \pm 26.9\%$ Train100; $100.0\%$ vs.\ $75.0\%$ Greedy50). On Level~3 and Level~6, Tabular outperforms Hybrid in both modes: on Level~3, Tabular reaches $69.6\%$ (Curriculum) and $80.5\%$ (Separate) vs.\ $26.0\%$ and $67.6\%$ for Hybrid; on Level~6, Tabular reaches $21.2\%$ (Curriculum) and $30.8\%$ (Separate) vs.\ $7.8\%$ and $11.2\%$ for Hybrid. On Level~4, however, Hybrid Separate outperforms Tabular Separate ($19.6 \pm 19.0\%$ vs.\ $2.9 \pm 8.1\%$ Train100; $37.5\%$ vs.\ $12.5\%$ Greedy50) because Expected SARSA lowers the value of states where random exploratory steps near moving hazards can kill the agent.
+
+One surprising result is that \textbf{Separate training beats Curriculum transfer on Levels~3, 4, and 6}:
+\begin{itemize}
+    \item \textbf{Level~3}: Tabular Separate gets $80.5\%$ Train100 ($100.0\%$ Greedy50) vs.\ $69.6\%$ ($75.0\%$) for Tabular Curriculum; Hybrid Separate gets $67.6\%$ ($87.5\%$) vs.\ $26.0\%$ ($25.0\%$) for Hybrid Curriculum. In Fig.~\ref{fig:spotlight_l3_l4_l6} (left column), Curriculum starts climbing earlier because it already knows basic jumping from Levels~1--2, but Separate starts from $\epsilon = 1.0$, explores more broadly, and settles at a higher win rate with lower variance across seeds.
+    \item \textbf{Level~4}: Both Curriculum agents end at $0.0 \pm 0.0\%$, while Separate reaches $19.6\%$ (Hybrid) and $2.9\%$ (Tabular) Train100. In Curriculum mode, $\epsilon$ only re-warms to $0.35$ (and decays quickly at $0.985$ during reverse spawns), while the $50\%$ round-robin replay of Levels~1--3 keeps pulling shared Q-values back toward simpler levels that lack dynamic hazards.
+    \item \textbf{Level~6}: Tabular Separate gets $30.8\%$ Train100 ($50.0\%$ Greedy50) vs.\ $21.2\%$ ($25.0\%$) in Curriculum, and Hybrid Separate gets $11.2\%$ vs.\ $7.8\%$ in Curriculum.
+\end{itemize}
+
+On Level~6 Separate (Fig.~\ref{fig:spotlight_l3_l4_l6}, bottom right), both agents show two sharp drops around episodes $1{,}800$ ($1.8\text{k}$) and $5{,}400$ ($5.4\text{k}$). This comes directly from the fixed reverse-spawn schedule in \texttt{training/trainer.py}. For episodes $1$--$1{,}800$ ($\le 18\%$ of $10{,}000$), the agent spawns at $0.75$ of the goal distance, so it quickly learns the short final section and reaches about $60\%$ rolling win rate. At episode $1{,}801$, the spawn jumps back to $0.50$ of the goal distance while $\epsilon$ has already decayed to about $0.165$, causing an immediate drop to $0\%$. The agents recover through the $0.50$ and $0.25$ blocks (with a smaller dip around $3.6\text{k}$), climbing above $40\%$ before episode $5{,}400$. At episode $5{,}401$, the spawn switches to the true level start. By then $\epsilon$ has already reached its $0.01$ floor, and because Separate mode does not re-warm $\epsilon$ on spawn shifts, the win rate drops sharply again before slowly recovering to $30.8\%$ (Tabular) and $11.2\%$ (Hybrid).
+
+\subsection{Sample Efficiency}
+\label{subsec:sample_efficiency}
+
+Holding Reward fixed to \textbf{Balanced}, Table~\ref{tab:sample_efficiency} and Fig.~\ref{fig:sample_efficiency} compare how fast the agents reach an $80.0\%$ 100-episode rolling win rate and how many simulator steps they spend across Levels~1--7. We separate \textit{Adaptation Steps} (steps inside the current level up to $80\%$ WR), \textit{Pre-Training Steps} (steps spent on earlier levels in Curriculum mode), \textit{Global Steps} (Pre-Training + Adaptation for converging seeds), and \textit{Total Stage Steps} (all steps across the full $10{,}000$-episode stage).
+
+\begin{table}[t]
+\caption{Sample efficiency and compute cost (Balanced reward, Levels~1--7). Ep to 80\% WR, Adaptation, Pre-Training, and Global Steps average over the $k/8$ converging seeds; Total Stage Steps averages over all 8 seeds. DNC = Did Not Converge.}
+\label{tab:sample_efficiency}
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llcccccc}
+\toprule
+\textbf{Level} & \textbf{Agent \& Mode} & \textbf{Conv. ($k/N$)} & \textbf{Ep to 80\% WR} & \textbf{Adaptation Steps} & \textbf{Pre-Training Steps} & \textbf{Global Steps to 80\% WR} & \textbf{Total Stage Steps} \\
+\midrule
+Level 1 & Tabular Curriculum & 8/8 & 165.8 $\pm$ 8.6 & 122,356 $\pm$ 5,963 & 0 $\pm$ 0 & 122,356 $\pm$ 5,963 & 2,050,584 $\pm$ 19,218 \\
+Level 1 & Tabular Separate & 8/8 & 176.6 $\pm$ 7.5 & 131,197 $\pm$ 5,302 & 0 & 131,197 $\pm$ 5,302 & 2,163,960 $\pm$ 14,177 \\
+Level 1 & Hybrid Expected Curriculum & 8/8 & 160.9 $\pm$ 7.9 & 118,493 $\pm$ 5,660 & 0 $\pm$ 0 & 118,493 $\pm$ 5,660 & 2,348,493 $\pm$ 53,081 \\
+Level 1 & Hybrid Expected Separate & 8/8 & 156.5 $\pm$ 8.9 & 115,373 $\pm$ 6,380 & 0 & 115,373 $\pm$ 6,380 & 2,398,197 $\pm$ 3,466 \\
+\midrule
+Level 2 & Tabular Curriculum & 8/8 & 3,039.9 $\pm$ 284.1 & 630,189 $\pm$ 73,589 & 2,050,584 $\pm$ 19,218 & 2,680,773 $\pm$ 68,334 & 2,383,546 $\pm$ 76,340 \\
+Level 2 & Tabular Separate & 8/8 & 3,262.6 $\pm$ 456.8 & 900,836 $\pm$ 137,296 & 0 & 900,836 $\pm$ 137,296 & 2,917,696 $\pm$ 105,929 \\
+Level 2 & Hybrid Expected Curriculum & 8/8 & 3,595.8 $\pm$ 1,332.6 & 746,716 $\pm$ 154,209 & 2,348,493 $\pm$ 53,081 & 3,095,208 $\pm$ 167,652 & 2,412,382 $\pm$ 208,318 \\
+Level 2 & Hybrid Expected Separate & 8/8 & 3,410.5 $\pm$ 585.3 & 970,581 $\pm$ 190,875 & 0 & 970,581 $\pm$ 190,875 & 2,912,790 $\pm$ 146,503 \\
+\midrule
+Level 3 & Tabular Curriculum & 7/8 & 5,250.1 $\pm$ 2,246.9 & 1,331,804 $\pm$ 515,862 & 4,431,503 $\pm$ 80,938 & 5,763,307 $\pm$ 540,010 & 2,829,690 $\pm$ 338,387 \\
+Level 3 & Tabular Separate & 8/8 & 4,675.1 $\pm$ 917.9 & 1,517,500 $\pm$ 429,207 & 0 & 1,517,500 $\pm$ 429,207 & 3,382,402 $\pm$ 278,286 \\
+Level 3 & Hybrid Expected Curriculum & 4/8 & 4,683.5 $\pm$ 2,153.7 & 1,137,576 $\pm$ 369,924 & 4,679,752 $\pm$ 251,585 & 5,817,328 $\pm$ 467,288 & 2,671,212 $\pm$ 387,524 \\
+Level 3 & Hybrid Expected Separate & 7/8 & 4,410.0 $\pm$ 807.7 & 1,275,779 $\pm$ 336,151 & 0 & 1,275,779 $\pm$ 336,151 & 3,263,836 $\pm$ 283,039 \\
+\midrule
+Level 4 & Tabular Curriculum & 0/8 & DNC & DNC & DNC & DNC & 2,688,631 $\pm$ 514,390 \\
+Level 4 & Tabular Separate & 0/8 & DNC & DNC & 0 & DNC & 2,533,682 $\pm$ 190,026 \\
+Level 4 & Hybrid Expected Curriculum & 0/8 & DNC & DNC & DNC & DNC & 2,157,214 $\pm$ 476,690 \\
+Level 4 & Hybrid Expected Separate & 0/8 & DNC & DNC & 0 & DNC & 2,563,432 $\pm$ 221,571 \\
+\midrule
+Level 5 & Tabular Curriculum & 0/8 & DNC & DNC & DNC & DNC & 822,320 $\pm$ 62,509 \\
+Level 5 & Tabular Separate & 0/8 & DNC & DNC & 0 & DNC & 1,084,920 $\pm$ 228,581 \\
+Level 5 & Hybrid Expected Curriculum & 0/8 & DNC & DNC & DNC & DNC & 853,636 $\pm$ 82,909 \\
+Level 5 & Hybrid Expected Separate & 0/8 & DNC & DNC & 0 & DNC & 909,847 $\pm$ 104,445 \\
+\midrule
+Level 6 & Tabular Curriculum & 1/8 & 6,388.0 & 1,366,889 & 9,419,566 & 10,786,455 & 2,339,462 $\pm$ 697,104 \\
+Level 6 & Tabular Separate & 2/8 & 7,043.0 $\pm$ 3,245.6 & 1,473,665 $\pm$ 1,137,251 & 0 & 1,473,665 $\pm$ 1,137,251 & 2,332,832 $\pm$ 501,266 \\
+Level 6 & Hybrid Expected Curriculum & 0/8 & DNC & DNC & DNC & DNC & 2,133,405 $\pm$ 612,632 \\
+Level 6 & Hybrid Expected Separate & 0/8 & DNC & DNC & 0 & DNC & 2,143,057 $\pm$ 335,087 \\
+\midrule
+Level 7 & Tabular Curriculum & 0/8 & DNC & DNC & DNC & DNC & 1,789,969 $\pm$ 150,160 \\
+Level 7 & Tabular Separate & 0/8 & DNC & DNC & 0 & DNC & 1,670,050 $\pm$ 332,654 \\
+Level 7 & Hybrid Expected Curriculum & 0/8 & DNC & DNC & DNC & DNC & 1,770,178 $\pm$ 152,428 \\
+Level 7 & Hybrid Expected Separate & 0/8 & DNC & DNC & 0 & DNC & 1,680,126 $\pm$ 272,547 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig4_sample_efficiency.pdf}
+\caption{Within-level adaptation steps (top) and global compute steps (bottom) to reach an $80\%$ rolling win rate under Balanced reward across Levels~1--7.}
 \label{fig:sample_efficiency}
 \end{figure}
 
-\subsection{Statistical Significance and Hypothesis Testing}
-\label{subsec:statistics}
-To verify that our empirical findings reflect genuine algorithmic superiority rather than stochastic variation, we conducted two-sample Welch's unequal variances $t$-tests:
-\begin{equation}
-t = \frac{\bar{X}_1 - \bar{X}_2}{\sqrt{\frac{s_1^2}{n_1} + \frac{s_2^2}{n_2}}}, \quad \nu \approx \frac{\left(\frac{s_1^2}{n_1} + \frac{s_2^2}{n_2}\right)^2}{\frac{(s_1^2/n_1)^2}{n_1-1} + \frac{(s_2^2/n_2)^2}{n_2-1}}
-\end{equation}
-alongside Cohen's $d$ standardized effect sizes ($d = (\bar{X}_1 - \bar{X}_2) / s_{\text{pooled}}$).
-
-\paragraph{Between-Algorithm Hypothesis Testing (Hybrid Expected vs.\ Tabular Q).}
-We tested whether Hybrid Expected Q-SARSA significantly outperforms Pure Tabular Q-learning in converged reward return (final 100 episodes) under the primary Curriculum Balanced setting:
-\begin{itemize}
-    \item \textbf{Level 2 (Isolated Chasms)}: Hybrid return ($1178.6 \pm 110.9$) significantly exceeds Tabular return ($1090.2 \pm 255.6$): $t(135.0) = 3.17, p = 0.0019$, with Cohen's $d = 0.45$.
-    \item \textbf{Level 4 (Adversary Avoidance)}: Hybrid return ($1304.5 \pm 139.9$) decisively beats Tabular return ($632.9 \pm 190.1$): $t(181.9) = 28.45, p < 0.0001$, yielding an exceptionally large effect size of \textbf{Cohen's $d = 4.02$}.
-    \item \textbf{Level 5 (Gauntlet)}: Hybrid return ($1200.2 \pm 249.7$) decisively outperforms Tabular return ($368.8 \pm 330.4$): $t(184.3) = 20.07, p < 0.0001$, with an effect size of \textbf{Cohen's $d = 2.84$}.
-\end{itemize}
-These results confirm with overwhelming statistical confidence ($p < 0.001, d > 2.8$) that integrating on-policy expectation into TD bootstrap targets provides superior policy robustness in adversary-dense platform environments.
-
-\paragraph{Within-Curriculum Policy Convergence (Early vs.\ Converged).}
-We compared early exploration (Episodes 1--100) against final converged performance (Episodes 1,901--2,000) for Curriculum Balanced agents:
-\begin{itemize}
-    \item \textbf{Level 1}: Cumulative reward improved from $749.0 \pm 78.5$ to $823.4 \pm 2.3$ ($t(99.2) = 9.42, p < 0.001$, Cohen's $d = 1.33$).
-    \item \textbf{Level 2}: Reward rose from $293.2 \pm 243.4$ to $1090.2 \pm 254.3$ ($t(197.6) = 22.53, p < 0.001$, Cohen's $d = 3.19$).
-    \item \textbf{Level 3}: Reward advanced from $185.2 \pm 239.3$ to $1263.9 \pm 55.1$ ($t(109.5) = 43.71, p < 0.001$, Cohen's $d = 6.18$).
-    \item \textbf{Level 4 (Hybrid)}: For Hybrid Expected, reward leaped from $296.3 \pm 116.6$ to $1304.5 \pm 139.2$ ($t(192.1) = 55.23, p < 0.001$, Cohen's $d = 7.81$).
-    \item \textbf{Level 5 (Hybrid)}: For Hybrid Expected, reward surged from $280.9 \pm 88.3$ to $1200.2 \pm 248.4$ ($t(123.6) = 34.69, p < 0.001$, Cohen's $d = 4.91$). Conversely, Tabular Q flatlined ($t(112.7) = 0.12, p = 0.90$, Cohen's $d = 0.02$).
-\end{itemize}
-
-\paragraph{Curriculum vs.\ Separate on Complex Gauntlet (Level 5).}
-Comparing Separate (cold-start) versus Curriculum training on Level~5 for Hybrid Expected confirms a massive curriculum breakthrough:
-Curriculum average return ($1200.2 \pm 249.7$, $23.0\%$ win rate) decisively outperforms Separate scratch training ($430.2 \pm 20.0$, $0.0\%$ win rate):
-\begin{equation}
-t(100.3) = 30.74, \quad p < 0.0001, \quad \text{Cohen's } d = 4.35
-\end{equation}
-This confirms that curriculum pre-training across preceding obstacle tiers is strictly necessary to solve multi-hazard platformer gauntlets.
-
-\subsection{State Space Sparsity and Zero-Shot Transfer Invariance}
-\label{subsec:sparsity}
-\paragraph{Empirical State-Space Sparsity.}
-The theoretical combinatorial cardinality of the 7-tuple discretizer is:
-\begin{equation}
-|\mathcal{S}| = 2 \times 3 \times 4 \times 2 \times 3 \times 4 \times 2 = 1{,}152 \text{ discrete states.}
-\end{equation}
-Logging the agent's telemetry shows that because physics constraints (such as gravity, fixed jump velocities, and ground contact) limit what situations the agent can reach, only a small fraction of states is ever visited in the $Q$-table:
-Level~1 visits only $21$ states ($1.8\%$ of capacity), Level~2 visits $27$ states ($2.3\%$), Level~3 visits $30$ states ($2.6\%$), Level~4 visits $68$ states ($5.9\%$), and Level~5 visits $91$ states ($7.9\%$). Across all 10,000 training episodes, exactly $91$ unique states are ever discovered out of $1{,}152$. This low state count (under $8\%$ coverage) explains why tabular reinforcement learning remains computationally lightweight, scales easily, and converges rapidly without requiring deep neural networks.
-
-\paragraph{Zero-Shot Policy Transfer.}
-To test how well the learned policy generalizes to new maps without any retraining or re-warmup exploration ($\epsilon = 0.01$):
-\begin{itemize}
-    \item \textbf{Level 2 $\to$ Level 3}: Testing the Level~2 policy directly on Level~3 achieves a \textbf{100.0\% zero-shot win rate} (average return $1301.7$, completion time $270.0$ steps, collecting $3.0/3.0$ warmth items). This confirms that the learned reflexes for jumping over hurdles and pits are spatially invariant and work even when obstacle positions are rearranged into new layouts.
-    \item \textbf{Level 4 $\to$ Level 5}: In contrast, testing the Level~4 policy zero-shot on Level~5 yields a \textbf{0.0\% win rate} (average return $604.1$, collecting $2.98/4.0$ items before colliding with ghosts). While jumping over static obstacles and pits transfers cleanly, Level~5 introduces mixed-altitude ghosts (high and low). This requires a brief exploration re-warmup period ($\epsilon_0 = 0.40$) so the agent can learn to walk under high ghosts and jump over low ghosts.
-\end{itemize}
-
-\subsection{Limitations and Scope Boundaries}
-\label{subsec:limitations}
-While the curriculum-driven tabular and hybrid agents achieve high reliability, three limitations should be noted:
+Three points stand out in Table~\ref{tab:sample_efficiency} and Fig.~\ref{fig:sample_efficiency}:
 \begin{enumerate}
-    \item \textbf{Perceptual Aliasing in Compound Hazards}: When a tall obstacle immediately precedes a chasm, horizontal bounding projection quantizes the nearest obstacle, temporarily hiding the trailing chasm until the obstacle is cleared.
-    \item \textbf{Discretization Granularity}: The 7-tuple partitions distance into fixed pixel thresholds calibrated for a specific speed ($v_x = 4.0\text{ px/tick}$). Variable running velocities or floating platforms would require adaptive tile coding.
-    \item \textbf{Adversary Velocity and Altitude Heterogeneity}: While Expected SARSA masters horizontal ghost avoidance, compound stages with simultaneously high and low adversaries (Level 5) require multi-agent altitude discrimination beyond our single-feature ghost elevation indicator.
+    \item \textbf{Within-level speed vs.\ global compute.} On Level~1, all four settings converge on $8/8$ seeds in $156.5$--$176.6$ episodes ($115{,}373$--$131{,}197$ steps). On Level~2, all four still converge on $8/8$ seeds, and Curriculum cuts within-level adaptation steps by $30.0\%$ for Tabular ($630{,}189$ vs.\ $900{,}836$) and $23.1\%$ for Hybrid ($746{,}716$ vs.\ $970{,}581$). However, once we add the $2.05\text{M}$--$2.35\text{M}$ pre-training steps from Level~1, Curriculum takes nearly $3\times$ more global steps ($2.68\text{M}$ and $3.10\text{M}$ vs.\ $0.90\text{M}$ and $0.97\text{M}$).
+    \item \textbf{Lower convergence rate on Level~3 and Level~6.} On Level~3, Separate reaches $80\%$ WR more reliably ($8/8$ for Tabular, $7/8$ for Hybrid) than Curriculum ($7/8$ for Tabular, $4/8$ for Hybrid), while requiring only $1.28\text{M}$--$1.52\text{M}$ global steps compared to $5.76\text{M}$--$5.82\text{M}$ for Curriculum. On Level~6, only Tabular converges on a few seeds ($2/8$ Separate at $1.47\text{M}$ steps; $1/8$ Curriculum at $10.79\text{M}$ global steps), while Hybrid stays at $0/8$.
+    \item \textbf{Total stage steps reflect survival time.} Levels~4, 5, and 7 never hit $80\%$ WR ($0/8$ DNC). Level~5 has the lowest Total Stage Steps ($0.82\text{M}$--$1.08\text{M}$, around $82$--$108$ steps per episode) because agents die early in pits and hazards, whereas Level~1 spends $2.05\text{M}$--$2.40\text{M}$ steps across $10{,}000$ full winning runs.
 \end{enumerate}
+
+\subsection{Why Hard Levels Fail \& Limitations}
+\label{subsec:failures}
+
+Table~\ref{tab:failure_modes} summarizes the outcome breakdown and discovered state counts on Levels~4--7 under Balanced reward. Note that unlike Table~\ref{tab:overall_winrates} (which reports only the final 100 episodes), the Win \%, Timeout \%, Pit Death \%, and Hazard/Entity Death \% columns in Table~\ref{tab:failure_modes} are averaged across \textbf{all $10{,}000$ training episodes} per stage (including early reverse-spawn episodes). Hazard/Entity Death \% groups all non-pit lethal collisions (ghosts, fire, lasers, wisps, and grave monsters).
+
+\begin{table}[t]
+\caption{Failure breakdown and discovered state counts on Levels~4--7 (Balanced reward). Percentages average across all $10{,}000$ training episodes per level across 8 seeds.}
+\label{tab:failure_modes}
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llccccc}
+\toprule
+\textbf{Level} & \textbf{Agent \& Mode} & \textbf{Win \% (All 10k)} & \textbf{Timeout \%} & \textbf{Pit Death \%} & \textbf{Hazard/Entity Death \%} & \textbf{Discovered States} \\
+\midrule
+Level 4 & Tabular Curriculum & 0.2 $\pm$ 0.2\% & 42.0 $\pm$ 7.2\% & 36.8 $\pm$ 7.1\% & 20.9 $\pm$ 3.5\% & 1,672 $\pm$ 187 \\
+Level 4 & Tabular Separate & 1.3 $\pm$ 3.3\% & 52.4 $\pm$ 4.2\% & 25.6 $\pm$ 2.0\% & 20.7 $\pm$ 2.7\% & 1,562 $\pm$ 57 \\
+Level 4 & Hybrid Expected Curriculum & 0.2 $\pm$ 0.2\% & 38.7 $\pm$ 7.6\% & 38.7 $\pm$ 10.4\% & 22.4 $\pm$ 5.0\% & 1,690 $\pm$ 103 \\
+Level 4 & Hybrid Expected Separate & 6.6 $\pm$ 6.3\% & 47.1 $\pm$ 11.6\% & 19.1 $\pm$ 3.0\% & 27.3 $\pm$ 8.4\% & 1,771 $\pm$ 66 \\
+\midrule
+Level 5 & Tabular Curriculum & 0.0 $\pm$ 0.0\% & 40.1 $\pm$ 5.3\% & 26.3 $\pm$ 4.9\% & 33.6 $\pm$ 5.9\% & 5,688 $\pm$ 343 \\
+Level 5 & Tabular Separate & 0.0 $\pm$ 0.0\% & 26.1 $\pm$ 6.0\% & 46.6 $\pm$ 10.9\% & 27.2 $\pm$ 6.0\% & 4,616 $\pm$ 392 \\
+Level 5 & Hybrid Expected Curriculum & 0.0 $\pm$ 0.0\% & 43.2 $\pm$ 5.8\% & 31.8 $\pm$ 6.0\% & 24.9 $\pm$ 6.0\% & 5,718 $\pm$ 188 \\
+Level 5 & Hybrid Expected Separate & 0.0 $\pm$ 0.0\% & 22.1 $\pm$ 3.6\% & 48.6 $\pm$ 12.9\% & 29.3 $\pm$ 12.0\% & 4,358 $\pm$ 337 \\
+\midrule
+Level 6 & Tabular Curriculum & 10.9 $\pm$ 10.8\% & 33.7 $\pm$ 5.0\% & 15.9 $\pm$ 8.2\% & 39.5 $\pm$ 10.3\% & 6,716 $\pm$ 257 \\
+Level 6 & Tabular Separate & 19.6 $\pm$ 13.0\% & 33.3 $\pm$ 10.7\% & 8.5 $\pm$ 6.6\% & 38.5 $\pm$ 7.1\% & 2,077 $\pm$ 125 \\
+Level 6 & Hybrid Expected Curriculum & 5.0 $\pm$ 11.2\% & 38.0 $\pm$ 5.9\% & 27.7 $\pm$ 14.8\% & 29.2 $\pm$ 9.2\% & 6,726 $\pm$ 186 \\
+Level 6 & Hybrid Expected Separate & 13.3 $\pm$ 7.8\% & 33.8 $\pm$ 11.1\% & 12.2 $\pm$ 6.4\% & 40.7 $\pm$ 7.5\% & 1,973 $\pm$ 70 \\
+\midrule
+Level 7 & Tabular Curriculum & 0.2 $\pm$ 0.3\% & 49.9 $\pm$ 5.6\% & 23.2 $\pm$ 4.5\% & 26.7 $\pm$ 4.5\% & 9,413 $\pm$ 302 \\
+Level 7 & Tabular Separate & 0.0 $\pm$ 0.0\% & 53.0 $\pm$ 5.6\% & 26.3 $\pm$ 5.8\% & 20.7 $\pm$ 3.4\% & 4,326 $\pm$ 419 \\
+Level 7 & Hybrid Expected Curriculum & 0.1 $\pm$ 0.1\% & 41.5 $\pm$ 6.6\% & 29.2 $\pm$ 6.6\% & 29.1 $\pm$ 4.3\% & 9,130 $\pm$ 194 \\
+Level 7 & Hybrid Expected Separate & 0.0 $\pm$ 0.0\% & 50.5 $\pm$ 7.2\% & 28.5 $\pm$ 6.4\% & 20.9 $\pm$ 3.9\% & 4,187 $\pm$ 365 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+Table~\ref{tab:failure_modes} shows clear failure patterns across the hard stages:
+\begin{itemize}
+    \item \textbf{Level~4 (Timeouts and pits):} Timeouts are the largest share ($38.7\%$--$52.4\%$), followed by pit deaths ($19.1\%$--$38.7\%$) and hazard deaths ($20.7\%$--$27.3\%$). Separate training cuts pit deaths down to $19.1\%$ (Hybrid) and $25.6\%$ (Tabular), but many runs still stall until timeout in front of moving hazards.
+    \item \textbf{Level~5 ($0.0\%$ wins across all 10k episodes):} Separate agents die mostly in pits ($46.6\%$ Tabular, $48.6\%$ Hybrid) and hazards ($27.2\%$--$29.3\%$), while Curriculum agents stall more often ($40.1\%$--$43.2\%$ timeouts).
+    \item \textbf{Level~6 (Partial wins, mostly hazard deaths):} Hazard/entity deaths are the main failure ($29.2\%$--$40.7\%$) alongside timeouts ($33.3\%$--$38.0\%$), whereas pit deaths drop to $8.5\%$--$12.2\%$ in Separate mode.
+    \item \textbf{Level~7 (Timeouts dominate):} Timeouts account for $41.5\%$--$53.0\%$ of episodes, with $23.2\%$--$29.2\%$ pit deaths and $20.7\%$--$29.1\%$ hazard deaths, leaving near-zero wins ($0.0\%$--$0.2\%$).
+\end{itemize}
+
+Four main limitations explain why these failures happen:
+\begin{enumerate}
+    \item \textbf{15-tuple state space and perceptual aliasing:} In \texttt{discretizer/state\_discretizer.py}, continuous game states are quantized into a 15-tuple (\texttt{grounded}, \texttt{vy}, \texttt{obs\_dist}, \texttt{obs\_height}, \texttt{pit\_dist}, \texttt{ghost\_dist}, \texttt{ghost\_alt}, \texttt{laser}, \texttt{wisp}, \texttt{crouch}, \texttt{double\_jump}, \texttt{monster}, \texttt{pit\_width}, \texttt{ghost\_vx}, \texttt{vx}) with $8{,}847{,}360$ theoretical states. In practice, agents only visit $1{,}562$--$9{,}413$ states (under $0.11\%$). Because each bin tracks only the nearest entity within coarse distance ranges (such as $0$--$80\text{ px}$ or $0$--$100\text{ px}$) without exact timers or multi-entity ordering, different hazard combinations fall into the same discrete state. A tabular Q-table averages those conflicting outcomes, leading either to hesitation (timeouts) or mistimed jumps (pit and hazard deaths).
+    \item \textbf{Negative transfer in Curriculum mode:} Curriculum carries Q-values from earlier stages and replays prior levels on $50\%$ of episodes. Look at Table~\ref{tab:failure_modes}: on Level~6, Curriculum uses $6{,}716$--$6{,}726$ cumulative states, while Separate reaches higher win rates using only $1{,}973$--$2{,}077$ states. Replaying simpler stages pulls shared aliased states back toward habits that fail under combined hazards.
+    \item \textbf{Exploration schedule on reverse spawns:} In Separate mode, $\epsilon$ decays to $0.01$ around episode $4{,}603$, before the full-level phase starts at episode $5{,}401$, leaving too little exploration for the start of Levels~5--7.
+    \item \textbf{Fixed bin thresholds:} Distance and velocity cutoffs are tuned by hand, so changing level timing or adding simultaneous enemies cannot be fixed without a richer model such as a neural network.
+\end{enumerate}
+
+\subsection{Checkpoint Blind Evaluation (1,000 Procedural Episodes per Level)}
+\label{subsec:checkpoint_eval}
+
+To test how well the trained policies work on unseen layouts, we take each saved best per-level checkpoint (\texttt{q\_table\_lvl\{1..7\}\_best.pkl}) and run a blind greedy test ($\epsilon = 0.0$) over $1{,}000$ procedural maps generated by \texttt{LevelGenerator} (map seeds $1$--$1{,}000$) in \texttt{evaluation/eval\_checkpoints\_1000.py}. Table~\ref{tab:checkpoint_blind} reports the mean $\pm$ SD win rate and episode reward across the $8$ training seeds ($42$--$49$) for all $7$ levels, $2$ agents, $2$ modes, and $3$ rewards.
+
+\begin{table}[t]
+\caption{Blind greedy evaluation over $1{,}000$ procedural map seeds per level (mean $\pm$ SD across 8 training seeds). Values show Win Rate (\%) / Mean Episode Reward.}
+\label{tab:checkpoint_blind}
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llcccc}
+\toprule
+\textbf{Level} & \textbf{Reward} & \textbf{Tabular Curr} & \textbf{Hybrid Curr} & \textbf{Tabular Sep} & \textbf{Hybrid Sep} \\
+ & & \textbf{(WR \% / Reward)} & \textbf{(WR \% / Reward)} & \textbf{(WR \% / Reward)} & \textbf{(WR \% / Reward)} \\
+\midrule
+Level 1 & Balanced & 97.1 $\pm$ 8.1\% / 696.2 $\pm$ 100.7 & 100.0 $\pm$ 0.0\% / 722.3 $\pm$ 5.0 & 100.0 $\pm$ 0.0\% / 728.5 $\pm$ 3.1 & 98.7 $\pm$ 3.7\% / 670.8 $\pm$ 126.5 \\
+Level 1 & Dense & 93.1 $\pm$ 19.4\% / 1,771.2 $\pm$ 196.3 & 100.0 $\pm$ 0.0\% / 1,841.5 $\pm$ 1.5 & 90.1 $\pm$ 23.1\% / 1,749.6 $\pm$ 208.6 & 95.7 $\pm$ 12.1\% / 1,745.6 $\pm$ 261.0 \\
+Level 1 & Sparse & 100.0 $\pm$ 0.1\% / 100.0 $\pm$ 0.1 & 90.4 $\pm$ 27.0\% / 90.4 $\pm$ 27.0 & 78.2 $\pm$ 37.3\% / 78.2 $\pm$ 37.3 & 66.0 $\pm$ 38.4\% / 66.0 $\pm$ 38.4 \\
+\midrule
+Level 2 & Balanced & 1.4 $\pm$ 0.7\% / -316.8 $\pm$ 954.1 & 1.5 $\pm$ 1.6\% / -174.5 $\pm$ 401.9 & 1.7 $\pm$ 1.5\% / 13.0 $\pm$ 55.1 & 3.1 $\pm$ 1.2\% / 45.4 $\pm$ 19.8 \\
+Level 2 & Dense & 1.6 $\pm$ 1.2\% / 570.5 $\pm$ 146.0 & 1.1 $\pm$ 1.2\% / 571.1 $\pm$ 89.6 & 1.5 $\pm$ 0.9\% / 618.4 $\pm$ 46.1 & 1.4 $\pm$ 0.6\% / 598.8 $\pm$ 51.6 \\
+Level 2 & Sparse & 0.0 $\pm$ 0.0\% / -29.7 $\pm$ 17.2 & 0.0 $\pm$ 0.0\% / -32.6 $\pm$ 13.8 & 0.0 $\pm$ 0.0\% / -44.9 $\pm$ 0.5 & 0.0 $\pm$ 0.0\% / -0.6 $\pm$ 1.7 \\
+\midrule
+Level 3 & Balanced & 1.7 $\pm$ 1.6\% / 82.2 $\pm$ 52.6 & 2.2 $\pm$ 3.1\% / 75.0 $\pm$ 97.4 & 0.5 $\pm$ 0.2\% / -28.7 $\pm$ 57.5 & 0.8 $\pm$ 0.2\% / 22.0 $\pm$ 4.9 \\
+Level 3 & Dense & 0.8 $\pm$ 0.9\% / 596.5 $\pm$ 72.6 & 0.5 $\pm$ 0.8\% / 561.5 $\pm$ 81.1 & 0.1 $\pm$ 0.2\% / 405.8 $\pm$ 42.3 & 0.2 $\pm$ 0.2\% / 442.3 $\pm$ 36.2 \\
+Level 3 & Sparse & 0.0 $\pm$ 0.0\% / -29.3 $\pm$ 17.0 & 0.0 $\pm$ 0.0\% / -38.3 $\pm$ 11.0 & 0.0 $\pm$ 0.0\% / -44.3 $\pm$ 0.4 & 0.0 $\pm$ 0.0\% / -41.8 $\pm$ 5.7 \\
+\midrule
+Level 4 & Balanced & 0.2 $\pm$ 0.2\% / 70.7 $\pm$ 112.9 & 0.3 $\pm$ 0.3\% / 66.8 $\pm$ 121.7 & 0.6 $\pm$ 0.4\% / 142.8 $\pm$ 29.4 & 0.5 $\pm$ 0.4\% / 139.2 $\pm$ 55.6 \\
+Level 4 & Dense & 0.1 $\pm$ 0.1\% / 517.0 $\pm$ 70.6 & 0.0 $\pm$ 0.0\% / 496.5 $\pm$ 87.2 & 0.0 $\pm$ 0.0\% / 513.4 $\pm$ 93.1 & 0.0 $\pm$ 0.0\% / 506.1 $\pm$ 38.6 \\
+Level 4 & Sparse & 0.0 $\pm$ 0.0\% / -4.4 $\pm$ 5.5 & 0.0 $\pm$ 0.0\% / -5.8 $\pm$ 6.4 & 0.0 $\pm$ 0.0\% / -12.7 $\pm$ 9.9 & 0.0 $\pm$ 0.0\% / -4.4 $\pm$ 9.6 \\
+\midrule
+Level 5 & Balanced & 0.0 $\pm$ 0.0\% / -8.1 $\pm$ 93.8 & 0.0 $\pm$ 0.0\% / 27.5 $\pm$ 6.6 & 0.0 $\pm$ 0.0\% / 39.2 $\pm$ 8.4 & 0.0 $\pm$ 0.0\% / 27.3 $\pm$ 13.4 \\
+Level 5 & Dense & 0.0 $\pm$ 0.0\% / 391.1 $\pm$ 17.4 & 0.0 $\pm$ 0.0\% / 401.5 $\pm$ 15.3 & 0.0 $\pm$ 0.0\% / 410.1 $\pm$ 13.0 & 0.0 $\pm$ 0.0\% / 424.1 $\pm$ 26.6 \\
+Level 5 & Sparse & 0.0 $\pm$ 0.0\% / -36.7 $\pm$ 13.2 & 0.0 $\pm$ 0.0\% / -43.0 $\pm$ 1.2 & 0.0 $\pm$ 0.0\% / -36.9 $\pm$ 15.6 & 0.0 $\pm$ 0.0\% / -44.3 $\pm$ 0.2 \\
+\midrule
+Level 6 & Balanced & 0.5 $\pm$ 0.4\% / 70.6 $\pm$ 23.8 & 0.7 $\pm$ 0.6\% / 92.8 $\pm$ 12.8 & 0.1 $\pm$ 0.1\% / 14.8 $\pm$ 17.4 & 0.1 $\pm$ 0.1\% / 18.5 $\pm$ 21.0 \\
+Level 6 & Dense & 0.1 $\pm$ 0.2\% / 427.3 $\pm$ 40.2 & 0.0 $\pm$ 0.1\% / 420.5 $\pm$ 25.8 & 0.0 $\pm$ 0.0\% / 358.1 $\pm$ 34.7 & 0.0 $\pm$ 0.0\% / 352.8 $\pm$ 19.5 \\
+Level 6 & Sparse & 0.0 $\pm$ 0.0\% / -28.6 $\pm$ 9.6 & 0.0 $\pm$ 0.0\% / -33.6 $\pm$ 6.5 & 0.0 $\pm$ 0.0\% / -35.5 $\pm$ 9.5 & 0.0 $\pm$ 0.0\% / -25.5 $\pm$ 10.3 \\
+\midrule
+Level 7 & Balanced & 0.0 $\pm$ 0.0\% / 21.3 $\pm$ 66.2 & 0.0 $\pm$ 0.0\% / 47.5 $\pm$ 14.7 & 0.0 $\pm$ 0.0\% / -11.1 $\pm$ 25.2 & 0.0 $\pm$ 0.0\% / 1.4 $\pm$ 27.1 \\
+Level 7 & Dense & 0.0 $\pm$ 0.0\% / 359.7 $\pm$ 49.1 & 0.0 $\pm$ 0.0\% / 388.4 $\pm$ 25.7 & 0.0 $\pm$ 0.0\% / 296.0 $\pm$ 37.3 & 0.0 $\pm$ 0.0\% / 300.5 $\pm$ 33.6 \\
+Level 7 & Sparse & 0.0 $\pm$ 0.0\% / -34.7 $\pm$ 7.7 & 0.0 $\pm$ 0.0\% / -42.7 $\pm$ 6.7 & 0.0 $\pm$ 0.0\% / -37.8 $\pm$ 11.0 & 0.0 $\pm$ 0.0\% / -34.0 $\pm$ 9.3 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+Table~\ref{tab:checkpoint_blind} shows a sharp split between Level~1 and Levels~2--7:
+\begin{itemize}
+    \item \textbf{Level~1 transfers well to new maps ($66.0\%$--$100.0\%$).} Balanced achieves $97.1\%$--$100.0\%$ and Dense reaches $90.1\%$--$100.0\%$, while Sparse gets $66.0\%$--$100.0\%$. Comparing \texttt{env/map\_levels.py} and \texttt{env/level\_generator.py} explains why: both the fixed and procedural Level~1 maps have only static tombstones on flat ground, with no pits or moving hazards. Because the discretizer tracks local obstacle distance and height relative to the player, the jump timing learned on the fixed map works across procedural Level~1 maps ($1{,}300$--$1{,}700\text{ px}$ long, tombstone heights $36$--$58\text{ px}$). Sparse Separate drops on some seeds ($66.0\%$--$78.2\%$) only because weaker training feedback leaves more ties in the Q-table, causing stalls until timeout.
+    \item \textbf{Levels~2--7 drop to $0.0\%$--$3.1\%$ on procedural maps.} Even agents that scored $80\%$--$100\%$ on the fixed training maps (such as Level~2 Balanced at $82.1\%$--$95.4\%$ Train100 and Level~3 Balanced at $67.6\%$--$80.5\%$ in Separate mode) fall to $1.4\%$--$3.1\%$ on procedural Level~2 and $0.5\%$--$2.2\%$ on procedural Level~3. On Levels~4--7, win rates sit between $0.0\%$ and $0.7\%$. There are two clear reasons in the code. First, all training runs used \texttt{map\_seed=None} and \texttt{map\_seed\_interval=0}, so each agent only practiced on one fixed layout per level and overfitted to its exact rhythm. Second, \texttt{LevelGenerator} introduces geometry and hazards that differ from the fixed training maps: on Level~2, the fixed map has only two plain pits without fire ($1{,}100\text{ px}$ long), whereas procedural Level~2 adds fire jets to every pit, puts tombstones right before pits, and stretches the map to $1{,}700$--$2{,}200\text{ px}$. In the raw test logs (\texttt{evaluation/checkpoint\_eval\_1000\_raw.csv}), Level~2 Balanced and Dense runs already suffer $40.6\%$--$69.5\%$ pit deaths and end early at $170.4$--$494.3$ steps on average across the 8 agent/mode/reward settings (out of $1{,}600$ max steps), showing that agents fall quickly when pit timing changes.
+    \item \textbf{Dense shows high positive rewards even at $0.0\%$ win rate.} Across Levels~2--7, Dense gets mean rewards between $+296.0$ and $+618.4$ despite winning $0.0\%$--$1.6\%$ of the time. This happens because Dense pays $+1.2$ per pixel moved toward the goal while only charging $-60.0$ for dying. On long procedural maps ($1{,}650$--$3{,}200\text{ px}$), running forward for a few hundred pixels before dying still leaves a large positive score. Balanced penalizes pit deaths by $-200.0$ and pays less per pixel ($+0.4$), so failed runs stay near zero or negative (such as $-316.8$ on Level~2 Tabular Curriculum). Overall, the 1,000-episode test shows that training on a single fixed map is not enough for new procedural levels, especially once pits and moving hazards appear.
+\end{itemize}
+

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.6.25)  24 NOV 2026 15:22
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.6.25)  28 NOV 2026 18:14
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -437,6 +437,11 @@ icy-expectation
  []
 
 ) (sections/04_teamwork_project_management/teamwork.tex
+
+LaTeX Warning: Reference `fig:curriculum_win_rate' on page 5 undefined on input
+ line 13.
+
+
 Overfull \hbox (0.62488pt too wide) in paragraph at lines 17--18
 \T1/cmr/m/n/10 To avoid code con-flicts and en-sure seam-less mod-ule in-te-gra
 -tion, the team adopted
@@ -531,109 +536,76 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 ) (sections/07_experimental_results_evaluation/evaluation.tex
 
 [10]
-Overfull \hbox (1.47458pt too wide) in paragraph at lines 11--12
-\T1/cmr/m/n/10 tance $\OML/cmm/m/it/10 x[] \OT1/cmr/m/n/10 = 1100\OML/cmm/m/it/
-10 :\OT1/cmr/m/n/10 0[]$ \T1/cmr/m/n/10 ($\OML/cmm/m/it/10 T[] \OT1/cmr/m/n/10 
-= 1000$\T1/cmr/m/n/10 ), in-tro-duc-ing mixed hur-dles ($\OT1/cmr/m/n/10 44[]68
-[]$\T1/cmr/m/n/10 )
- []
-
-
-Overfull \hbox (0.21536pt too wide) in paragraph at lines 14--15
-\T1/cmr/m/n/10 ($\OML/cmm/m/it/10 T[] \OT1/cmr/m/n/10 = 1000$\T1/cmr/m/n/10 ). 
-The com-plete gaunt-let com-bin-ing multi-tier hur-dles, variable-
- []
-
-
 
 [11]
-<figures/tabular_figure_1_win_rate.pdf, id=63, 832.583pt x 585.5871pt>
-File: figures/tabular_figure_1_win_rate.pdf Graphic file (type pdf)
-<use figures/tabular_figure_1_win_rate.pdf>
-Package pdftex.def Info: figures/tabular_figure_1_win_rate.pdf  used on input l
-ine 72.
-(pdftex.def)             Requested size: 170.09244pt x 119.62616pt.
-<figures/hybrid_figure_1_win_rate.pdf, id=64, 832.583pt x 585.5871pt>
-File: figures/hybrid_figure_1_win_rate.pdf Graphic file (type pdf)
-<use figures/hybrid_figure_1_win_rate.pdf>
-Package pdftex.def Info: figures/hybrid_figure_1_win_rate.pdf  used on input li
-ne 79.
-(pdftex.def)             Requested size: 170.09244pt x 119.62616pt.
+<figures/fig1_reward_trajectories.pdf, id=63, 1035.19855pt x 695.62968pt>
+File: figures/fig1_reward_trajectories.pdf Graphic file (type pdf)
+<use figures/fig1_reward_trajectories.pdf>
+Package pdftex.def Info: figures/fig1_reward_trajectories.pdf  used on input li
+ne 97.
+(pdftex.def)             Requested size: 347.12354pt x 233.25232pt.
 
 
 [12]
-Overfull \hbox (2.95763pt too wide) in paragraph at lines 90--91
-\T1/cmr/m/n/10 steps) for Sep-a-rate train-ing. This rep-re-sents a \T1/cmr/bx/
-n/10 24.5% re-duc-tion in episodes
- []
-
-
-Overfull \hbox (3.6033pt too wide) in paragraph at lines 91--92
-\T1/cmr/bx/n/10 adap-ta-tion steps\T1/cmr/m/n/10 . Un-der Dense re-wards, Cur-r
-icu-lum sim-i-larly re-duces adap-
- []
-
-<figures/tabular_figure_2_rewards.pdf, id=68, 1007.22423pt x 690.8122pt>
-File: figures/tabular_figure_2_rewards.pdf Graphic file (type pdf)
-<use figures/tabular_figure_2_rewards.pdf>
-Package pdftex.def Info: figures/tabular_figure_2_rewards.pdf  used on input li
-ne 101.
-(pdftex.def)             Requested size: 170.09244pt x 116.65648pt.
-<figures/hybrid_figure_2_rewards.pdf, id=69, 1007.22423pt x 690.8122pt>
-File: figures/hybrid_figure_2_rewards.pdf Graphic file (type pdf)
-<use figures/hybrid_figure_2_rewards.pdf>
-Package pdftex.def Info: figures/hybrid_figure_2_rewards.pdf  used on input lin
-e 108.
-(pdftex.def)             Requested size: 170.09244pt x 116.65648pt.
+<figures/fig2_balanced_overview.pdf, id=67, 932.75049pt x 570.8194pt>
+File: figures/fig2_balanced_overview.pdf Graphic file (type pdf)
+<use figures/fig2_balanced_overview.pdf>
+Package pdftex.def Info: figures/fig2_balanced_overview.pdf  used on input line
+ 116.
+(pdftex.def)             Requested size: 347.12354pt x 212.43669pt.
+<figures/fig3_spotlight_l3_l4_l6.pdf, id=68, 1087.76959pt x 549.28294pt>
+File: figures/fig3_spotlight_l3_l4_l6.pdf Graphic file (type pdf)
+<use figures/fig3_spotlight_l3_l4_l6.pdf>
+Package pdftex.def Info: figures/fig3_spotlight_l3_l4_l6.pdf  used on input lin
+e 123.
+(pdftex.def)             Requested size: 347.12354pt x 175.27963pt.
 
 
 [13]
 
-[14 <./figures/tabular_figure_1_win_rate.pdf> <./figures/hybrid_figure_1_win_ra
-te.pdf>]
+[14 <./figures/fig1_reward_trajectories.pdf>]
+Underfull \vbox (badness 4872) has occurred while \output is active []
 
-[15 <./figures/tabular_figure_2_rewards.pdf> <./figures/hybrid_figure_2_rewards
-.pdf>]
 
-[16]
-Overfull \hbox (5.70148pt too wide) in paragraph at lines 220--221
-\T1/cmr/m/n/10 global steps), while Hy-brid Dense ac-com-plishes this in $\OT1/
-cmr/m/n/10 152[]128$ \T1/cmr/m/n/10 steps ($\OT1/cmr/m/n/10 1[]069[]947$
+
+[15 <./figures/fig2_balanced_overview.pdf>]
+<figures/fig4_sample_efficiency.pdf, id=303, 1013.41936pt x 610.55899pt>
+File: figures/fig4_sample_efficiency.pdf Graphic file (type pdf)
+<use figures/fig4_sample_efficiency.pdf>
+Package pdftex.def Info: figures/fig4_sample_efficiency.pdf  used on input line
+ 194.
+(pdftex.def)             Requested size: 347.12354pt x 209.13382pt.
+
+
+[16 <./figures/fig3_spotlight_l3_l4_l6.pdf>]
+Overfull \hbox (71.36592pt too wide) in paragraph at lines 254--255
+[]\T1/cmr/bx/n/10 15-tuple state space and per-cep-tual alias-ing: \T1/cmr/m/n/
+10 In \T1/cmtt/m/n/10 discretizer/state_discretizer.py\T1/cmr/m/n/10 ,
+ []
+
+
+Overfull \hbox (6.43317pt too wide) in paragraph at lines 254--255
+\T1/cmr/m/n/10 con-tin-u-ous game states are quan-tized into a 15-tuple (\T1/cm
+tt/m/n/10 grounded\T1/cmr/m/n/10 , \T1/cmtt/m/n/10 vy\T1/cmr/m/n/10 , \T1/cmtt/
+m/n/10 obs_dist\T1/cmr/m/n/10 ,
+ []
+
+
+Overfull \hbox (38.31427pt too wide) in paragraph at lines 254--255
+\T1/cmtt/m/n/10 obs_height\T1/cmr/m/n/10 , \T1/cmtt/m/n/10 pit_dist\T1/cmr/m/n/
+10 , \T1/cmtt/m/n/10 ghost_dist\T1/cmr/m/n/10 , \T1/cmtt/m/n/10 ghost_alt\T1/cm
+r/m/n/10 , \T1/cmtt/m/n/10 laser\T1/cmr/m/n/10 , \T1/cmtt/m/n/10 wisp\T1/cmr/m/
+n/10 , \T1/cmtt/m/n/10 crouch\T1/cmr/m/n/10 , \T1/cmtt/m/n/10 double_jump\T1/cm
+r/m/n/10 ,
  []
 
 
 
 [17]
-<figures/tabular_figure_3_efficiency.pdf, id=522, 699.87724pt x 540.02815pt>
-File: figures/tabular_figure_3_efficiency.pdf Graphic file (type pdf)
-<use figures/tabular_figure_3_efficiency.pdf>
-Package pdftex.def Info: figures/tabular_figure_3_efficiency.pdf  used on input
- line 228.
-(pdftex.def)             Requested size: 170.09244pt x 131.24095pt.
-<figures/hybrid_figure_3_efficiency.pdf, id=523, 699.87724pt x 540.02815pt>
-File: figures/hybrid_figure_3_efficiency.pdf Graphic file (type pdf)
-<use figures/hybrid_figure_3_efficiency.pdf>
-Package pdftex.def Info: figures/hybrid_figure_3_efficiency.pdf  used on input 
-line 235.
-(pdftex.def)             Requested size: 170.09244pt x 131.24095pt.
 
+[18 <./figures/fig4_sample_efficiency.pdf>]
 
-[18 <./figures/tabular_figure_3_efficiency.pdf> <./figures/hybrid_figure_3_effi
-ciency.pdf>]
-Overfull \hbox (1.54132pt too wide) in paragraph at lines 261--262
-\T1/cmr/m/n/10 early ex-plo-ration (Episodes 1--100) against fi-nal con-verged 
-per-for-mance (Episodes
- []
-
-
-
-[19]
-Overfull \hbox (12.91214pt too wide) in paragraph at lines 301--302
-[]\T1/cmr/bx/n/10 Adversary Ve-loc-ity and Al-ti-tude Het-ero-gene-ity\T1/cmr/m
-/n/10 : While Ex-pected SARSA
- []
-
-) (sections/08_conclusion_future_work/conclusion.tex
+[19]) (sections/08_conclusion_future_work/conclusion.tex
 
 [20]
 Overfull \hbox (0.32306pt too wide) in paragraph at lines 6--7
@@ -656,15 +628,19 @@ ete con-trol in
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-05-26>
  ***********
+
+
+LaTeX Warning: There were undefined references.
+
  ) 
 Here is how much of TeX's memory you used:
- 5336 strings out of 468219
- 87784 string characters out of 5432869
- 507479 words of memory out of 5000000
- 33764 multiletter control sequences out of 15000+600000
+ 5303 strings out of 468219
+ 86627 string characters out of 5432869
+ 515326 words of memory out of 5000000
+ 33731 multiletter control sequences out of 15000+600000
  645531 words of font info for 83 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 67i,11n,77p,1845b,509s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 67i,10n,77p,1845b,375s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx
 0700.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi60
 0\ectt1000.pk> <C:\Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec
@@ -681,25 +657,23 @@ khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecrm1000.pk> <C:\
 Users\khanh\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ecbx1440.pk
 ><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/c
 mbx10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsf
-onts/cm/cmbx9.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/pub
-lic/amsfonts/cm/cmex10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/
-type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKT
-eX/fonts/type1/public/amsfonts/cm/cmmi6.pfb><C:/Users/khanh/AppData/Local/Progr
-ams/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi7.pfb><C:/Users/khanh/AppData/Loc
-al/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/khanh/App
-Data/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/k
-hanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr5.pfb><C:/
-Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.p
-fb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm
-/cmr9.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsf
-onts/cm/cmsy10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/pu
-blic/amsfonts/cm/cmsy5.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/
-type1/public/amsfonts/cm/cmsy7.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTe
-X/fonts/type1/public/amsfonts/cm/cmsy9.pfb><C:/Users/khanh/AppData/Local/Progra
-ms/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
-Output written on main.pdf (22 pages, 1022151 bytes).
+onts/cm/cmex10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/pu
+blic/amsfonts/cm/cmmi10.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts
+/type1/public/amsfonts/cm/cmmi6.pfb><C:/Users/khanh/AppData/Local/Programs/MiKT
+eX/fonts/type1/public/amsfonts/cm/cmmi7.pfb><C:/Users/khanh/AppData/Local/Progr
+ams/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/khanh/AppData/Loc
+al/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/khanh/App
+Data/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.pfb><C:/Users/kh
+anh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/U
+sers/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.
+pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/c
+m/cmsy5.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/public/am
+sfonts/cm/cmsy7.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts/type1/p
+ublic/amsfonts/cm/cmsy9.pfb><C:/Users/khanh/AppData/Local/Programs/MiKTeX/fonts
+/type1/public/amsfonts/symbols/msbm10.pfb>
+Output written on main.pdf (22 pages, 19372138 bytes).
 PDF statistics:
- 1389 PDF objects out of 1440 (max. 8388607)
+ 1189 PDF objects out of 1200 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
- 31 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 21 words of extra memory for PDF output out of 10000 (max. 10000000)
 
