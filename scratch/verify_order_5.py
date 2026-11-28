@@ -42,10 +42,11 @@ def verify_all():
     print(f"Total episode_history rows: {len(history)}")
     assert len(history) == 25, f"Expected exactly 25 rows (5 eps/lvl), got {len(history)}"
 
-    # Check level boundaries reset rolling_win_rate_50
+    # Check level boundaries reset rolling_win_rate (support 100 or 50)
     lvl2_ep1 = next(e for e in history if e["level_id"] == 2 and e["level_episode"] == 1)
-    print("Level 2 Episode 1 rolling_win_rate_50:", lvl2_ep1["rolling_win_rate_50"])
-    assert lvl2_ep1["rolling_win_rate_50"] == 0.0, f"Expected 0.0, got {lvl2_ep1['rolling_win_rate_50']}"
+    rolling_wr = lvl2_ep1.get("rolling_win_rate_100", lvl2_ep1.get("rolling_win_rate_50", 0.0))
+    print("Level 2 Episode 1 rolling_win_rate:", rolling_wr)
+    assert rolling_wr == 0.0, f"Expected 0.0, got {rolling_wr}"
 
     # Check winning episodes have progress_pct == 100.0
     winning_eps = [e for e in history if e["won"]]

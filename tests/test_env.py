@@ -2,7 +2,7 @@ import random
 import unittest
 
 from core import Action, GameEvents
-from env import GameEnvironment, Ghost, LaserGhost, GoalFlag, LEVEL_BUILDERS, Pit, WarmthItem, create_env
+from env import GameEnvironment, Ghost, LaserGhost, WispGhost, GoalFlag, LEVEL_BUILDERS, Pit, WarmthItem, create_env
 
 class TestGameEnvironment(unittest.TestCase):
     """Automated headless tests for Hoá's Midnight Escape environment."""
@@ -407,14 +407,14 @@ class TestGameEnvironment(unittest.TestCase):
             self.assertGreaterEqual(catwalk, 100.0)
 
     def test_god_mode_super_jump(self) -> None:
-        """God Mode grants higher jump velocity and infinite mid-air leaps."""
+        """God Mode preserves standard jump velocity for playability testing, but allows infinite mid-air leaps."""
         env = GameEnvironment(obstacles=[], pits=[], ghosts=[], items=[])
         env.reset()
         env.god_mode = True
 
-        # First ground jump: boosted by 1.35x
+        # First ground jump: strictly standard jump force (no artificial height boost)
         env.step(Action.JUMP)
-        self.assertAlmostEqual(env.player.vy, env.JUMP_FORCE * 1.35 + env.GRAVITY, places=2)
+        self.assertAlmostEqual(env.player.vy, env.JUMP_FORCE + env.GRAVITY, places=2)
 
         # In mid-air: infinite leaps allowed
         for _ in range(5):
@@ -447,6 +447,81 @@ class TestGameEnvironment(unittest.TestCase):
         self.assertTrue(done2)
         self.assertTrue(events2.hit_monster)
         self.assertEqual(events2.monster_type, "quy_nhap_trang")
+
+    def test_procedural_generator_solvability_and_reproducibility(self) -> None:
+        """Procedural generator for Levels 1-7 produces deterministic, fair, physics-compliant levels."""
+        from env import LevelGenerator
+        from env.entities import CuongThi, QuyNhapTrang
+
+        # 1. Reproducibility test: Same seed must produce identical objects
+        cfg_a1 = LevelGenerator.generate(1, seed=42)
+        cfg_a2 = LevelGenerator.generate(1, seed=42)
+        self.assertEqual(len(cfg_a1.obstacles), len(cfg_a2.obstacles))
+        for o1, o2 in zip(cfg_a1.obstacles, cfg_a2.obstacles):
+            self.assertEqual((o1.x, o1.y, o1.width, o1.height), (o2.x, o2.y, o2.width, o2.height))
+
+        # Different seed produces distinct layout
+        cfg_b = LevelGenerator.generate(1, seed=99)
+        self.assertNotEqual(cfg_a1.obstacles[0].x, cfg_b.obstacles[0].x)
+
+        # 2. Physics & Invariant Fairness Checks across multiple random seeds
+        for lvl in range(1, 8):
+            for seed in [101, 202, 303]:
+                cfg = LevelGenerator.generate(lvl, seed=seed)
+                env = create_env(lvl, seed=seed)
+                self.assertEqual(env.level_id, lvl)
+
+                # Check level concepts
+                if lvl == 1:
+                    # Level 1: Static tombstones only, no pits, no ghosts
+                    self.assertEqual(len(cfg.pits), 0)
+                    self.assertEqual(len(cfg.ghosts), 0)
+                    self.assertTrue(all(o.height <= 65.0 for o in cfg.obstacles))
+                elif lvl == 2:
+                    # Level 2: Tombs + Pits
+                    self.assertGreater(len(cfg.pits), 0)
+                    self.assertEqual(len(cfg.ghosts), 0)
+                    # All pits must be strictly <= 85px (well below 128px jump reach)
+                    self.assertTrue(all((p.x_end - p.x_start) <= 85.0 for p in cfg.pits))
+                elif lvl == 3:
+                    # Level 3: Tombs + Pits + Items + Standard Ghosts
+                    self.assertGreater(len(cfg.ghosts), 0)
+                    self.assertTrue(all(type(g) is Ghost for g in cfg.ghosts))
+                elif lvl == 4:
+                    # Level 4: Has LaserGhost
+                    self.assertTrue(any(isinstance(g, LaserGhost) for g in cfg.ghosts))
+                elif lvl == 5:
+                    # Level 5: Has WispGhost
+                    self.assertTrue(any(isinstance(g, WispGhost) for g in cfg.ghosts))
+                elif lvl == 6:
+                    # Level 6: Tombs + Pits + Ghosts/Laser/Wisp + QuyNhapTrang ambushes anchored 1-to-1 to ground graves
+                    self.assertTrue(all((p.x_end - p.x_start) <= 85.0 for p in cfg.pits))
+                    self.assertTrue(any(isinstance(g, LaserGhost) for g in cfg.ghosts))
+                    self.assertTrue(any(isinstance(g, WispGhost) for g in cfg.ghosts))
+                    self.assertIsNotNone(cfg.monsters)
+                    self.assertGreaterEqual(len(cfg.monsters), 2)
+                    self.assertTrue(any(isinstance(m, QuyNhapTrang) for m in cfg.monsters))
+                    grave_coords = [m._start_x for m in cfg.monsters]
+                    self.assertEqual(len(grave_coords), len(set(grave_coords)))
+                    ground_xs = {o.x for o in cfg.obstacles if o.style != "platform"}
+                    for gx in grave_coords:
+                        self.assertIn(gx, ground_xs)
+                elif lvl == 7:
+                    # Level 7: All entities including platforms, CuongThi + QuyNhapTrang ambushes (1 per ground grave)
+                    self.assertTrue(all((p.x_end - p.x_start) <= 85.0 for p in cfg.pits))
+                    self.assertTrue(any(p.has_fire for p in cfg.pits))
+                    self.assertTrue(any(o.style == "platform" for o in cfg.obstacles))
+                    self.assertTrue(any(isinstance(g, LaserGhost) for g in cfg.ghosts))
+                    self.assertTrue(any(isinstance(g, WispGhost) for g in cfg.ghosts))
+                    self.assertIsNotNone(cfg.monsters)
+                    self.assertEqual(len(cfg.monsters), 4)
+                    self.assertTrue(any(isinstance(m, CuongThi) for m in cfg.monsters))
+                    self.assertTrue(any(isinstance(m, QuyNhapTrang) for m in cfg.monsters))
+                    grave_coords = [m._start_x for m in cfg.monsters]
+                    self.assertEqual(len(grave_coords), len(set(grave_coords)))
+                    ground_xs = {o.x for o in cfg.obstacles if o.style != "platform"}
+                    for gx in grave_coords:
+                        self.assertIn(gx, ground_xs)
 
 if __name__ == "__main__":
     unittest.main()

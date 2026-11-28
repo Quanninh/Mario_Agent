@@ -17,9 +17,16 @@ venv/
 # Pdf file
 *.csv
 
-# Optional: uncomment if training logs become too large for Git
+# Optional: uncomment if training logs become  too large for Git
 # logs/
 
 specs/
+<<<<<<< HEAD
 *.pdf
 *.zip
+=======
+outputs/
+checkpoints/
+evaluation/
+.*
+>>>>>>> 884314f7e5f98f3daf1ee734eb18c6cf6a992e18

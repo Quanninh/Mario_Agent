@@ -35,10 +35,32 @@ class RawState:
     dist_to_item: float      # Distance to nearest warmth item ahead (-1 if none)
     dist_to_laser: float     # Distance to nearest active laser beam ahead (-1 if none)
     dist_to_wisp: float      # Distance to nearest active will-o'-the-wisp projectile ahead
-    wisp_dir: int            #  1: Ahead (in front), -1: Behind (chasing from left), 0: None
-    dist_to_monster: float   # Distance to nearest approaching grave monster ahead (-1 if none)
+    wisp_dir: int            # 1: Ahead (in front), -1: Behind (chasing from left), 0: None
+    dist_to_monster: float   # Distance to active/emerging monster ahead (-1 if none)
     monster_y: float         # Y-position of that monster (ground sprint vs airborne hop)
     dist_to_goal: float      # Distance remaining to Hoá's home
+
+    # Extended Pit, Kinematics, Laser, Wisp & Monster State (Levels 4-8 / game_frontend_v4)
+    pit_width: float = 0.0                  # Width of nearest pit (px) (0 if none)
+    pit_fire_cycle: float = 0.0             # Progress in 100-tick fire cycle: [0.0 -> 1.0]
+    pit_fire_countdown: float = 0.0         # Exact ticks remaining until next phase change
+    ghost_vx: float = 0.0                   # Ghost horizontal velocity (<0 = advancing, >0 = retreating)
+    ghost_vy: float = 0.0                   # Ghost vertical sinusoidal velocity (<0 = ascending)
+    laser_angle: float = -1.0               # Current angle of rotating laser [0, 2pi), -1 if none
+    laser_rot_speed: float = 0.0            # Laser rotation speed & direction (rad/tick)
+    laser_is_blocking: bool = False         # True if laser beam is sweeping across ground/jumping path
+    wisp_vx: float = 0.0                    # Horizontal velocity of nearest threatening wisp
+    wisp_vy: float = 0.0                    # Vertical velocity of nearest threatening wisp
+    wisp_y: float = 0.0                     # Y-position of nearest threatening wisp (0 if none)
+    wisp_is_grounded: bool = False          # True if wisp is rolling along the grass floor
+    wisp_charging: bool = False             # True if an upcoming WispGhost is charging a cast
+    wisp_ghost_charging: bool = False       # Alias for nearby WispGhost charging state
+    monster_state: int = 0                  # 0: DORMANT, 1: EMERGING, 2: ACTIVE
+    monster_vx: float = 0.0                 # Horizontal velocity of nearest monster (<0 = charging)
+    monster_vy: float = 0.0                 # Vertical velocity of nearest monster (<0 = hopping/airborne)
+    monster_is_grounded: bool = True        # True if monster is on ground, False if airborne
+    dist_to_monster_trigger: float = -1.0   # Distance to sleeping monster's grave trigger (<0 if none)
+    monster_type: Optional[str] = None      # "cuong_thi" or "quy_nhap_trang" or None
 
     
 
@@ -56,6 +78,19 @@ class GameEvents:
     hit_monster: bool = False     # True if Hoá touched an emerging or active grave monster [DIE]
     monster_type: Optional[str] = None  # Specific monster type: "cuong_thi" or "quy_nhap_trang"
     collected_item: bool = False  # True if Hoá collected a warmth item [BONUS]
+    died: bool = False            # True if Hoá died by any lethal hazard [DIE]
+
+    @property
+    def is_death(self) -> bool:
+        return (
+            self.died
+            or self.fell_in_pit
+            or self.hit_ghost
+            or self.hit_fire
+            or self.hit_laser
+            or self.hit_wisp
+            or self.hit_monster
+        )
 
 class BaseEnvironment(ABC):
     """Abstract interface that any Mario environment must implement."""

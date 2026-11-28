@@ -1,5 +1,6 @@
 from collections import deque
 import csv
+import hashlib
 import json
 from pathlib import Path
 import random
@@ -8,6 +9,54 @@ import numpy as np
 
 from core.base_env import BaseEnvironment, GameEvents, RawState
 from core.interfaces import BaseAgent, BaseDiscretizer, BaseRewardStrategy
+
+
+def _derive_random_map_seed(
+    base_seed: int,
+    level_id: int,
+    block_idx: int,
+    attempt: int = 0,
+) -> int:
+    """Derives a deterministic non-sequential 31-bit seed for a rotation interval block."""
+    payload = f"{base_seed}:{level_id}:{block_idx}:{attempt}".encode("utf-8")
+    digest = hashlib.blake2b(payload, digest_size=8).digest()
+    return 1 + (int.from_bytes(digest, "big") % 2_147_483_646)
+
+
+def resolve_map_seed(
+    level_id: int,
+    level_episode: int,
+    map_seed: Optional[int] = None,
+    map_seed_interval: int = 0,
+    fallback_seed: int = 42,
+) -> Optional[int]:
+    """
+    Computes the procedural map seed for Levels 1-7 given episode and rotation interval.
+    Holds explicit map_seed fixed for block 0, then draws block-indexed random seeds on
+    each rotation boundary. Returns None for Level 8 or when disabled.
+    """
+    if level_id < 1 or level_id > 7:
+        return None
+    interval = int(map_seed_interval)
+    if interval > 0:
+        base_seed = int(fallback_seed) if map_seed is None else int(map_seed)
+        block_idx = (max(1, int(level_episode)) - 1) // interval
+        if block_idx == 0 and map_seed is not None:
+            return int(map_seed)
+        prev_seed: Optional[int] = None
+        if block_idx == 1 and map_seed is not None:
+            prev_seed = int(map_seed)
+        elif block_idx >= 1:
+            prev_seed = _derive_random_map_seed(base_seed, level_id, block_idx - 1)
+        candidate = _derive_random_map_seed(base_seed, level_id, block_idx)
+        attempt = 1
+        while prev_seed is not None and candidate == prev_seed:
+            candidate = _derive_random_map_seed(base_seed, level_id, block_idx, attempt=attempt)
+            attempt += 1
+        return candidate
+    if map_seed is not None:
+        return int(map_seed)
+    return None
 
 
 class Trainer:
@@ -37,6 +86,9 @@ class Trainer:
         checkpoint_interval: int = 200,
         checkpoints_dir: str = "checkpoints",
         outputs_dir: str = "outputs",
+        map_seed: Optional[int] = None,
+        map_seed_interval: int = 0,
+        seed: int = 42,
     ) -> None:
         self.env_factory = env_factory
         self.discretizer = discretizer
@@ -58,6 +110,93 @@ class Trainer:
         self.checkpoint_interval = checkpoint_interval
         self.checkpoints_dir = checkpoints_dir
         self.outputs_dir = outputs_dir
+        self.map_seed = map_seed
+        self.map_seed_interval = max(0, int(map_seed_interval))
+        self.seed = int(seed)
+
+    def _create_env(self, level_id: int, map_seed: Optional[int] = None) -> BaseEnvironment:
+        """Creates an environment instance, passing seed when supported by env_factory."""
+        if map_seed is not None:
+            try:
+                return self.env_factory(level_id, seed=map_seed)
+            except TypeError:
+                return self.env_factory(level_id)
+        return self.env_factory(level_id)
+
+    @staticmethod
+    def _compute_reverse_spawns(
+        env: BaseEnvironment,
+        lvl: int,
+        episodes_per_level: int,
+        curriculum: bool,
+    ) -> List[Optional[float]]:
+        """Computes safe reverse-curriculum spawn coordinates for the active environment."""
+        if curriculum:
+            if lvl < 4 or episodes_per_level < 50:
+                return [None]
+            fractions = (0.80, 0.60, 0.40, 0.20)
+            tail: List[Optional[float]] = [None]
+        else:
+            if lvl < 4 or episodes_per_level < 20:
+                return []
+            fractions = (0.75, 0.50, 0.25)
+            tail = []
+
+        goal_obj = getattr(env, "goal", None)
+        lvl_goal_x = getattr(goal_obj, "x", 1000.0) if goal_obj is not None else 1000.0
+        spawns: List[Optional[float]] = [
+            Trainer._find_safe_spawn_x(env, lvl_goal_x * frac) for frac in fractions
+        ]
+        spawns.extend(tail)
+        return spawns
+
+    @staticmethod
+    def _find_safe_spawn_x(env: BaseEnvironment, target_x: float) -> float:
+        """Find a safe ground x-coordinate near target_x for reverse curriculum."""
+        default_start = getattr(env, "start_x", 50.0)
+        goal = getattr(env, "goal", None)
+        goal_x = getattr(goal, "x", 1000.0) if goal is not None else 1000.0
+        obstacles = getattr(env, "obstacles", [])
+        pits = getattr(env, "pits", [])
+        ghosts = getattr(env, "ghosts", [])
+        monsters = getattr(env, "monsters", [])
+
+        def is_safe(x: float) -> bool:
+            if x < default_start or x > goal_x - 80.0:
+                return False
+            for p in pits:
+                if (p.x_start - 40.0) <= x <= (p.x_end + 15.0):
+                    return False
+            for o in obstacles:
+                if (o.x - 45.0) <= x <= (o.x + o.width + 15.0):
+                    return False
+            for g in ghosts:
+                if abs(x - g.x) < 35.0 and g.y >= 220.0:
+                    return False
+            for m in monsters:
+                if abs(x - m.x) < 45.0:
+                    return False
+            return True
+
+        # Search outward from target_x in 15px increments, preferring slightly earlier x
+        for offset in range(0, int(goal_x), 15):
+            if is_safe(target_x - offset):
+                return float(target_x - offset)
+            if is_safe(target_x + offset):
+                return float(target_x + offset)
+        return float(default_start)
+
+    def _replay_trajectory(
+        self,
+        agent: BaseAgent,
+        trajectory: List[Tuple[Any, int, float, Any, bool, Optional[int]]],
+    ) -> None:
+        """Backward TD sweep over a self-discovered winning trajectory."""
+        for s, a, r, s_next, done, next_a in reversed(trajectory):
+            if next_a is not None:
+                agent.update(s, a, r, s_next, done, next_action=next_a)
+            else:
+                agent.update(s, a, r, s_next, done)
 
     def _run_episode(
         self,
@@ -65,18 +204,29 @@ class Trainer:
         agent: BaseAgent,
         training: bool = True,
         decay_eps: bool = True,
+        start_x_override: Optional[float] = None,
+        record_trajectory: bool = False,
     ) -> Dict:
         """
         Executes one full episode headlessly.
         Never calls env.render() to preserve thousands of FPS throughput.
         """
-        start_x = getattr(env, "start_x", 50.0)
+        orig_start_x = getattr(env, "start_x", 50.0)
         goal = getattr(env, "goal", None)
         goal_x = getattr(goal, "x", 1000.0) if goal is not None else 1000.0
         items = getattr(env, "items", [])
         items_total = len(items)
 
-        raw_state: RawState = env.reset()
+        if hasattr(self.reward_strategy, "reset"):
+            self.reward_strategy.reset()
+        if start_x_override is not None and hasattr(env, "start_x"):
+            env.start_x = start_x_override
+        try:
+            raw_state: RawState = env.reset()
+        finally:
+            if start_x_override is not None and hasattr(env, "start_x"):
+                env.start_x = orig_start_x
+        start_x = orig_start_x
         discrete_state = self.discretizer.discretize(raw_state)
 
         total_reward = 0.0
@@ -86,6 +236,7 @@ class Trainer:
         items_collected = 0
         done = False
         last_events: Optional[GameEvents] = None
+        trajectory: List[Tuple[Any, int, float, Any, bool, Optional[int]]] = []
 
         use_on_policy_next = (
             training
@@ -126,6 +277,10 @@ class Trainer:
                         done,
                         next_action=next_action,
                     )
+                    if record_trajectory:
+                        trajectory.append(
+                            (discrete_state, action, macro_reward, next_discrete_state, done, next_action)
+                        )
 
                 discrete_state = next_discrete_state
                 action = next_action
@@ -159,6 +314,10 @@ class Trainer:
                     agent.update(
                         discrete_state, action, macro_reward, next_discrete_state, done
                     )
+                    if record_trajectory:
+                        trajectory.append(
+                            (discrete_state, action, macro_reward, next_discrete_state, done, None)
+                        )
 
                 discrete_state = next_discrete_state
                 total_reward += macro_reward
@@ -192,7 +351,7 @@ class Trainer:
                 )
             )
 
-        return {
+        res = {
             "total_reward": round(float(total_reward), 2),
             "steps": int(steps),
             "max_x_reached": round(float(max_x), 1),
@@ -203,6 +362,9 @@ class Trainer:
             "won": bool(won),
             "outcome": outcome,
         }
+        if record_trajectory:
+            res["trajectory"] = trajectory
+        return res
 
     def evaluate_agent(
         self,
@@ -239,7 +401,7 @@ class Trainer:
         completion_steps: List[int] = []
         items_collected_list: List[int] = []
 
-        env = self.env_factory(level_id)
+        env = self._create_env(level_id, map_seed=None)
         try:
             for _ in range(episodes):
                 res = self._run_episode(env, agent, training=False)
@@ -277,6 +439,8 @@ class Trainer:
         episodes_per_level: int = 1000,
         is_canonical_production: bool = False,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+        seed: Optional[int] = None,
+        run_name: Optional[str] = None,
     ) -> Dict:
         """
         Executes a complete RL training experiment in either curriculum or separate mode.
@@ -285,13 +449,16 @@ class Trainer:
         if levels is None:
             levels = [1, 2, 3, 4, 5]
 
-        # Canonical production run strictly if curriculum + balanced + tabular
-        if mode == "curriculum" and self.reward_name == "balanced" and self.agent_tag == "tabular":
+        # Canonical production run strictly if curriculum + balanced + tabular and not a multi-seed run
+        if mode == "curriculum" and self.reward_name == "balanced" and self.agent_tag == "tabular" and (seed is None or seed == 42):
             is_canonical_production = True
         else:
             is_canonical_production = False
 
-        run_cp_dir = Path(self.checkpoints_dir) / self.agent_tag / f"{mode}_{self.reward_name}"
+        seed_suffix = f"_seed{seed}" if seed is not None else ""
+        run_identifier = run_name or f"{mode}_{self.reward_name}{seed_suffix}"
+
+        run_cp_dir = Path(self.checkpoints_dir) / self.agent_tag / run_identifier
         run_cp_dir.mkdir(parents=True, exist_ok=True)
         outputs_dir_path = Path(self.outputs_dir)
         outputs_dir_path.mkdir(parents=True, exist_ok=True)
@@ -317,12 +484,14 @@ class Trainer:
         if mode == "curriculum":
             agent = agent_factory()
             alpha_start = float(getattr(agent, "alpha", 0.12))
-            # 3-tuple ranking: (len(unlocked_levels), avg_win_rate, avg_eval_reward)
-            best_global_score = (0, -1.0, float("-inf"))
+            orig_eps_decay = float(getattr(agent, "epsilon_decay", 0.997))
+            winning_trajectories: Dict[int, deque] = {l: deque(maxlen=5) for l in levels}
+            # 4-tuple ranking: (solid_levels>=80%, won_levels>0%, avg_win_rate, avg_eval_reward)
+            best_global_score = (0, 0, -1.0, float("-inf"))
 
             for lvl_idx, lvl in enumerate(levels):
                 print(f"[Trainer] [Curriculum] Starting Level {lvl} ({episodes_per_level} episodes)...")
-                recent_wins: deque = deque(maxlen=50)  # Reset per level
+                recent_wins: deque = deque(maxlen=100)  # Reset per level
                 best_stage_score = (-1.0, float("-inf"))
                 unlocked_levels = levels[: lvl_idx + 1]
 
@@ -350,10 +519,43 @@ class Trainer:
                         f"[Trainer] Re-warmed exploration epsilon: {current_eps:.3f} -> {new_eps:.3f} (target: {rewarm_target:.3f})"
                     )
 
-                env = self.env_factory(lvl)
+                current_map_seed = resolve_map_seed(
+                    level_id=lvl,
+                    level_episode=1,
+                    map_seed=self.map_seed,
+                    map_seed_interval=self.map_seed_interval,
+                    fallback_seed=self.seed,
+                )
+                env = self._create_env(lvl, map_seed=current_map_seed)
                 try:
+                    reverse_spawns = self._compute_reverse_spawns(
+                        env, lvl, episodes_per_level, curriculum=True
+                    )
+                    seg_idx = 0
+                    seg_ep = 0
+                    seg_cap = max(1, episodes_per_level // 7)
+
                     for lvl_ep in range(1, episodes_per_level + 1):
                         global_episode += 1
+                        seg_ep += 1
+
+                        next_map_seed = resolve_map_seed(
+                            level_id=lvl,
+                            level_episode=lvl_ep,
+                            map_seed=self.map_seed,
+                            map_seed_interval=self.map_seed_interval,
+                            fallback_seed=self.seed,
+                        )
+                        if next_map_seed != current_map_seed:
+                            env.close()
+                            current_map_seed = next_map_seed
+                            env = self._create_env(lvl, map_seed=current_map_seed)
+                            reverse_spawns = self._compute_reverse_spawns(
+                                env, lvl, episodes_per_level, curriculum=True
+                            )
+                            print(
+                                f"[Trainer] Level {lvl} ep {lvl_ep}: rotated map seed -> {current_map_seed}"
+                            )
 
                         # Linear learning-rate decay (alpha_start -> alpha_min) per stage
                         if hasattr(agent, "alpha"):
@@ -361,21 +563,75 @@ class Trainer:
                                 1.0 - (lvl_ep / max(1, episodes_per_level))
                             )
 
-                        ep_res = self._run_episode(env, agent, training=True, decay_eps=True)
+                        spawn_x = reverse_spawns[seg_idx]
+                        if hasattr(agent, "epsilon_decay"):
+                            agent.epsilon_decay = 0.985 if spawn_x is not None else orig_eps_decay
 
-                        # Option B Interleaved Background Replay (Curriculum Mode Only)
-                        if lvl_idx > 1 and self.replay_ratio > 0.0:
-                            if random.random() < self.replay_ratio:
-                                replay_candidates = levels[: lvl_idx - 1]
-                                if replay_candidates:
-                                    replay_lvl = random.choice(replay_candidates)
-                                    replay_env = self.env_factory(replay_lvl)
-                                    try:
-                                        self._run_episode(
-                                            replay_env, agent, training=True, decay_eps=False
+                        ep_res = self._run_episode(
+                            env,
+                            agent,
+                            training=True,
+                            decay_eps=True,
+                            start_x_override=spawn_x,
+                            record_trajectory=True,
+                        )
+
+                        # Self-imitation replay on discovered winning trajectories
+                        if ep_res["won"] and ep_res.get("trajectory"):
+                            if spawn_x is None:
+                                winning_trajectories[lvl].append(ep_res["trajectory"])
+                            self._replay_trajectory(agent, ep_res["trajectory"])
+                        elif winning_trajectories[lvl]:
+                            self._replay_trajectory(agent, random.choice(winning_trajectories[lvl]))
+
+                        # Performance-gated reverse curriculum advancement
+                        if spawn_x is not None and (seg_ep % 25 == 0 or seg_ep >= seg_cap):
+                            solved_seg = False
+                            if seg_ep % 25 == 0:
+                                prev_t = getattr(agent, "training", True)
+                                agent.set_mode(False)
+                                ev_seg = self._run_episode(
+                                    env, agent, training=False, decay_eps=False, start_x_override=spawn_x
+                                )
+                                agent.set_mode(prev_t)
+                                solved_seg = ev_seg["won"]
+                            if solved_seg or seg_ep >= seg_cap:
+                                seg_idx = min(seg_idx + 1, len(reverse_spawns) - 1)
+                                seg_ep = 0
+                                if hasattr(agent, "epsilon"):
+                                    agent.epsilon = 0.30 if reverse_spawns[seg_idx] is not None else 0.25
+
+                        # Round-robin Background Replay across ALL prior levels (Curriculum Mode Only)
+                        if lvl_idx > 0 and self.replay_ratio > 0.0:
+                            if random.random() < max(self.replay_ratio, 0.5):
+                                replay_lvl = levels[lvl_ep % lvl_idx]
+                                replay_seed = resolve_map_seed(
+                                    level_id=replay_lvl,
+                                    level_episode=lvl_ep,
+                                    map_seed=self.map_seed,
+                                    map_seed_interval=self.map_seed_interval,
+                                    fallback_seed=self.seed,
+                                )
+                                replay_env = self._create_env(replay_lvl, map_seed=replay_seed)
+                                saved_eps = getattr(agent, "epsilon", 0.0)
+                                setattr(agent, "epsilon", 0.0)
+                                try:
+                                    rep_res = self._run_episode(
+                                        replay_env,
+                                        agent,
+                                        training=True,
+                                        decay_eps=False,
+                                        record_trajectory=True,
+                                    )
+                                    if rep_res["won"] and rep_res.get("trajectory"):
+                                        winning_trajectories[replay_lvl].append(rep_res["trajectory"])
+                                    elif winning_trajectories[replay_lvl]:
+                                        self._replay_trajectory(
+                                            agent, random.choice(winning_trajectories[replay_lvl])
                                         )
-                                    finally:
-                                        replay_env.close()
+                                finally:
+                                    setattr(agent, "epsilon", saved_eps)
+                                    replay_env.close()
 
                         recent_wins.append(1 if ep_res["won"] else 0)
                         rolling_win_rate = round(float(np.mean(recent_wins) * 100.0), 2)
@@ -384,6 +640,7 @@ class Trainer:
                             "global_episode": global_episode,
                             "level_episode": lvl_ep,
                             "level_id": lvl,
+                            "map_seed": current_map_seed,
                             "total_reward": round(float(ep_res["total_reward"]), 2),
                             "steps": ep_res["steps"],
                             "max_x_reached": round(float(ep_res["max_x_reached"]), 1),
@@ -394,7 +651,7 @@ class Trainer:
                             "epsilon": round(float(getattr(agent, "epsilon", 0.0)), 6),
                             "won": ep_res["won"],
                             "outcome": ep_res["outcome"],
-                            "rolling_win_rate_50": rolling_win_rate,
+                            "rolling_win_rate_100": rolling_win_rate,
                         }
                         episode_history.append(rec)
 
@@ -412,7 +669,7 @@ class Trainer:
                                 "global_episode": global_episode,
                                 "total_episodes": len(levels) * episodes_per_level,
                                 "total_reward": round(float(ep_res["total_reward"]), 2),
-                                "rolling_win_rate_50": rolling_win_rate,
+                                "rolling_win_rate_100": rolling_win_rate,
                                 "epsilon": round(float(getattr(agent, "epsilon", 0.0)), 6),
                                 "states_discovered": len(getattr(agent, "q_table", {})),
                             })
@@ -434,8 +691,16 @@ class Trainer:
                                 agent.save(str(run_cp_dir / f"q_table_lvl{lvl}_best.pkl"))
                                 agent.save(str(run_cp_dir / f"q_table_lvl{lvl}_best.json"))
 
-                            # 2. Update global 3-tuple best: (len(unlocked_levels), avg_win_rate, avg_eval_reward)
-                            candidate_global_score = (len(unlocked_levels), stage_win_rate, stage_avg_reward)
+                            # 2. Update global 4-tuple best: (solid_levels>=80%, won_levels>0%, avg_win_rate, avg_eval_reward)
+                            # Prevents forgetting earlier levels from overwriting a stronger multi-level checkpoint
+                            levels_solid_count = sum(1 for r in stage_evals if r["win_rate"] >= 80.0)
+                            levels_won_count = sum(1 for r in stage_evals if r["win_rate"] > 0.0)
+                            candidate_global_score = (
+                                levels_solid_count,
+                                levels_won_count,
+                                stage_win_rate,
+                                stage_avg_reward,
+                            )
                             if candidate_global_score > best_global_score:
                                 best_global_score = candidate_global_score
                                 agent.save(str(run_cp_dir / "q_table_best.pkl"))
@@ -496,13 +761,42 @@ class Trainer:
                 print(f"[Trainer] [Separate] Training Level {lvl} with fresh agent...")
                 agent = agent_factory()
                 alpha_start = float(getattr(agent, "alpha", 0.12))
-                recent_wins: deque = deque(maxlen=50)  # Reset per level
+                recent_wins: deque = deque(maxlen=100)  # Reset per level
                 best_stage_score = (-1.0, float("-inf"))
 
-                env = self.env_factory(lvl)
+                current_map_seed = resolve_map_seed(
+                    level_id=lvl,
+                    level_episode=1,
+                    map_seed=self.map_seed,
+                    map_seed_interval=self.map_seed_interval,
+                    fallback_seed=self.seed,
+                )
+                env = self._create_env(lvl, map_seed=current_map_seed)
                 try:
+                    reverse_spawns = self._compute_reverse_spawns(
+                        env, lvl, episodes_per_level, curriculum=False
+                    )
+
                     for lvl_ep in range(1, episodes_per_level + 1):
                         global_episode += 1
+
+                        next_map_seed = resolve_map_seed(
+                            level_id=lvl,
+                            level_episode=lvl_ep,
+                            map_seed=self.map_seed,
+                            map_seed_interval=self.map_seed_interval,
+                            fallback_seed=self.seed,
+                        )
+                        if next_map_seed != current_map_seed:
+                            env.close()
+                            current_map_seed = next_map_seed
+                            env = self._create_env(lvl, map_seed=current_map_seed)
+                            reverse_spawns = self._compute_reverse_spawns(
+                                env, lvl, episodes_per_level, curriculum=False
+                            )
+                            print(
+                                f"[Trainer] Level {lvl} ep {lvl_ep}: rotated map seed -> {current_map_seed}"
+                            )
 
                         # Linear learning-rate decay (alpha_start -> alpha_min) per stage
                         if hasattr(agent, "alpha"):
@@ -510,7 +804,19 @@ class Trainer:
                                 1.0 - (lvl_ep / max(1, episodes_per_level))
                             )
 
-                        ep_res = self._run_episode(env, agent, training=True, decay_eps=True)
+                        spawn_x = None
+                        if reverse_spawns:
+                            frac = lvl_ep / max(1, episodes_per_level)
+                            if frac <= 0.18:
+                                spawn_x = reverse_spawns[0]
+                            elif frac <= 0.36:
+                                spawn_x = reverse_spawns[1]
+                            elif frac <= 0.54:
+                                spawn_x = reverse_spawns[2]
+
+                        ep_res = self._run_episode(
+                            env, agent, training=True, decay_eps=True, start_x_override=spawn_x
+                        )
 
                         recent_wins.append(1 if ep_res["won"] else 0)
                         rolling_win_rate = round(float(np.mean(recent_wins) * 100.0), 2)
@@ -519,6 +825,7 @@ class Trainer:
                             "global_episode": global_episode,
                             "level_episode": lvl_ep,
                             "level_id": lvl,
+                            "map_seed": current_map_seed,
                             "total_reward": round(float(ep_res["total_reward"]), 2),
                             "steps": ep_res["steps"],
                             "max_x_reached": round(float(ep_res["max_x_reached"]), 1),
@@ -529,7 +836,7 @@ class Trainer:
                             "epsilon": round(float(getattr(agent, "epsilon", 0.0)), 6),
                             "won": ep_res["won"],
                             "outcome": ep_res["outcome"],
-                            "rolling_win_rate_50": rolling_win_rate,
+                            "rolling_win_rate_100": rolling_win_rate,
                         }
                         episode_history.append(rec)
 
@@ -547,7 +854,7 @@ class Trainer:
                                 "global_episode": global_episode,
                                 "total_episodes": len(levels) * episodes_per_level,
                                 "total_reward": round(float(ep_res["total_reward"]), 2),
-                                "rolling_win_rate_50": rolling_win_rate,
+                                "rolling_win_rate_100": rolling_win_rate,
                                 "epsilon": round(float(getattr(agent, "epsilon", 0.0)), 6),
                                 "states_discovered": len(getattr(agent, "q_table", {})),
                             })
@@ -612,6 +919,8 @@ class Trainer:
                 "action_repeat": self.action_repeat,
                 "episodes_per_level": episodes_per_level,
                 "levels": levels,
+                "map_seed": self.map_seed,
+                "map_seed_interval": self.map_seed_interval,
                 "rewarm_epsilon": round(float(self.rewarm_epsilon), 4),
                 "rewarm_epsilon_ghost": round(float(self.rewarm_epsilon_ghost), 4),
                 "replay_ratio": round(float(self.replay_ratio if mode == "curriculum" else 0.0), 4),
@@ -624,20 +933,29 @@ class Trainer:
                 "gamma": round(float(getattr(agent, "gamma", 0.99)), 4) if agent else 0.99,
                 "epsilon_min": round(float(getattr(agent, "epsilon_min", 0.01)), 6) if agent else 0.01,
                 "epsilon_decay": round(float(getattr(agent, "epsilon_decay", 0.995)), 6) if agent else 0.995,
+                "seed": seed,
             },
             "evaluation_summary": evaluation_summary,
             "episode_history": episode_history,
         }
 
-        json_out_path = outputs_dir_path / f"training_board_{self.agent_tag}_{mode}_{self.reward_name}.json"
+        if len(levels) == 1:
+            levels_tag = f"_lvl{levels[0]}"
+        elif levels == list(range(levels[0], levels[-1] + 1)):
+            levels_tag = f"_lvl{levels[0]}-{levels[-1]}"
+        else:
+            levels_tag = "_lvl" + "-".join(str(lvl) for lvl in levels)
+
+        json_out_path = outputs_dir_path / f"training_board_{self.agent_tag}_{mode}_{self.reward_name}{levels_tag}{seed_suffix}.json"
         with open(json_out_path, "w", encoding="utf-8") as f:
             json.dump(board_data, f, indent=2)
 
-        csv_out_path = outputs_dir_path / f"training_metrics_{self.agent_tag}_{mode}_{self.reward_name}.csv"
+        csv_out_path = outputs_dir_path / f"training_metrics_{self.agent_tag}_{mode}_{self.reward_name}{levels_tag}{seed_suffix}.csv"
         csv_headers = [
             "global_episode",
             "level_episode",
             "level_id",
+            "map_seed",
             "total_reward",
             "steps",
             "max_x_reached",
@@ -648,7 +966,7 @@ class Trainer:
             "epsilon",
             "won",
             "outcome",
-            "rolling_win_rate_50",
+            "rolling_win_rate_100",
         ]
         with open(csv_out_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=csv_headers)
