@@ -3,14 +3,15 @@ Master Training Data Splitter for Mario RL Agent
 =================================================
 Discovers master training CSV files in outputs/, parses architecture, mode,
 strategy, and seed, computes global and level cumulative step counters, and
-splits into 2,000-episode level-specific files in evaluation/<arch>/data/.
+splits into level-specific files in evaluation/<arch>/data/ for Levels 1-7
+(explicitly excluding Level 8).
 
 Supported Architectures:
 - tabular: Tabular Q-Learning baseline
 - hybrid_expected: Hybrid Expected SARSA model
 
 Mode-dependent step accounting:
-- Curriculum: global_cumulative_steps continues across all 10,000 master episodes;
+- Curriculum: global_cumulative_steps continues across Levels 1-7;
   level_cumulative_steps resets per level (adaptation speed).
 - Separate: global_cumulative_steps == level_cumulative_steps (isolated scratch runs;
   pre-training steps = 0).
@@ -18,24 +19,25 @@ Mode-dependent step accounting:
 Includes seed collision check and multi-seed scalability.
 """
 
-import os
-import re
-import glob
 import argparse
+import glob
 from pathlib import Path
-from typing import Dict, List, Tuple
+import re
+from typing import Dict, List, Optional, Tuple
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 EVAL_DIR = PROJECT_ROOT / "evaluation"
 
-# Master file matching regex:
-# e.g. training_metrics_tabular_curriculum_balanced.csv -> (tabular, curriculum, balanced, seed1)
-# e.g. training_metrics_hybrid_expected_separate_dense_seed2.csv -> (hybrid_expected, separate, dense, seed2)
-# e.g. training_metrics_curriculum_balanced.csv -> (tabular [default], curriculum, balanced, seed1)
+ALLOWED_LEVELS = (1, 2, 3, 4, 5, 6, 7)
+
+# Matches e.g.:
+# - training_metrics_tabular_curriculum_balanced_lvl1-8_seed42.csv
+# - training_metrics_hybrid_expected_separate_dense_seed2.csv
+# - training_metrics_tabular_curriculum_balanced.csv
 FILENAME_PATTERN = re.compile(
-    r"^training_metrics_(?:(tabular|hybrid_expected)_)?(curriculum|separate)_(balanced|dense|sparse)(?:_(seed\w+|\d+))?\.csv$"
+    r"^training_metrics_(?:(tabular|hybrid_expected)_)?(curriculum|separate)_(balanced|dense|sparse)(?:_lvl[\d-]+)?(?:_(seed\w+|\d+))?\.csv$"
 )
 
 
@@ -59,42 +61,41 @@ def split_all_master_files(
     outputs_dir: Path = OUTPUTS_DIR,
     eval_dir: Path = EVAL_DIR,
     arch_filter: str = "all",
+    max_level: int = 7,
 ) -> Dict[str, List[Path]]:
     """
-    Discovers all master training metrics CSVs, parses metadata,
-    checks for seed collisions, computes cumulative step metrics,
-    and writes split per-level CSVs into eval_dir/<arch>/data/.
+    Discovers master training metrics CSVs, parses metadata, checks for seed
+    collisions, computes cumulative step metrics, and writes split per-level CSVs
+    into eval_dir/<arch>/data/ for levels 1..max_level (default 1..7, excluding Level 8).
     """
-    master_files = glob.glob(str(outputs_dir / "training_metrics_*.csv"))
+    master_files = sorted(glob.glob(str(outputs_dir / "training_metrics_*.csv")))
     if not master_files:
         raise FileNotFoundError(f"No master training metrics CSV files found in {outputs_dir}")
 
     seen_keys: Dict[Tuple[str, str, str, str], str] = {}
     generated_by_arch: Dict[str, List[Path]] = {}
 
-    # Discover which (arch, mode, strategy) have explicit multi-seed runs (e.g. _seed42..57)
+    parsed_files: List[Tuple[Path, str, str, str, str]] = []
     explicit_seed_combos = set()
     for file_path_str in master_files:
-        try:
-            a, m, s, sd = parse_filename(Path(file_path_str).name)
-            if "_seed" in Path(file_path_str).name:
-                explicit_seed_combos.add((a, m, s))
-        except ValueError:
-            continue
-
-    print(f"[Splitter] Discovered {len(master_files)} master CSV files in {outputs_dir}")
-
-    for file_path_str in sorted(master_files):
         file_path = Path(file_path_str)
-        arch, mode, strategy, seed = parse_filename(file_path.name)
+        try:
+            arch, mode, strategy, seed = parse_filename(file_path.name)
+        except ValueError:
+            print(f"  -> Skipping non-benchmark file: {file_path.name}")
+            continue
+        parsed_files.append((file_path, arch, mode, strategy, seed))
+        if "_seed" in file_path.name:
+            explicit_seed_combos.add((arch, mode, strategy))
 
-        # If explicit multi-seed runs exist for this configuration, skip legacy unseeded master CSV
+    print(f"[Splitter] Discovered {len(parsed_files)} benchmark CSV files in {outputs_dir} (Levels 1-{max_level} only)")
+
+    for file_path, arch, mode, strategy, seed in parsed_files:
         if (arch, mode, strategy) in explicit_seed_combos and "_seed" not in file_path.name:
             print(f"  -> Skipping legacy unseeded {file_path.name} in favor of multi-seed run files.")
             continue
 
         key = (arch, mode, strategy, seed)
-
         if key in seen_keys:
             raise ValueError(
                 f"Duplicate master seed collision detected for {key}!\n"
@@ -109,39 +110,31 @@ def split_all_master_files(
 
         target_data_dir = eval_dir / arch / "data"
         target_data_dir.mkdir(parents=True, exist_ok=True)
+        generated_by_arch.setdefault(arch, [])
 
-        if arch not in generated_by_arch:
-            generated_by_arch[arch] = []
-
-        print(f"  -> Processing {file_path.name} | Arch: {arch}, Mode: {mode}, Strategy: {strategy}, Seed: {seed}")
         df = pd.read_csv(file_path)
-
-        # Validate required columns
         required_cols = {"level_id", "level_episode", "steps", "won", "total_reward"}
         missing = required_cols - set(df.columns)
         if missing:
             raise ValueError(f"File {file_path.name} is missing required columns: {missing}")
 
-        # Ensure correct episode ordering
+        # Explicitly exclude Level 8 (and any level > max_level)
+        df = df[df["level_id"].between(1, max_level)].copy()
+        if df.empty:
+            continue
+
         if "global_episode" in df.columns:
             df = df.sort_values("global_episode").reset_index(drop=True)
         else:
             df = df.sort_values(["level_id", "level_episode"]).reset_index(drop=True)
 
-        # Mode-dependent step accumulation:
-        # Curriculum: global_cumulative_steps is continuous across all 10,000 episodes
         if mode == "curriculum":
             df["global_cumulative_steps"] = df["steps"].cumsum()
 
-        # Split into level-specific files
-        levels = sorted(df["level_id"].unique())
+        levels = sorted(int(lvl) for lvl in df["level_id"].unique())
         for lvl in levels:
             df_lvl = df[df["level_id"] == lvl].copy().reset_index(drop=True)
-
-            # Within-level adaptation steps: resets to 0 at the start of each level
             df_lvl["level_cumulative_steps"] = df_lvl["steps"].cumsum()
-
-            # Separate mode: each level is trained cold with no pre-training
             if mode == "separate":
                 df_lvl["global_cumulative_steps"] = df_lvl["level_cumulative_steps"]
 
@@ -149,6 +142,15 @@ def split_all_master_files(
             out_filepath = target_data_dir / out_filename
             df_lvl.to_csv(out_filepath, index=False)
             generated_by_arch[arch].append(out_filepath)
+
+    # Remove any leftover level > max_level split CSVs if present
+    for arch_dir in eval_dir.iterdir() if eval_dir.exists() else []:
+        data_dir = arch_dir / "data"
+        if data_dir.is_dir():
+            for stale in data_dir.glob("*_level_*.csv"):
+                m = re.search(r"_level_(\d+)_", stale.name)
+                if m and int(m.group(1)) > max_level:
+                    stale.unlink()
 
     total_gen = sum(len(files) for files in generated_by_arch.values())
     print(f"[Splitter] Successfully generated {total_gen} split level files across {len(generated_by_arch)} architectures.")
@@ -158,8 +160,8 @@ def split_all_master_files(
     return generated_by_arch
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Split Mario training metrics CSVs into per-level files.")
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Split Mario training metrics CSVs into per-level files (Levels 1-7).")
     parser.add_argument(
         "--arch",
         choices=["all", "tabular", "hybrid_expected"],

@@ -1,61 +1,71 @@
 """
-Mario RL Agent — Multi-Level Curriculum & Multi-Seed Evaluation Generator
-========================================================================
-Processes modular level CSV files from evaluation/<arch>/data/ and produces:
-1. figure_1_curriculum_win_rate.pdf & .png:
-   Multi-stage continuous rolling Win Rate (%) in a 2-row layout (Curriculum vs. Separate)
-   with dedicated exploration schedules (epsilon) on the secondary right Y-axis.
-2. figure_2_reward_trajectories.pdf & .png:
-   6-panel grid (3 rows x 2 columns) for raw reward returns comparing Curriculum (Col 1)
-   vs. Separate (Col 2) across Sparse, Balanced, and Dense strategies with dynamic auto-scaling.
-3. figure_3_sample_efficiency.pdf & .png:
-   Dual sample efficiency benchmark (Episodes & Per-Level Adaptation Steps to 80% Win Rate)
-   in a vertically stacked 2-row layout with paired solid vs. hatched bars.
-4. curriculum_evaluation_summary.md:
-   Per-architecture mathematical benchmark table and methodological disclosure.
-5. architecture_comparison.md (when evaluating all architectures):
-   Cross-architecture benchmark comparing Tabular Q-Learning vs. Hybrid Expected SARSA.
+Mario RL Agent — Section 7 Evaluation Figure & Table Suite (Levels 1-7)
+=======================================================================
+Processes split level CSVs from evaluation/<arch>/data/ (and optional metadata /
+greedy evaluation summaries from outputs/training_board_*.json) across Levels 1-7
+(strictly excluding Level 8) and produces:
 
-Supports N=1 seed and scales to N>=2 seeds with mean +/- 1 std ribbons and error bars.
-Zero dependencies on JSON files or checkpoints.
+1. fig1_reward_trajectories.{pdf,png}:
+   6-panel cross-architecture reward return grid (Sparse, Balanced, Dense x
+   Curriculum vs. Separate) across Levels 1-7.
+2. fig2_balanced_overview.{pdf,png}:
+   2-panel Balanced reward overview comparing Tabular Q-Learning vs. Hybrid
+   Expected SARSA rolling win rate (W=100) and epsilon schedule across Levels 1-7.
+3. fig3_spotlight_l3_l4_l6.{pdf,png}:
+   2x3 spotlight grid focusing on Levels 3, 4, and 6 (Balanced) under Curriculum
+   and Separate training.
+4. fig4_sample_efficiency.{pdf,png}:
+   2-panel Balanced sample efficiency comparison across Levels 1-7:
+   within-level adaptation steps vs. global compute steps to 80% win rate.
+5. paper_evaluation_tables.md:
+   Quantitative Markdown tables for Section 7 (Levels 1-7 only).
+
+Also synchronizes the 4 PDFs to springer_lncs/figures/ and cleans stale legacy
+figures without touching evaluation/*/data/*.csv or *.md files.
 """
 
-import os
-import re
-import glob
 import argparse
+import glob
+import json
+import re
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import numpy as np
-import pandas as pd
+
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import numpy as np
+import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EVAL_DIR = PROJECT_ROOT / "evaluation"
+OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 
 # Academic typography & aesthetic configuration
 plt.rcParams.update({
     "font.family": "serif",
-    "font.serif": ["Computer Modern Roman", "Times New Roman", "DejaVu Serif"],
-    "font.size": 11,
-    "axes.labelsize": 12,
-    "axes.titlesize": 13,
+    "font.serif": ["DejaVu Serif", "Times New Roman", "Computer Modern Roman"],
+    "font.size": 10.5,
+    "axes.labelsize": 11.5,
+    "axes.titlesize": 12.0,
     "axes.titleweight": "bold",
     "axes.grid": True,
     "grid.linestyle": "--",
     "grid.alpha": 0.35,
-    "legend.fontsize": 10,
+    "legend.fontsize": 9.5,
     "legend.framealpha": 0.92,
-    "figure.titlesize": 15,
+    "figure.titlesize": 14.0,
     "figure.titleweight": "bold",
 })
 
-# Color palette definition for strategies
-STRATEGY_COLORS = {
-    "balanced": "#1f77b4",  # Muted Blue
-    "dense": "#2ca02c",     # Forest Green
-    "sparse": "#ff7f0e",    # Amber Orange
+ARCH_COLORS = {
+    "tabular": "#1f77b4",
+    "hybrid_expected": "#ff7f0e",
+}
+
+ARCH_LABELS = {
+    "tabular": "Tabular Q-Learning",
+    "hybrid_expected": "Hybrid Expected SARSA",
 }
 
 STRATEGY_LABELS = {
@@ -64,19 +74,78 @@ STRATEGY_LABELS = {
     "sparse": "Sparse",
 }
 
-ARCH_LABELS = {
-    "tabular": "Tabular Q-Learning",
-    "hybrid_expected": "Hybrid Expected SARSA",
-}
+LEVEL_IDS = [1, 2, 3, 4, 5, 6, 7]
+TRACKS = {"A": [1, 2, 3, 4, 5], "B": [6, 7]}
+PAPER_FIG_STEMS = (
+    "fig1_reward_trajectories",
+    "fig2_balanced_overview",
+    "fig3_spotlight_l3_l4_l6",
+    "fig4_sample_efficiency",
+)
 
-LEVEL_IDS = [1, 2, 3, 4, 5]
+
+def _format_compact_number(val: float, _pos: Optional[int] = None) -> str:
+    """Format large integer counts with M / k suffixes for clean axis ticks."""
+    abs_v = abs(val)
+    if abs_v >= 1_000_000:
+        scaled = val / 1_000_000.0
+        return f"{scaled:.1f}M" if abs(scaled - round(scaled)) > 1e-6 else f"{int(round(scaled))}M"
+    if abs_v >= 1_000:
+        scaled = val / 1_000.0
+        return f"{scaled:.1f}k" if abs(scaled - round(scaled)) > 1e-6 else f"{int(round(scaled))}k"
+    return f"{int(round(val))}"
+
+
+def _save_figure(fig: plt.Figure, save_pdf: Path, save_png: Path, label: str) -> None:
+    """Save figure to PDF and PNG and close it."""
+    save_pdf.parent.mkdir(parents=True, exist_ok=True)
+    save_png.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(save_pdf, dpi=300, bbox_inches="tight")
+    fig.savefig(save_png, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  [OK] Saved {label}: {save_pdf.name} & {save_png.name}")
+
+
+def _draw_stage_dividers(
+    ax: plt.Axes,
+    n_eps_per_level: int,
+    show_labels: bool = True,
+    label_y: Optional[float] = None,
+) -> None:
+    """Draw dashed vertical stage boundaries for Levels 1-7 and centered L1..L7 labels."""
+    for k in range(1, len(LEVEL_IDS)):
+        boundary = k * n_eps_per_level
+        ax.axvline(boundary, color="#777777", linestyle="--", linewidth=1.0, alpha=0.75)
+
+    if show_labels:
+        y_min, y_max = ax.get_ylim()
+        y_span = y_max - y_min if y_max > y_min else 1.0
+        y_pos = label_y if label_y is not None else (y_max + 0.025 * y_span)
+        for idx, lvl in enumerate(LEVEL_IDS):
+            center = (idx + 0.5) * n_eps_per_level
+            ax.text(
+                center,
+                y_pos,
+                f"L{lvl}",
+                ha="center",
+                va="bottom",
+                fontsize=9.5,
+                fontweight="bold",
+                color="#333333",
+            )
+
+
+def _configure_stage_xaxis(ax: plt.Axes, n_eps_per_level: int) -> None:
+    """Configure x-axis bounds and ticks aligned with stage boundaries."""
+    total_eps = len(LEVEL_IDS) * n_eps_per_level
+    ax.set_xlim(0, total_eps)
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(n_eps_per_level))
+    if n_eps_per_level >= 1000:
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(_format_compact_number))
 
 
 def load_all_split_data(data_dir: Path) -> Dict[Tuple[str, str, int, str], pd.DataFrame]:
-    """
-    Loads all split CSV files from data_dir.
-    Returns dict mapping: (mode, strategy, level, seed) -> pd.DataFrame
-    """
+    """Load split CSV files for Levels 1-7 from data_dir."""
     pattern = str(data_dir / "*.csv")
     files = glob.glob(pattern)
     if not files:
@@ -87,17 +156,47 @@ def load_all_split_data(data_dir: Path) -> Dict[Tuple[str, str, int, str], pd.Da
     )
 
     data_store: Dict[Tuple[str, str, int, str], pd.DataFrame] = {}
-    for fpath_str in files:
+    for fpath_str in sorted(files):
         fpath = Path(fpath_str)
         match = filename_regex.match(fpath.name)
         if not match:
             continue
         mode, strategy, lvl_str, seed = match.groups()
         lvl = int(lvl_str)
-        df = pd.read_csv(fpath)
-        data_store[(mode, strategy, lvl, seed)] = df
+        if lvl not in LEVEL_IDS:
+            continue
+        data_store[(mode, strategy, lvl, seed)] = pd.read_csv(fpath)
 
     return data_store
+
+
+def get_pretraining_steps(
+    data_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
+    mode: str,
+    strategy: str,
+    level_id: int,
+    seed: str,
+) -> float:
+    """
+    Return cumulative pre-training steps prior to `level_id`.
+    Reads `global_cumulative_steps` directly when present so both Track A/B
+    splits and continuous Track C runs (L1-L7) are accounted for accurately.
+    """
+    if mode != "curriculum" or level_id <= 1:
+        return 0.0
+
+    df_lvl = data_store.get((mode, strategy, level_id, seed))
+    if df_lvl is not None and len(df_lvl) > 0 and "global_cumulative_steps" in df_lvl.columns:
+        return max(0.0, float(df_lvl["global_cumulative_steps"].iloc[0] - df_lvl["steps"].iloc[0]))
+
+    total = 0.0
+    for prev_lvl in LEVEL_IDS:
+        if prev_lvl >= level_id:
+            break
+        df_prev = data_store.get((mode, strategy, prev_lvl, seed))
+        if df_prev is not None and len(df_prev) > 0:
+            total += float(df_prev["steps"].sum())
+    return total
 
 
 def assemble_continuous_run(
@@ -105,163 +204,288 @@ def assemble_continuous_run(
     mode: str,
     strategy: str,
     seed: str,
-) -> Optional[pd.DataFrame]:
-    """
-    Concatenates levels 1 to 5 for a given (mode, strategy, seed) to form a continuous
-    10,000-episode trajectory. Computes rolling metrics.
-    """
+    wr_window: int = 100,
+    rew_window: int = 100,
+) -> Optional[Tuple[pd.DataFrame, int]]:
+    """Concatenate Levels 1-7 for (mode, strategy, seed) and compute rolling metrics."""
     dfs = []
+    lengths = []
     for lvl in LEVEL_IDS:
         key = (mode, strategy, lvl, seed)
         if key not in data_store:
             return None
-        dfs.append(data_store[key])
+        df_lvl = data_store[key]
+        if len(df_lvl) == 0:
+            return None
+        dfs.append(df_lvl)
+        lengths.append(len(df_lvl))
+
+    if len(set(lengths)) != 1:
+        return None
+    n_eps_per_level = lengths[0]
 
     df_full = pd.concat(dfs, ignore_index=True)
     df_full["global_ep"] = np.arange(1, len(df_full) + 1)
-
-    # 50-episode rolling win rate (percentage)
-    df_full["rolling_wr_50"] = df_full["won"].astype(float).rolling(50, min_periods=1).mean() * 100.0
-    # 20-episode rolling smoothed reward
-    df_full["rolling_reward_20"] = df_full["total_reward"].rolling(20, min_periods=1).mean()
-
-    return df_full
+    df_full["rolling_wr"] = (
+        df_full["won"].astype(float).rolling(wr_window, min_periods=1).mean() * 100.0
+    )
+    df_full["rolling_reward"] = (
+        df_full["total_reward"].astype(float).rolling(rew_window, min_periods=1).mean()
+    )
+    return df_full, n_eps_per_level
 
 
 def get_multi_seed_trajectories(
     data_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
     mode: str,
     strategy: str,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
-    """
-    Assembles continuous trajectories across all available seeds for (mode, strategy).
-    Returns:
-      (episodes, wr_mean, wr_std, reward_mean, reward_std, eps_curve, n_seeds)
-    """
-    seeds = sorted(list(set(
-        k[3] for k in data_store.keys() if k[0] == mode and k[1] == strategy
-    )))
+    wr_window: int = 100,
+    rew_window: int = 100,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int]:
+    """Aggregate continuous Levels 1-7 trajectories across all seeds."""
+    seeds = sorted({k[3] for k in data_store.keys() if k[0] == mode and k[1] == strategy})
 
-    wr_runs = []
-    reward_runs = []
-    eps_runs = []
+    wr_runs: List[np.ndarray] = []
+    reward_runs: List[np.ndarray] = []
+    eps_runs: List[np.ndarray] = []
+    expected_n_eps: Optional[int] = None
 
     for s in seeds:
-        df_run = assemble_continuous_run(data_store, mode, strategy, s)
-        if df_run is not None and len(df_run) == 10000:
-            wr_runs.append(df_run["rolling_wr_50"].values)
-            reward_runs.append(df_run["rolling_reward_20"].values)
-            if "epsilon" in df_run.columns:
-                eps_runs.append(df_run["epsilon"].values)
+        assembled = assemble_continuous_run(
+            data_store, mode, strategy, s, wr_window=wr_window, rew_window=rew_window
+        )
+        if assembled is None:
+            continue
+        df_run, n_eps_per_level = assembled
+        if expected_n_eps is None:
+            expected_n_eps = n_eps_per_level
+        if n_eps_per_level != expected_n_eps:
+            continue
+        wr_runs.append(df_run["rolling_wr"].values)
+        reward_runs.append(df_run["rolling_reward"].values)
+        if "epsilon" in df_run.columns:
+            eps_runs.append(df_run["epsilon"].values)
 
     n_seeds = len(wr_runs)
-    if n_seeds == 0:
-        episodes = np.arange(1, 10001)
-        zeros = np.zeros(10000)
-        return episodes, zeros, zeros, zeros, zeros, zeros, 0
+    if n_seeds == 0 or expected_n_eps is None:
+        fallback_n = 100
+        total = fallback_n * len(LEVEL_IDS)
+        episodes = np.arange(1, total + 1)
+        zeros = np.zeros(total)
+        return episodes, zeros, zeros, zeros, zeros, zeros, 0, fallback_n
 
-    episodes = np.arange(1, 10001)
+    total_eps = len(LEVEL_IDS) * expected_n_eps
+    episodes = np.arange(1, total_eps + 1)
     wr_mat = np.vstack(wr_runs)
     reward_mat = np.vstack(reward_runs)
 
     wr_mean = np.mean(wr_mat, axis=0)
     wr_std = np.std(wr_mat, axis=0, ddof=1) if n_seeds > 1 else np.zeros_like(wr_mean)
-
     reward_mean = np.mean(reward_mat, axis=0)
     reward_std = np.std(reward_mat, axis=0, ddof=1) if n_seeds > 1 else np.zeros_like(reward_mean)
-
     eps_curve = np.mean(np.vstack(eps_runs), axis=0) if eps_runs else np.zeros_like(wr_mean)
 
-    return episodes, wr_mean, wr_std, reward_mean, reward_std, eps_curve, n_seeds
+    return episodes, wr_mean, wr_std, reward_mean, reward_std, eps_curve, n_seeds, expected_n_eps
+
+
+def get_level_multi_seed_trajectory(
+    data_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
+    mode: str,
+    strategy: str,
+    level_id: int,
+    wr_window: int = 100,
+    rew_window: int = 100,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
+    """Aggregate within-level trajectories across all seeds for a single level."""
+    seeds = sorted({
+        k[3] for k in data_store.keys()
+        if k[0] == mode and k[1] == strategy and k[2] == level_id
+    })
+
+    wr_runs: List[np.ndarray] = []
+    reward_runs: List[np.ndarray] = []
+    eps_runs: List[np.ndarray] = []
+    expected_len: Optional[int] = None
+
+    for s in seeds:
+        df_lvl = data_store[(mode, strategy, level_id, s)]
+        if len(df_lvl) == 0:
+            continue
+        if expected_len is None:
+            expected_len = len(df_lvl)
+        if len(df_lvl) != expected_len:
+            continue
+        wr_series = df_lvl["won"].astype(float).rolling(wr_window, min_periods=1).mean() * 100.0
+        rew_series = df_lvl["total_reward"].astype(float).rolling(rew_window, min_periods=1).mean()
+        wr_runs.append(wr_series.values)
+        reward_runs.append(rew_series.values)
+        if "epsilon" in df_lvl.columns:
+            eps_runs.append(df_lvl["epsilon"].values)
+
+    n_seeds = len(wr_runs)
+    if n_seeds == 0 or expected_len is None:
+        episodes = np.arange(1, 101)
+        zeros = np.zeros(100)
+        return episodes, zeros, zeros, zeros, zeros, zeros, 0
+
+    episodes = np.arange(1, expected_len + 1)
+    wr_mat = np.vstack(wr_runs)
+    rew_mat = np.vstack(reward_runs)
+
+    wr_mean = np.mean(wr_mat, axis=0)
+    wr_std = np.std(wr_mat, axis=0, ddof=1) if n_seeds > 1 else np.zeros_like(wr_mean)
+    rew_mean = np.mean(rew_mat, axis=0)
+    rew_std = np.std(rew_mat, axis=0, ddof=1) if n_seeds > 1 else np.zeros_like(rew_mean)
+    eps_curve = np.mean(np.vstack(eps_runs), axis=0) if eps_runs else np.zeros_like(wr_mean)
+
+    return episodes, wr_mean, wr_std, rew_mean, rew_std, eps_curve, n_seeds
 
 
 def compute_sample_efficiency_milestone(
     df_level: pd.DataFrame,
     threshold_wr: float = 80.0,
-    window: int = 50,
+    window: int = 100,
 ) -> Tuple[Optional[int], Optional[float]]:
     """
-    Computes:
-    1. Episode within level where rolling win rate first reaches threshold_wr.
-    2. Per-level cumulative steps (level_cumulative_steps) at that episode.
-    Returns (None, None) if threshold is never reached.
+    Compute the first within-level episode and level_cumulative_steps where
+    the rolling win rate (over `window` episodes) reaches `threshold_wr`.
     """
     rolling_wr = df_level["won"].astype(float).rolling(window, min_periods=window).mean() * 100.0
     hit_idx = np.where(rolling_wr >= threshold_wr)[0]
     if len(hit_idx) == 0:
         return None, None
-
-    first_idx = hit_idx[0]
+    first_idx = int(hit_idx[0])
     ep_to_hit = int(df_level["level_episode"].iloc[first_idx])
     steps_to_hit = float(df_level["level_cumulative_steps"].iloc[first_idx])
     return ep_to_hit, steps_to_hit
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FIGURE 1: Multi-Stage Continuous Win Rate Curves (Curriculum vs. Separate)
+# FIGURE 1: Cross-Architecture Reward Trajectories (Levels 1-7)
 # ─────────────────────────────────────────────────────────────────────────────
-def plot_figure_1_win_rate(
-    data_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
+def plot_fig1_reward_trajectories(
+    tabular_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
+    hybrid_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
     save_pdf: Path,
     save_png: Path,
-    arch_title: str = "Tabular Q-Learning",
 ) -> None:
     """
-    Generates Figure 1: 2-panel vertically stacked figure (2 rows x 1 column) for Rolling Win Rate (%)
-    across Episodes 1–10,000, separating Curriculum Transfer (Row 1) and Separate Training (Row 2).
-    Uses clean solid lines across all strategies and dedicated exploration schedules on secondary Y-axis.
+    Fig. 1: 3x2 grid (Sparse, Balanced, Dense x Curriculum, Separate) comparing
+    Tabular Q-Learning vs. Hybrid Expected SARSA smoothed returns across Levels 1-7.
     """
-    fig, (ax_c, ax_s) = plt.subplots(2, 1, figsize=(12, 8.2), sharex=True, sharey=True)
-    stage_boundaries = [2000, 4000, 6000, 8000]
-    level_centers = [1000, 3000, 5000, 7000, 9000]
-    strategies = ["balanced", "dense", "sparse"]
+    fig, axes = plt.subplots(3, 2, figsize=(14.5, 9.8), sharex=True)
+    strategies = ["sparse", "balanced", "dense"]
+    modes = [("curriculum", "Curriculum Transfer"), ("separate", "Separate Training")]
+    arch_stores = [("tabular", tabular_store), ("hybrid_expected", hybrid_store)]
 
-    for mode, ax in [("curriculum", ax_c), ("separate", ax_s)]:
+    n_eps_ref = 100
+    for r, strat in enumerate(strategies):
+        row_mins: List[float] = []
+        row_maxs: List[float] = []
+
+        for c, (mode, _mode_title) in enumerate(modes):
+            ax = axes[r, c]
+            for arch, store in arch_stores:
+                ep, _, _, rew_m, rew_s, _, n_seeds, n_eps = get_multi_seed_trajectories(
+                    store, mode, strat, wr_window=100, rew_window=100
+                )
+                n_eps_ref = n_eps
+                color = ARCH_COLORS[arch]
+                label = f"{ARCH_LABELS[arch]} (N={n_seeds})" if n_seeds > 1 else ARCH_LABELS[arch]
+                ax.plot(ep, rew_m, color=color, linewidth=1.7, label=label)
+                if n_seeds > 1:
+                    ax.fill_between(ep, rew_m - rew_s, rew_m + rew_s, color=color, alpha=0.18)
+                row_mins.append(float(np.min(rew_m - rew_s)))
+                row_maxs.append(float(np.max(rew_m + rew_s)))
+
+        y_lo = min(row_mins)
+        y_hi = max(max(row_maxs), 1.0)
+        span = y_hi - y_lo
+        pad = 0.08 * (span if span > 0 else 1.0)
+        y_min, y_max = y_lo - pad, y_hi + pad
+
+        for c in range(2):
+            ax = axes[r, c]
+            ax.set_ylim(y_min, y_max)
+            _configure_stage_xaxis(ax, n_eps_ref)
+            _draw_stage_dividers(ax, n_eps_ref, show_labels=(r == 0))
+            if c == 0:
+                ax.set_ylabel(f"{STRATEGY_LABELS[strat]} Return\n(100-Ep Mean)", fontweight="bold")
+            if c == 0:
+                ax.legend(loc="upper right", framealpha=0.92)
+
+    for c, (_mode, mode_title) in enumerate(modes):
+        axes[0, c].set_title(mode_title, pad=22, fontweight="bold")
+        axes[2, c].set_xlabel("Cumulative Training Episodes (Levels 1–7)", fontweight="bold")
+
+    fig.suptitle(
+        "Cross-Architecture Reward Trajectories Across Levels 1–7 (Mean ± 1 SD)",
+        fontsize=14,
+        fontweight="bold",
+        y=0.985,
+    )
+    plt.subplots_adjust(top=0.90, bottom=0.07, left=0.08, right=0.98, hspace=0.20, wspace=0.14)
+    _save_figure(fig, save_pdf, save_png, "Fig. 1 (Reward Trajectories L1-L7)")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FIGURE 2: Balanced Overview Win Rate Curves (Levels 1-7)
+# ─────────────────────────────────────────────────────────────────────────────
+def plot_fig2_balanced_overview(
+    tabular_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
+    hybrid_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
+    save_pdf: Path,
+    save_png: Path,
+) -> None:
+    """
+    Fig. 2: 2x1 vertically stacked Balanced win-rate overview (Curriculum vs. Separate)
+    comparing Tabular Q-Learning and Hybrid Expected SARSA across Levels 1-7.
+    """
+    fig, (ax_c, ax_s) = plt.subplots(2, 1, figsize=(13.5, 8.0), sharex=True, sharey=True)
+    arch_stores = [("tabular", tabular_store), ("hybrid_expected", hybrid_store)]
+    n_eps_ref = 100
+
+    for mode, ax, panel_title in [
+        ("curriculum", ax_c, "Curriculum Transfer (Continuous Policy Transfer L1–L7)"),
+        ("separate", ax_s, "Separate Training (Fresh Agent Per Stage L1–L7)"),
+    ]:
         ax_twin = ax.twinx()
         eps_plotted = False
-        is_curr = (mode == "curriculum")
 
-        for strat in strategies:
-            color = STRATEGY_COLORS[strat]
-            label_base = STRATEGY_LABELS[strat]
-            ep, wr_m, wr_s, _, _, eps_curve, n = get_multi_seed_trajectories(
-                data_store, mode, strat
+        for arch, store in arch_stores:
+            ep, wr_m, wr_s, _, _, eps_curve, n_seeds, n_eps = get_multi_seed_trajectories(
+                store, mode, "balanced", wr_window=100, rew_window=100
             )
-
-            # Solid lines for both Curriculum and Separate
-            legend_label = f"{label_base} (N={n})" if n > 1 else f"{label_base}"
-            ax.plot(
-                ep, wr_m, color=color, linestyle="-", linewidth=1.9,
-                label=legend_label
-            )
-            if n > 1:
+            n_eps_ref = n_eps
+            color = ARCH_COLORS[arch]
+            label = f"{ARCH_LABELS[arch]} (N={n_seeds})" if n_seeds > 1 else ARCH_LABELS[arch]
+            ax.plot(ep, wr_m, color=color, linewidth=1.9, label=label)
+            if n_seeds > 1:
                 ax.fill_between(
-                    ep, np.clip(wr_m - wr_s, 0, 100), np.clip(wr_m + wr_s, 0, 100),
-                    color=color, alpha=0.18
+                    ep,
+                    np.clip(wr_m - wr_s, 0.0, 100.0),
+                    np.clip(wr_m + wr_s, 0.0, 100.0),
+                    color=color,
+                    alpha=0.18,
                 )
-
             if not eps_plotted and eps_curve is not None:
-                eps_label = r"$\epsilon$ ($\epsilon_0=0.3$ on L2–5)" if is_curr else r"$\epsilon$ ($\epsilon_0=1.0$ per level)"
-                eps_ls = "-." if is_curr else ":"
                 ax_twin.plot(
-                    ep, eps_curve, color="#666666", linestyle=eps_ls, linewidth=1.3,
-                    alpha=0.75, label=eps_label
+                    ep,
+                    eps_curve,
+                    color="#666666",
+                    linestyle="-." if mode == "curriculum" else ":",
+                    linewidth=1.2,
+                    alpha=0.75,
+                    label=r"Exploration $\epsilon$",
                 )
                 eps_plotted = True
 
-        ax.set_ylim(-3, 105)
-        ax.set_xlim(0, 10000)
-        ax.xaxis.set_major_locator(ticker.MultipleLocator(1000))
-        ax.set_ylabel("Rolling Win Rate (%)\n[Window = 50]", fontweight="bold")
-
-        for b in stage_boundaries:
-            ax.axvline(b, color="#888888", linestyle="--", linewidth=1.0, alpha=0.7)
-
-        for i, center in enumerate(level_centers, start=1):
-            ax.text(
-                center, 107.5, f"Level {i}", ha="center", va="bottom",
-                fontsize=9.5, fontweight="bold", color="#333333"
-            )
+        ax.axhline(80.0, color="#444444", linestyle=":", linewidth=1.1, alpha=0.85, label="80% Milestone")
+        ax.set_ylim(-3.0, 105.0)
+        _configure_stage_xaxis(ax, n_eps_ref)
+        _draw_stage_dividers(ax, n_eps_ref, show_labels=True, label_y=106.5)
+        ax.set_ylabel("Rolling Win Rate (%)\n[W = 100]", fontweight="bold")
+        ax.set_title(panel_title, pad=22, fontweight="bold")
 
         ax_twin.set_ylim(-0.02, 1.08)
         ax_twin.set_ylabel(r"Exploration Rate ($\epsilon$)", color="#555555", fontweight="bold")
@@ -269,635 +493,569 @@ def plot_figure_1_win_rate(
 
         h1, l1 = ax.get_legend_handles_labels()
         h2, l2 = ax_twin.get_legend_handles_labels()
-        ax.legend(h1 + h2, l1 + l2, loc="center left", bbox_to_anchor=(0.01, 0.52), framealpha=0.92)
+        ax.legend(h1 + h2, l1 + l2, loc="upper right", framealpha=0.92)
 
-    ax_c.set_title("Curriculum Transfer (Continuous Trajectory)", pad=24, fontweight="bold", fontsize=12)
-    ax_s.set_title("Separate Training (Per-Stage Specialist Baselines)", pad=24, fontweight="bold", fontsize=12)
-    ax_s.set_xlabel("Global Training Episodes (1–10,000 across 5 Stages)", fontweight="bold")
-
+    ax_s.set_xlabel("Cumulative Training Episodes (Levels 1–7, Balanced Reward)", fontweight="bold")
     fig.suptitle(
-        f"Multi-Stage Continuous Win Rate Curves — {arch_title}\n(Curriculum Transfer vs. Separate Training Benchmark)",
-        fontsize=13.5, fontweight="bold", y=0.99
+        "Balanced Reward Learning Curves Across Levels 1–7 (Tabular Q vs. Hybrid Expected SARSA)",
+        fontsize=13.5,
+        fontweight="bold",
+        y=0.985,
     )
-    plt.subplots_adjust(top=0.90, bottom=0.08, left=0.08, right=0.92, hspace=0.30)
-
-    fig.savefig(save_pdf, dpi=300, bbox_inches="tight")
-    fig.savefig(save_png, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"  ✓ Saved Figure 1: {save_pdf.name} & {save_png.name}")
+    plt.subplots_adjust(top=0.90, bottom=0.08, left=0.08, right=0.92, hspace=0.28)
+    _save_figure(fig, save_pdf, save_png, "Fig. 2 (Balanced Overview L1-L7)")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FIGURE 2: Separated Raw Reward Trajectories (Sparse, Balanced, Dense)
+# FIGURE 3: Spotlight Grid for Levels 3, 4, and 6 (Balanced)
 # ─────────────────────────────────────────────────────────────────────────────
-def plot_figure_2_reward_trajectories(
-    data_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
+def plot_fig3_spotlight_l3_l4_l6(
+    tabular_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
+    hybrid_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
     save_pdf: Path,
     save_png: Path,
-    arch_title: str = "Tabular Q-Learning",
 ) -> None:
     """
-    Generates Figure 2: 6-panel grid (3 rows x 2 columns) for Raw Reward Returns across
-    Episodes 1–10,000 with separate subplots for Curriculum (Col 1) and Separate (Col 2)
-    per reward strategy (Sparse, Balanced, Dense) using solid lines and shared native Y-axis limits.
+    Fig. 3: 2x3 spotlight grid (Curriculum, Separate x Levels 3, 4, 6) under
+    Balanced reward, highlighting transition, hazard gauntlet, and monster ambush stages.
     """
-    fig, axes = plt.subplots(3, 2, figsize=(14, 9.8), sharex=True)
-
-    stage_boundaries = [2000, 4000, 6000, 8000]
-    level_centers = [1000, 3000, 5000, 7000, 9000]
-    strategies = ["sparse", "balanced", "dense"]
-
-    for r, strat in enumerate(strategies):
-        color = STRATEGY_COLORS[strat]
-        label_base = STRATEGY_LABELS[strat]
-
-        # 1. Curriculum
-        ep_c, _, _, rew_m_c, rew_s_c, _, n_c = get_multi_seed_trajectories(
-            data_store, "curriculum", strat
-        )
-        # 2. Separate
-        ep_s, _, _, rew_m_s, rew_s_s, _, n_s = get_multi_seed_trajectories(
-            data_store, "separate", strat
-        )
-
-        ax_curr = axes[r, 0]
-        ax_sep = axes[r, 1]
-
-        # Plot Curriculum (Column 0) - Solid Line
-        ax_curr.plot(
-            ep_c, rew_m_c, color=color, linestyle="-", linewidth=1.8,
-            label=f"Curriculum {label_base}"
-        )
-        if n_c > 1:
-            ax_curr.fill_between(
-                ep_c, rew_m_c - rew_s_c, rew_m_c + rew_s_c, color=color, alpha=0.2
-            )
-
-        # Plot Separate (Column 1) - Solid Line
-        ax_sep.plot(
-            ep_s, rew_m_s, color=color, linestyle="-", linewidth=1.8,
-            label=f"Separate {label_base}"
-        )
-        if n_s > 1:
-            ax_sep.fill_between(
-                ep_s, rew_m_s - rew_s_s, rew_m_s + rew_s_s, color=color, alpha=0.15
-            )
-
-        # Dynamic Auto-Scaled Limits shared per row (8% padding margin)
-        all_y_min = min(np.min(rew_m_c - rew_s_c), np.min(rew_m_s - rew_s_s))
-        all_y_max = max(np.max(rew_m_c + rew_s_c), max(np.max(rew_m_s + rew_s_s), 1.0))
-        span = all_y_max - all_y_min
-        pad = 0.08 * (span if span > 0 else 1.0)
-        y_min, y_max = all_y_min - pad, all_y_max + pad
-
-        for ax in [ax_curr, ax_sep]:
-            ax.set_ylim(y_min, y_max)
-            ax.set_ylabel(f"{label_base} Return\n(20-Ep Mean)", fontweight="bold")
-            ax.legend(loc="upper left", framealpha=0.9)
-            for boundary in stage_boundaries:
-                ax.axvline(boundary, color="#888888", linestyle="--", linewidth=1.0, alpha=0.7)
-
-    # Column Titles
-    axes[0, 0].set_title("Curriculum Transfer (Continuous Trajectory)", pad=24, fontweight="bold", fontsize=12)
-    axes[0, 1].set_title("Separate Training (Per-Stage Specialist Baselines)", pad=24, fontweight="bold", fontsize=12)
-
-    # Stage level headers on top subplots
-    for ax_top in [axes[0, 0], axes[0, 1]]:
-        y_top = ax_top.get_ylim()[1]
-        y_span = ax_top.get_ylim()[1] - ax_top.get_ylim()[0]
-        for i, center in enumerate(level_centers, start=1):
-            ax_top.text(
-                center, y_top + 0.025 * y_span, f"Level {i}", ha="center", va="bottom",
-                fontsize=9.5, fontweight="bold", color="#333333"
-            )
-
-    # X-axis configuration on bottom subplots
-    for ax_bot in [axes[2, 0], axes[2, 1]]:
-        ax_bot.set_xlabel("Global Training Episodes (1–10,000 across 5 Stages)", fontweight="bold")
-        ax_bot.set_xlim(0, 10000)
-        ax_bot.xaxis.set_major_locator(ticker.MultipleLocator(2000))
-        ax_bot.xaxis.set_minor_locator(ticker.MultipleLocator(1000))
-
-    fig.suptitle(
-        f"Multi-Stage Continuous Reward Trajectories — {arch_title}\n(Curriculum Transfer vs. Separate Training)",
-        fontsize=13.5, fontweight="bold", y=0.99
-    )
-    plt.subplots_adjust(top=0.90, bottom=0.08, left=0.07, right=0.98, hspace=0.25, wspace=0.18)
-
-    fig.savefig(save_pdf, dpi=300, bbox_inches="tight")
-    fig.savefig(save_png, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"  ✓ Saved Figure 2: {save_pdf.name} & {save_png.name}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FIGURE 3: Dual Sample Efficiency Benchmark (Vertically Stacked 2 Rows x 1 Col)
-# ─────────────────────────────────────────────────────────────────────────────
-def plot_figure_3_sample_efficiency(
-    data_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
-    save_pdf: Path,
-    save_png: Path,
-    arch_title: str = "Tabular Q-Learning",
-) -> None:
-    """
-    Generates Figure 3: Vertically stacked layout (2 rows x 1 col, full width):
-    - Row 1: Episodes to 80% Win Rate.
-    - Row 2: Per-Level Adaptation Steps (level_cumulative_steps) to 80% Win Rate.
-    Paired bars: Curriculum (solid) next to Separate (hatched //) per strategy.
-    Supports partial-seed convergence badges ('k/N') and DNC labels.
-    """
-    fig, (ax_ep, ax_step) = plt.subplots(2, 1, figsize=(11, 8.5), sharex=True)
-    plt.subplots_adjust(hspace=0.25)
-
-    all_seeds = sorted(list(set(k[3] for k in data_store.keys())))
-    n_total_seeds = len(all_seeds)
-
-    strategies = ["balanced", "dense", "sparse"]
-    bar_width = 0.12
-    # Offsets for 6 bars per level cluster: [Curr Bal, Sep Bal, Curr Den, Sep Den, Curr Spa, Sep Spa]
-    offsets = [-0.30, -0.18, -0.06, 0.06, 0.18, 0.30]
-    combos = [
-        ("curriculum", "balanced", False),
-        ("separate",   "balanced", True),
-        ("curriculum", "dense",    False),
-        ("separate",   "dense",    True),
-        ("curriculum", "sparse",   False),
-        ("separate",   "sparse",   True),
+    spotlight_levels = [
+        (3, "Level 3: Whispering Graves"),
+        (4, "Level 4: Nightmare Catacombs"),
+        (6, "Level 6: Awakening of Corpse Demon"),
     ]
+    modes = [("curriculum", "Curriculum Transfer"), ("separate", "Separate Training")]
+    arch_stores = [("tabular", tabular_store), ("hybrid_expected", hybrid_store)]
 
+    fig, axes = plt.subplots(2, 3, figsize=(15.5, 7.8), sharex="col", sharey=True)
+
+    for r, (mode, mode_label) in enumerate(modes):
+        for c, (lvl, lvl_title) in enumerate(spotlight_levels):
+            ax = axes[r, c]
+            ax_twin = ax.twinx()
+            eps_plotted = False
+            ep_len = 100
+
+            for arch, store in arch_stores:
+                ep, wr_m, wr_s, _, _, eps_curve, n_seeds = get_level_multi_seed_trajectory(
+                    store, mode, "balanced", lvl, wr_window=100, rew_window=100
+                )
+                ep_len = len(ep)
+                color = ARCH_COLORS[arch]
+                label = f"{ARCH_LABELS[arch]} (N={n_seeds})" if n_seeds > 1 else ARCH_LABELS[arch]
+                ax.plot(ep, wr_m, color=color, linewidth=1.8, label=label)
+                if n_seeds > 1:
+                    ax.fill_between(
+                        ep,
+                        np.clip(wr_m - wr_s, 0.0, 100.0),
+                        np.clip(wr_m + wr_s, 0.0, 100.0),
+                        color=color,
+                        alpha=0.18,
+                    )
+                if not eps_plotted and eps_curve is not None:
+                    ax_twin.plot(
+                        ep,
+                        eps_curve,
+                        color="#666666",
+                        linestyle="-." if mode == "curriculum" else ":",
+                        linewidth=1.15,
+                        alpha=0.72,
+                        label=r"$\epsilon$",
+                    )
+                    eps_plotted = True
+
+            ax.axhline(80.0, color="#444444", linestyle=":", linewidth=1.0, alpha=0.8)
+            ax.set_ylim(-3.0, 105.0)
+            ax.set_xlim(0, ep_len)
+            if ep_len >= 1000:
+                ax.xaxis.set_major_formatter(ticker.FuncFormatter(_format_compact_number))
+
+            ax_twin.set_ylim(-0.02, 1.08)
+            if c == 2:
+                ax_twin.set_ylabel(r"Exploration ($\epsilon$)", color="#555555", fontweight="bold")
+                ax_twin.tick_params(axis="y", labelcolor="#555555")
+            else:
+                ax_twin.set_yticklabels([])
+                ax_twin.tick_params(axis="y", length=0)
+
+            if r == 0:
+                ax.set_title(lvl_title, pad=10, fontweight="bold")
+            if c == 0:
+                ax.set_ylabel(f"{mode_label}\nWin Rate (%) [W=100]", fontweight="bold")
+            if r == 1:
+                ax.set_xlabel("Within-Level Episode", fontweight="bold")
+            if r == 0 and c == 0:
+                h1, l1 = ax.get_legend_handles_labels()
+                h2, l2 = ax_twin.get_legend_handles_labels()
+                ax.legend(h1 + h2, l1 + l2, loc="upper left", framealpha=0.92, fontsize=8.5)
+
+    fig.suptitle(
+        "Stage Spotlight: Rolling Win Rate on Levels 3, 4, and 6 (Balanced Reward)",
+        fontsize=13.5,
+        fontweight="bold",
+        y=0.98,
+    )
+    plt.subplots_adjust(top=0.89, bottom=0.09, left=0.07, right=0.94, hspace=0.18, wspace=0.12)
+    _save_figure(fig, save_pdf, save_png, "Fig. 3 (Spotlight L3, L4, L6)")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FIGURE 4: Balanced Sample Efficiency & Global Compute Cost (Levels 1-7)
+# ─────────────────────────────────────────────────────────────────────────────
+def plot_fig4_sample_efficiency(
+    tabular_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
+    hybrid_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
+    save_pdf: Path,
+    save_png: Path,
+) -> None:
+    """
+    Fig. 4: 2-row grouped bar chart (Balanced reward, Levels 1-7) comparing:
+    - Row 0: Within-Level Adaptation Steps (level_cumulative_steps) to 80% WR.
+    - Row 1: Global Compute Steps (pre-training + adaptation steps) to 80% WR.
+    """
+    fig, (ax_adapt, ax_glob) = plt.subplots(2, 1, figsize=(14.5, 8.6), sharex=True)
+
+    combos = [
+        ("tabular", tabular_store, "curriculum", False, "Tabular Curriculum"),
+        ("tabular", tabular_store, "separate", True, "Tabular Separate"),
+        ("hybrid_expected", hybrid_store, "curriculum", False, "Hybrid Expected Curriculum"),
+        ("hybrid_expected", hybrid_store, "separate", True, "Hybrid Expected Separate"),
+    ]
+    bar_width = 0.19
+    offsets = [-0.285, -0.095, 0.095, 0.285]
     x_indices = np.arange(len(LEVEL_IDS))
 
-    for idx, (mode, strat, is_hatched) in enumerate(combos):
-        color = STRATEGY_COLORS[strat]
-        hatch = "//" if is_hatched else None
-        edgecolor = "black" if is_hatched else "none"
+    # Store bar objects + badge metadata so text offsets adapt cleanly to final ylim
+    pending_annotations: List[Tuple[plt.Axes, object, float, str]] = []
 
-        ep_means, ep_errs, ep_badges = [], [], []
-        step_means, step_errs, step_badges = [], [], []
+    for idx, (arch, store, mode, is_hatched, legend_label) in enumerate(combos):
+        color = ARCH_COLORS[arch]
+        hatch = "//" if is_hatched else None
+        edgecolor = "#222222" if is_hatched else "none"
+        alpha = 0.78 if is_hatched else 0.92
+
+        adapt_means, adapt_errs, adapt_badges = [], [], []
+        glob_means, glob_errs, glob_badges = [], [], []
+
+        seeds = sorted({k[3] for k in store.keys() if k[0] == mode and k[1] == "balanced"})
 
         for lvl in LEVEL_IDS:
-            ep_hits = []
-            step_hits = []
+            adapt_hits: List[float] = []
+            glob_hits: List[float] = []
+            n_cond_seeds = 0
 
-            for s in all_seeds:
-                key = (mode, strat, lvl, s)
-                if key in data_store:
-                    df_lvl = data_store[key]
-                    ep_h, step_h = compute_sample_efficiency_milestone(df_lvl, threshold_wr=80.0)
-                    if ep_h is not None:
-                        ep_hits.append(ep_h)
-                        step_hits.append(step_h)
+            for s in seeds:
+                key = (mode, "balanced", lvl, s)
+                if key not in store:
+                    continue
+                n_cond_seeds += 1
+                df_lvl = store[key]
+                ep_h, adapt_st = compute_sample_efficiency_milestone(df_lvl, threshold_wr=80.0, window=100)
+                if ep_h is not None and adapt_st is not None:
+                    pre_st = get_pretraining_steps(store, mode, "balanced", lvl, s)
+                    adapt_hits.append(adapt_st)
+                    glob_hits.append(pre_st + adapt_st)
 
-            k_conv = len(ep_hits)
-            n_cond_seeds = len([s for s in all_seeds if (mode, strat, lvl, s) in data_store])
+            k_conv = len(adapt_hits)
+            badge = "DNC" if k_conv == 0 else (f"{k_conv}/{n_cond_seeds}" if k_conv < n_cond_seeds else "")
 
-            # --- Row 1: Episodes Milestone ---
-            if k_conv == 0:
-                ep_means.append(0.0)
-                ep_errs.append((0.0, 0.0))
-                ep_badges.append("DNC")
-            else:
-                mu_ep = float(np.mean(ep_hits))
-                sig_ep = float(np.std(ep_hits, ddof=1)) if k_conv > 1 else 0.0
-                lower_ep = min(sig_ep, mu_ep)
-                upper_ep = sig_ep
-                ep_means.append(mu_ep)
-                ep_errs.append((lower_ep, upper_ep))
-                badge = f"{k_conv}/{n_cond_seeds}" if (0 < k_conv < n_cond_seeds) else ""
-                ep_badges.append(badge)
-
-            # --- Row 2: Steps Milestone ---
-            if k_conv == 0:
-                step_means.append(0.0)
-                step_errs.append((0.0, 0.0))
-                step_badges.append("DNC")
-            else:
-                mu_st = float(np.mean(step_hits))
-                sig_st = float(np.std(step_hits, ddof=1)) if k_conv > 1 else 0.0
-                lower_st = min(sig_st, mu_st)
-                upper_st = sig_st
-                step_means.append(mu_st)
-                step_errs.append((lower_st, upper_st))
-                badge = f"{k_conv}/{n_cond_seeds}" if (0 < k_conv < n_cond_seeds) else ""
-                step_badges.append(badge)
+            for hits, means, errs, badges in [
+                (adapt_hits, adapt_means, adapt_errs, adapt_badges),
+                (glob_hits, glob_means, glob_errs, glob_badges),
+            ]:
+                if k_conv == 0:
+                    means.append(0.0)
+                    errs.append((0.0, 0.0))
+                else:
+                    mu = float(np.mean(hits))
+                    sig = float(np.std(hits, ddof=1)) if k_conv > 1 else 0.0
+                    means.append(mu)
+                    errs.append((min(sig, mu), sig))
+                badges.append(badge)
 
         x_pos = x_indices + offsets[idx]
 
-        # Convert error tuples into 2xM array for asymmetric yerr
-        yerr_ep = np.array(ep_errs).T
-        yerr_st = np.array(step_errs).T
+        for ax, means, errs, badges in [
+            (ax_adapt, adapt_means, adapt_errs, adapt_badges),
+            (ax_glob, glob_means, glob_errs, glob_badges),
+        ]:
+            yerr = np.array(errs).T
+            bars = ax.bar(
+                x_pos,
+                means,
+                width=bar_width,
+                color=color,
+                hatch=hatch,
+                edgecolor=edgecolor,
+                linewidth=0.8,
+                alpha=alpha,
+                yerr=yerr,
+                capsize=3,
+                label=legend_label,
+            )
+            for rect, (_low, up), badge in zip(bars, errs, badges):
+                if badge:
+                    pending_annotations.append((ax, rect, up, badge))
 
-        label_mode = "Curriculum" if mode == "curriculum" else "Separate"
-        legend_label = f"{label_mode} {STRATEGY_LABELS[strat]}"
+    for ax in (ax_adapt, ax_glob):
+        y_min, y_max = ax.get_ylim()
+        y_max = max(y_max, 1.0)
+        ax.set_ylim(0.0, y_max * 1.18)
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(_format_compact_number))
 
-        # Plot Row 1 (Episodes)
-        bars_ep = ax_ep.bar(
-            x_pos, ep_means, width=bar_width, color=color, hatch=hatch,
-            edgecolor=edgecolor, linewidth=0.8, alpha=0.9 if not is_hatched else 0.75,
-            yerr=yerr_ep, capsize=3, label=legend_label
-        )
-        for rect, badge in zip(bars_ep, ep_badges):
-            if badge == "DNC":
-                ax_ep.text(
-                    rect.get_x() + rect.get_width() / 2, 25, "DNC",
-                    ha="center", va="bottom", fontsize=7.5, fontweight="bold", color="#d62728", rotation=90
-                )
-            elif badge:
-                ax_ep.text(
-                    rect.get_x() + rect.get_width() / 2, rect.get_height() + 25, badge,
-                    ha="center", va="bottom", fontsize=8, fontweight="bold", color="#333333"
-                )
-
-        # Plot Row 2 (Steps)
-        bars_st = ax_step.bar(
-            x_pos, step_means, width=bar_width, color=color, hatch=hatch,
-            edgecolor=edgecolor, linewidth=0.8, alpha=0.9 if not is_hatched else 0.75,
-            yerr=yerr_st, capsize=3, label=legend_label
-        )
-        for rect, badge in zip(bars_st, step_badges):
-            if badge == "DNC":
-                ax_step.text(
-                    rect.get_x() + rect.get_width() / 2, 1500, "DNC",
-                    ha="center", va="bottom", fontsize=7.5, fontweight="bold", color="#d62728", rotation=90
-                )
-            elif badge:
-                ax_step.text(
-                    rect.get_x() + rect.get_width() / 2, rect.get_height() + 1500, badge,
-                    ha="center", va="bottom", fontsize=8, fontweight="bold", color="#333333"
-                )
-
-    # Row 1 Styling
-    ax_ep.set_ylabel("Episodes to 80% Win Rate", fontweight="bold")
-    ax_ep.set_title(f"Dual Sample Efficiency Benchmark — {arch_title}: Curriculum vs. Separate Adaptation Speed", pad=12)
-    ax_ep.set_ylim(0, 2150)
-    ax_ep.legend(loc="upper right", ncol=3, framealpha=0.92)
-
-    # Row 2 Styling
-    ax_step.set_ylabel("Per-Level Adaptation Steps\n(level_cumulative_steps)", fontweight="bold")
-    ax_step.set_xticks(x_indices)
-    ax_step.set_xticklabels([f"Level {lvl}" for lvl in LEVEL_IDS], fontweight="bold", fontsize=11)
-    ax_step.set_xlabel("Environment Stage", fontweight="bold")
-
-    fig.savefig(save_pdf, dpi=300, bbox_inches="tight")
-    fig.savefig(save_png, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"  ✓ Saved Figure 3: {save_pdf.name} & {save_png.name}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SUMMARY REPORT GENERATOR (Markdown)
-# ─────────────────────────────────────────────────────────────────────────────
-def generate_summary_report(
-    data_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
-    save_md: Path,
-    arch: str = "tabular",
-) -> None:
-    """
-    Computes exact mathematical metrics and generates curriculum_evaluation_summary.md for a given architecture.
-    """
-    arch_title = ARCH_LABELS.get(arch, arch.title())
-    all_seeds = sorted(list(set(k[3] for k in data_store.keys())))
-    n_seeds = len(all_seeds)
-
-    bal_seeds = sorted(list(set(k[3] for k in data_store.keys() if k[1] == "balanced" and k[0] == "curriculum")))
-    if len(bal_seeds) > 1:
-        seed_disclosure = f"{len(bal_seeds)} seeds for Curriculum Balanced ({bal_seeds[0]}–{bal_seeds[-1]}); 1 seed (seed1) for baseline comparisons"
-    else:
-        seed_disclosure = f"{n_seeds} ({', '.join(all_seeds)})"
-
-    lines = [
-        f"# Multi-Level Curriculum Evaluation & Sample Efficiency Summary — {arch_title}",
-        "",
-        f"**Architecture**: `{arch}` ({arch_title})  ",
-        f"**Source Data**: `evaluation/{arch}/data/` (Processed from `outputs/training_metrics_{arch}_*.csv`)  ",
-        f"**Random Seeds Evaluated**: {seed_disclosure}  ",
-        f"**Scope**: 6 Experiments = 2 Modes (`curriculum`, `separate`) × 3 Reward Strategies (`balanced`, `dense`, `sparse`) across 5 Progressive Levels",
-        "",
-        "---",
-        "",
-        "## 1. Metric Formalization & Methodological Disclosure",
-        "",
-        "### 1.1 Asymptotic Final Converged Win Rate",
-        "Formally defined as the arithmetic mean of the binary `won` indicator over the final 100 training episodes of each level stage ($W=100$, Episodes 1,901–2,000):",
-        "",
-        r"$$\text{WinRate}_{\text{final}} = \left( \frac{1}{100} \sum_{i=1901}^{2000} \mathbb{I}(\text{won}_i) \right) \times 100\%$$",
-        "",
-        r"*Note: This reflects training-time asymptotic policy exploitation ($\epsilon = \epsilon_{\min} = 0.01$).*",
-        "",
-        "### 1.2 Methodological Disclosure on Adaptation Speed",
-        "> [!NOTE]",
-        r"> **Methodological Transparency**: Faster within-level convergence observed in Curriculum mode on Levels 2–5 reflects the combined synergy of **policy transfer** (weight/Q-value initialization from preceding levels) and the **lower transfer re-warmup schedule** ($\epsilon_0 = 0.3$ vs. $\epsilon_0 = 1.0$ in Separate mode). This schedule protects acquired navigation competencies while permitting targeted exploration of new level hazards (such as ghosts and wider pits).",
-        "",
-        "---",
-        "",
-        "## 2. Quantitative Benchmark Table",
-        "",
-        "| Level | Reward Strategy | Separate Win Rate (Final 100 Ep) | Curriculum Win Rate (Final 100 Ep) | Separate Ep to 80% WR | Curriculum Ep to 80% WR | Separate Adaptation Steps | Curriculum Adaptation Steps | Pre-Training Steps (Levels $1..k-1$) | Curriculum Global Steps to 80% WR |",
-        "| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
-    ]
-
-    for lvl in LEVEL_IDS:
-        for strat in ["balanced", "dense", "sparse"]:
-            strat_label = STRATEGY_LABELS[strat]
-
-            # Separate Mode Metrics
-            sep_wrs, sep_eps_hit, sep_steps_hit = [], [], []
-            for s in all_seeds:
-                k_sep = ("separate", strat, lvl, s)
-                if k_sep in data_store:
-                    df_s = data_store[k_sep]
-                    sep_wrs.append(df_s.tail(100)["won"].mean() * 100.0)
-                    eh, sh = compute_sample_efficiency_milestone(df_s, 80.0)
-                    if eh is not None:
-                        sep_eps_hit.append(eh)
-                        sep_steps_hit.append(sh)
-
-            # Curriculum Mode Metrics
-            curr_wrs, curr_eps_hit, curr_steps_hit, pre_train_steps, global_steps_hit = [], [], [], [], []
-            for s in all_seeds:
-                k_curr = ("curriculum", strat, lvl, s)
-                if k_curr in data_store:
-                    df_c = data_store[k_curr]
-                    curr_wrs.append(df_c.tail(100)["won"].mean() * 100.0)
-                    eh, sh = compute_sample_efficiency_milestone(df_c, 80.0)
-                    if eh is not None:
-                        curr_eps_hit.append(eh)
-                        curr_steps_hit.append(sh)
-                        first_global = df_c["global_cumulative_steps"].iloc[0]
-                        first_step = df_c["steps"].iloc[0]
-                        pre_tr = first_global - first_step
-                        pre_train_steps.append(pre_tr)
-                        global_steps_hit.append(pre_tr + sh)
-
-            def fmt_stat(vals: List[float], unit: str = "", is_pct: bool = False) -> str:
-                if not vals:
-                    return "DNC"
-                m = np.mean(vals)
-                if len(vals) > 1:
-                    sd = np.std(vals, ddof=1)
-                    return f"{m:.1f} ± {sd:.1f}{unit}"
-                return f"{m:.1f}{unit}"
-
-            s_wr_str = fmt_stat(sep_wrs, "%")
-            c_wr_str = fmt_stat(curr_wrs, "%")
-            s_ep_str = fmt_stat(sep_eps_hit)
-            c_ep_str = fmt_stat(curr_eps_hit)
-            s_st_str = fmt_stat(sep_steps_hit)
-            c_st_str = fmt_stat(curr_steps_hit)
-            pre_tr_str = fmt_stat(pre_train_steps) if lvl > 1 else "0"
-            glob_st_str = fmt_stat(global_steps_hit)
-
-            lines.append(
-                f"| Level {lvl} | {strat_label} | {s_wr_str} | {c_wr_str} | {s_ep_str} | {c_ep_str} | {s_st_str} | {c_st_str} | {pre_tr_str} | {glob_st_str} |"
+    for ax, rect, err_up, badge in pending_annotations:
+        y_top = ax.get_ylim()[1]
+        x_center = rect.get_x() + rect.get_width() / 2.0
+        if badge == "DNC":
+            ax.text(
+                x_center,
+                0.02 * y_top,
+                "DNC",
+                ha="center",
+                va="bottom",
+                fontsize=7.5,
+                fontweight="bold",
+                color="#d62728",
+                rotation=90,
+            )
+        else:
+            ax.text(
+                x_center,
+                rect.get_height() + err_up + 0.02 * y_top,
+                badge,
+                ha="center",
+                va="bottom",
+                fontsize=7.8,
+                fontweight="bold",
+                color="#222222",
             )
 
-    # Compute key empirical observations dynamically
-    l4_wrs = [df.tail(100)["won"].mean() * 100.0 for k, df in data_store.items() if k[0] == "curriculum" and k[1] == "balanced" and k[2] == 4]
-    l4_c_wr = float(np.mean(l4_wrs)) if l4_wrs else 0.0
+    ax_adapt.set_ylabel("Adaptation Steps to 80% WR\n(Within-Level)", fontweight="bold")
+    ax_adapt.set_title("Within-Level Adaptation Cost vs. Total Global Compute Cost (Balanced Reward, Levels 1–7)", pad=12)
+    ax_adapt.legend(loc="upper left", ncol=2, framealpha=0.92)
 
-    l5_wrs = [df.tail(100)["won"].mean() * 100.0 for k, df in data_store.items() if k[0] == "curriculum" and k[1] == "balanced" and k[2] == 5]
-    l5_c_wr = float(np.mean(l5_wrs)) if l5_wrs else 0.0
+    ax_glob.set_ylabel("Global Steps to 80% WR\n(Pre-Training + Adaptation)", fontweight="bold")
+    ax_glob.set_xticks(x_indices)
+    ax_glob.set_xticklabels([f"Level {lvl}" for lvl in LEVEL_IDS], fontweight="bold", fontsize=11)
+    ax_glob.set_xlabel("Curriculum Stage (Levels 1–7)", fontweight="bold")
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## 3. Key Empirical Findings",
-        "",
-        f"1. **Exploitation Performance on Late Stages**: Under `Balanced` reward, Curriculum transfer achieves **{l4_c_wr:.1f}% final win rate** on Level 4 and **{l5_c_wr:.1f}% final win rate** on Level 5.",
-        "2. **Forward Knowledge Transfer**: On early and mid stages, Curriculum agents achieve 80% rolling win rate in substantially fewer within-level episodes and adaptation steps compared to cold-start Separate specialists.",
-        "3. **Reward Signal Vulnerabilities**: Dense reward shaping is prone to local optima traps in maze/hazard stages, while sparse reward provides zero gradient beyond Level 1 without curriculum scaffolding.",
-        "4. **Complete Compute Accounting**: Reporting both `level_cumulative_steps` (within-level adaptation) and `pre_training_steps` provides a complete view of adaptation speed versus total simulator compute investment.",
-        "",
-    ])
-
-    save_md.write_text("\n".join(lines), encoding="utf-8")
-    print(f"  ✓ Saved Summary Report: {save_md.name}")
+    fig.suptitle(
+        "Sample Efficiency & Cumulative Compute Cost Across Levels 1–7",
+        fontsize=13.5,
+        fontweight="bold",
+        y=0.985,
+    )
+    plt.subplots_adjust(top=0.91, bottom=0.08, left=0.09, right=0.98, hspace=0.18)
+    _save_figure(fig, save_pdf, save_png, "Fig. 4 (Sample Efficiency L1-L7)")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CROSS-ARCHITECTURE COMPARISON REPORT GENERATOR (Markdown)
+# SECTION 7 EVALUATION TABLES GENERATOR (Levels 1-7)
 # ─────────────────────────────────────────────────────────────────────────────
-def generate_cross_architecture_comparison(
+def _load_training_boards(outputs_dir: Path) -> Dict[Tuple[str, str, str, str], dict]:
+    """Load training_board_*.json metadata & evaluation summaries quickly."""
+    boards: Dict[Tuple[str, str, str, str], dict] = {}
+    if not outputs_dir.exists():
+        return boards
+
+    pat = re.compile(
+        r"^training_board_(tabular|hybrid_expected)_(curriculum|separate)_(balanced|dense|sparse)(?:_lvl[\d-]+)?_(seed\w+)\.json$"
+    )
+    for fpath in sorted(outputs_dir.glob("training_board_*.json")):
+        m = pat.match(fpath.name)
+        if not m:
+            continue
+        arch, mode, strat, seed = m.groups()
+        try:
+            # Read only the header before "episode_history" to avoid parsing ~25MB/file
+            prefix_lines: List[str] = []
+            found_history = False
+            with open(fpath, "r", encoding="utf-8") as f:
+                for line in f:
+                    if '"episode_history"' in line:
+                        found_history = True
+                        break
+                    prefix_lines.append(line)
+            if found_history and prefix_lines:
+                raw_prefix = "".join(prefix_lines).rstrip().rstrip(",") + "\n}"
+                boards[(arch, mode, strat, seed)] = json.loads(raw_prefix)
+            else:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    boards[(arch, mode, strat, seed)] = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+    return boards
+
+
+def _fmt_mean_std(vals: List[float], decimals: int = 1, suffix: str = "", dnc_label: str = "DNC") -> str:
+    if not vals:
+        return dnc_label
+    m = float(np.mean(vals))
+    if len(vals) > 1:
+        sd = float(np.std(vals, ddof=1))
+        return f"{m:,.{decimals}f} ± {sd:,.{decimals}f}{suffix}"
+    return f"{m:,.{decimals}f}{suffix}"
+
+
+def generate_paper_evaluation_tables(
     tabular_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
     hybrid_store: Dict[Tuple[str, str, int, str], pd.DataFrame],
     save_md: Path,
+    outputs_dir: Path = OUTPUTS_DIR,
 ) -> None:
     """
-    Generates evaluation/architecture_comparison.md comparing Tabular Q-Learning vs. Hybrid Expected SARSA.
+    Generate evaluation/paper_evaluation_tables.md for Sections 7.1-7.5 across
+    Levels 1-7 only (strictly excluding Level 8). Computes all values directly
+    from the split training CSVs and training_board_*.json summaries.
     """
-    lines = [
-        "# Cross-Architecture Evaluation: Tabular Q-Learning vs. Hybrid Expected SARSA",
+    boards = _load_training_boards(outputs_dir)
+    all_seeds = sorted({
+        k[3] for store in (tabular_store, hybrid_store) for k in store.keys()
+    })
+    sample_df = next(iter(tabular_store.values()), None)
+    eps_per_lvl = len(sample_df) if sample_df is not None else 0
+
+    seed_range_str = f"{all_seeds[0]}–{all_seeds[-1]}" if len(all_seeds) > 1 else (all_seeds[0] if all_seeds else "N/A")
+    lines: List[str] = [
+        "# Section 7 Quantitative Evaluation Tables (Levels 1–7)",
         "",
-        "This report provides a head-to-head empirical comparison between **Tabular Q-Learning** and **Hybrid Expected SARSA** across both **Curriculum** and **Separate** training modes and 3 reward strategies.",
+        f"**Scope**: Levels 1–7 | **Seeds**: `{len(all_seeds)}` (`{seed_range_str}`) | **Episodes per Level**: `{eps_per_lvl:,}`",
         "",
         "---",
         "",
-        "## 1. Asymptotic Final Converged Win Rate Benchmark (Episodes 1,901–2,000 Mean)",
+        "## 7.1 Experimental Setup & Evaluation Protocol",
         "",
-        "| Level | Strategy | Tabular Curriculum | Hybrid Exp Curriculum | Δ Curriculum (Hybrid - Tab) | Tabular Separate | Hybrid Exp Separate | Δ Separate (Hybrid - Tab) |",
+        "| Parameter | Value | Notes |",
+        "| :--- | :--- | :--- |",
+        "| **Curriculum Scope** | Levels 1–7 | Restricted to the 7 core evaluation stages |",
+        f"| **Episodes per Level** | `{eps_per_lvl:,}` | `{eps_per_lvl * len(LEVEL_IDS):,}` episodes per 7-level run |",
+        f"| **Random Seeds** | `{len(all_seeds)}` ({', '.join(all_seeds)}) | Independent agent + environment training seeds |",
+        "| **Architectures** | Tabular Q-Learning, Hybrid Expected SARSA | Both evaluated in `curriculum` and `separate` modes |",
+        "| **Reward Profiles** | `balanced`, `dense`, `sparse` | Canonical benchmark (`balanced`) + shaping & sparse ablations |",
+        "| **Training Hyperparameters** | $\\alpha: 0.10 \\to 0.005$, $\\gamma = 0.99$, $\\epsilon$-decay $= 0.999$ | $\\epsilon \\in [0.01, 1.0]$; Curriculum re-warmup $\\epsilon_0=0.30$ (L2–3), $0.35$ (L4–7) |",
+        "| **Training-Time Win Rate** | Final-100 episodes ($W=100$) | Arithmetic mean of `won` over last 100 episodes per stage |",
+        "| **Greedy Eval Win Rate** | 50 greedy episodes (`evaluation_summary`) | Evaluated at stage completion from `training_board_*.json` |",
+        "",
+        "---",
+        "",
+        "## 7.2 Table 1 — Overall Win Rates Across Levels 1–7",
+        "",
+        "| Level | Reward | Tabular Curr (Train100 / Greedy50) | Hybrid Curr (Train100 / Greedy50) | Δ Curr (Train100) | Tabular Sep (Train100 / Greedy50) | Hybrid Sep (Train100 / Greedy50) | Δ Sep (Train100) |",
         "| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
     ]
 
-    def get_stat(store, mode, strat, lvl):
-        dfs = [df for k, df in store.items() if k[0] == mode and k[1] == strat and k[2] == lvl]
-        if not dfs:
-            return 0.0, 0.0
-        wrs = [df.tail(100)["won"].mean() * 100.0 for df in dfs]
-        return float(np.mean(wrs)), float(np.std(wrs, ddof=1)) if len(wrs) > 1 else 0.0
+    def _get_win_pair(arch: str, store: dict, mode: str, strat: str, lvl: int) -> Tuple[List[float], List[float]]:
+        train_wrs = [
+            float(df.tail(100)["won"].mean() * 100.0)
+            for k, df in store.items()
+            if k[0] == mode and k[1] == strat and k[2] == lvl
+        ]
+        greedy_wrs = []
+        for s in all_seeds:
+            b = boards.get((arch, mode, strat, s))
+            if b:
+                stats = b.get("evaluation_summary", {}).get(f"level_{lvl}")
+                if stats and "trained_win_rate" in stats:
+                    greedy_wrs.append(float(stats["trained_win_rate"]))
+        return train_wrs, greedy_wrs
 
     for lvl in LEVEL_IDS:
-        for strat in ["balanced", "dense", "sparse"]:
-            strat_label = STRATEGY_LABELS[strat]
+        for strat in ("balanced", "dense", "sparse"):
+            tc_tr, tc_gr = _get_win_pair("tabular", tabular_store, "curriculum", strat, lvl)
+            hc_tr, hc_gr = _get_win_pair("hybrid_expected", hybrid_store, "curriculum", strat, lvl)
+            ts_tr, ts_gr = _get_win_pair("tabular", tabular_store, "separate", strat, lvl)
+            hs_tr, hs_gr = _get_win_pair("hybrid_expected", hybrid_store, "separate", strat, lvl)
 
-            tab_c_m, tab_c_s = get_stat(tabular_store, "curriculum", strat, lvl)
-            tab_s_m, tab_s_s = get_stat(tabular_store, "separate", strat, lvl)
-            hyb_c_m, hyb_c_s = get_stat(hybrid_store, "curriculum", strat, lvl)
-            hyb_s_m, hyb_s_s = get_stat(hybrid_store, "separate", strat, lvl)
+            dc = (float(np.mean(hc_tr)) - float(np.mean(tc_tr))) if (tc_tr and hc_tr) else 0.0
+            ds = (float(np.mean(hs_tr)) - float(np.mean(ts_tr))) if (ts_tr and hs_tr) else 0.0
+            dc_str = f"{dc:+.1f}%"
+            ds_str = f"{ds:+.1f}%"
 
-            diff_c = hyb_c_m - tab_c_m
-            diff_s = hyb_s_m - tab_s_m
-
-            diff_c_str = f"+{diff_c:.1f}%" if diff_c > 0 else f"{diff_c:.1f}%"
-            diff_s_str = f"+{diff_s:.1f}%" if diff_s > 0 else f"{diff_s:.1f}%"
-
-            tab_c_str = f"{tab_c_m:.1f}% ± {tab_c_s:.1f}%" if tab_c_s > 0 else f"{tab_c_m:.1f}%"
-            tab_s_str = f"{tab_s_m:.1f}% ± {tab_s_s:.1f}%" if tab_s_s > 0 else f"{tab_s_m:.1f}%"
-            hyb_c_str = f"{hyb_c_m:.1f}% ± {hyb_c_s:.1f}%" if hyb_c_s > 0 else f"{hyb_c_m:.1f}%"
-            hyb_s_str = f"{hyb_s_m:.1f}% ± {hyb_s_s:.1f}%" if hyb_s_s > 0 else f"{hyb_s_m:.1f}%"
+            def _fmt_pair(tr: List[float], gr: List[float]) -> str:
+                tr_s = _fmt_mean_std(tr, 1, "%", "N/A")
+                gr_s = _fmt_mean_std(gr, 1, "%", "N/A")
+                return f"{tr_s} / {gr_s}" if gr else tr_s
 
             lines.append(
-                f"| Level {lvl} | {strat_label} | {tab_c_str} | {hyb_c_str} | **{diff_c_str}** | {tab_s_str} | {hyb_s_str} | **{diff_s_str}** |"
+                f"| Level {lvl} | {STRATEGY_LABELS[strat]} | {_fmt_pair(tc_tr, tc_gr)} | "
+                f"{_fmt_pair(hc_tr, hc_gr)} | {dc_str} | {_fmt_pair(ts_tr, ts_gr)} | "
+                f"{_fmt_pair(hs_tr, hs_gr)} | {ds_str} |"
             )
 
     lines.extend([
         "",
         "---",
         "",
-        "## 2. Sample Efficiency Comparison (Within-Level Adaptation Steps to 80% Win Rate)",
+        "## 7.4 Table 2 — Sample Efficiency & Total Compute Cost (Balanced Only, Levels 1–7)",
         "",
-        "| Level | Strategy | Tabular Curr Steps | Hybrid Exp Curr Steps | Tabular Sep Steps | Hybrid Exp Sep Steps |",
-        "| :---: | :---: | :---: | :---: | :---: | :---: |",
+        "| Level | Agent & Mode | Conv. (k/N) | Ep to 80% WR | Adaptation Steps | Pre-Training Steps | Global Steps to 80% WR | Total Stage Steps |",
+        "| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |",
     ])
 
+    combos = [
+        ("Tabular Curriculum", tabular_store, "curriculum"),
+        ("Tabular Separate", tabular_store, "separate"),
+        ("Hybrid Expected Curriculum", hybrid_store, "curriculum"),
+        ("Hybrid Expected Separate", hybrid_store, "separate"),
+    ]
     for lvl in LEVEL_IDS:
-        for strat in ["balanced", "dense", "sparse"]:
-            strat_label = STRATEGY_LABELS[strat]
+        for label, store, mode in combos:
+            ep_hits, adapt_hits, pre_hits, glob_hits, total_stage_steps = [], [], [], [], []
+            n_total = 0
+            for s in all_seeds:
+                df_lvl = store.get((mode, "balanced", lvl, s))
+                if df_lvl is None:
+                    continue
+                n_total += 1
+                total_stage_steps.append(float(df_lvl["steps"].sum()))
+                ep_h, st_h = compute_sample_efficiency_milestone(df_lvl, threshold_wr=80.0, window=100)
+                if ep_h is not None and st_h is not None:
+                    pre_st = get_pretraining_steps(store, mode, "balanced", lvl, s)
+                    ep_hits.append(float(ep_h))
+                    adapt_hits.append(st_h)
+                    pre_hits.append(pre_st)
+                    glob_hits.append(pre_st + st_h)
 
-            def get_steps_str(store, mode, strat, lvl):
-                dfs = [df for k, df in store.items() if k[0] == mode and k[1] == strat and k[2] == lvl]
-                if not dfs:
-                    return "DNC"
-                hits = []
-                for df in dfs:
-                    _, st = compute_sample_efficiency_milestone(df, 80.0)
-                    if st is not None:
-                        hits.append(st)
-                if not hits:
-                    return "DNC"
-                m = float(np.mean(hits))
-                if len(hits) > 1:
-                    s = float(np.std(hits, ddof=1))
-                    return f"{m:,.0f} ± {s:,.0f}"
-                return f"{m:,.0f}"
-
-            tab_c_st = get_steps_str(tabular_store, "curriculum", strat, lvl)
-            tab_s_st = get_steps_str(tabular_store, "separate", strat, lvl)
-            hyb_c_st = get_steps_str(hybrid_store, "curriculum", strat, lvl)
-            hyb_s_st = get_steps_str(hybrid_store, "separate", strat, lvl)
-
+            conv_str = f"{len(ep_hits)}/{n_total}"
+            ep_str = _fmt_mean_std(ep_hits, 1)
+            ad_str = _fmt_mean_std(adapt_hits, 0)
+            pr_str = _fmt_mean_std(pre_hits, 0) if mode == "curriculum" else "0"
+            gl_str = _fmt_mean_std(glob_hits, 0)
+            tot_str = _fmt_mean_std(total_stage_steps, 0, dnc_label="N/A")
             lines.append(
-                f"| Level {lvl} | {strat_label} | {tab_c_st} | {hyb_c_st} | {tab_s_st} | {hyb_s_st} |"
+                f"| Level {lvl} | {label} | {conv_str} | {ep_str} | {ad_str} | {pr_str} | {gl_str} | {tot_str} |"
             )
-
-    # Dynamic Section 3 observations
-    tab_l2_m, tab_l2_s = get_stat(tabular_store, "curriculum", "balanced", 2)
-    hyb_l2_m, hyb_l2_s = get_stat(hybrid_store, "curriculum", "balanced", 2)
-    tab_l3_m, tab_l3_s = get_stat(tabular_store, "curriculum", "balanced", 3)
-    hyb_l3_m, hyb_l3_s = get_stat(hybrid_store, "curriculum", "balanced", 3)
-    tab_l4_m, _ = get_stat(tabular_store, "curriculum", "balanced", 4)
-    hyb_l4_m, _ = get_stat(hybrid_store, "curriculum", "balanced", 4)
-    tab_l5_m, _ = get_stat(tabular_store, "curriculum", "balanced", 5)
-    hyb_l5_m, _ = get_stat(hybrid_store, "curriculum", "balanced", 5)
 
     lines.extend([
         "",
         "---",
         "",
-        "## 3. Executive Comparative Analysis",
+        "## 7.5 Table 3 — Failure Modes & Discovered State Counts (Levels 4–7, Balanced Only)",
         "",
-        "### 3.1 Mid-Stage Mastery & Variance Reduction (Levels 2 & 3)",
-        f"- **Level 2 Transfer**: Tabular Q-Learning achieves **{tab_l2_m:.1f}% ± {tab_l2_s:.1f}%** Win Rate, whereas Hybrid Expected SARSA achieves **{hyb_l2_m:.1f}% ± {hyb_l2_s:.1f}%** Win Rate (+{hyb_l2_m - tab_l2_m:.1f}% absolute gain with over 50% variance reduction).",
-        f"- **Level 3 Complex Hazard Traversal**: Hybrid Expected SARSA achieves **{hyb_l3_m:.1f}% ± {hyb_l3_s:.1f}%** Win Rate compared to Tabular's **{tab_l3_m:.1f}% ± {tab_l3_s:.1f}%** (+{hyb_l3_m - tab_l3_m:.1f}% absolute advantage). By weighting action values under policy expectation rather than the hard max, Expected SARSA avoids overestimating dangerous trajectories near pits and obstacles.",
-        "",
-        "### 3.2 Frontier Stage Dynamics (Levels 4 & 5)",
-        f"- On Levels 4 and 5, which present mobile ghosts and deep multi-gap chasms, asymptotic win rate across 16 random seeds converges to **{tab_l4_m:.1f}%** (Tabular) and **{hyb_l4_m:.1f}%** (Hybrid Expected) within the 2,000-episode budget per level.",
-        "- Both architectures highlight the necessity of targeted hazard exploration or extended curriculum schedules to master mobile entity dynamics.",
-        "",
-        "### 3.3 Sample Efficiency Across Architectures",
-        "- On Levels 1 through 3, Curriculum transfer yields marked speedups in reaching the 80% Win Rate milestone compared to cold-start Separate baselines.",
-        "- Hybrid Expected SARSA exhibits tighter confidence intervals and smoother continuous learning trajectories across seeds.",
-        "",
+        "| Level | Agent & Mode | Win % | Timeout % | Pit Death % | Hazard/Entity Death % | Discovered States |",
+        "| :---: | :--- | :---: | :---: | :---: | :---: | :---: |",
     ])
 
-    save_md.write_text("\n".join(lines), encoding="utf-8")
-    print(f"  ✓ Saved Cross-Architecture Comparison Report: {save_md.name}")
+    for lvl in (4, 5, 6, 7):
+        for label, arch_key, store, mode in [
+            ("Tabular Curriculum", "tabular", tabular_store, "curriculum"),
+            ("Tabular Separate", "tabular", tabular_store, "separate"),
+            ("Hybrid Expected Curriculum", "hybrid_expected", hybrid_store, "curriculum"),
+            ("Hybrid Expected Separate", "hybrid_expected", hybrid_store, "separate"),
+        ]:
+            win_pcts, to_pcts, pit_pcts, haz_pcts, state_counts = [], [], [], [], []
+            for s in all_seeds:
+                df_lvl = store.get((mode, "balanced", lvl, s))
+                if df_lvl is None or len(df_lvl) == 0:
+                    continue
+                outcomes = df_lvl["outcome"].astype(str).str.lower()
+                n_ep = len(outcomes)
+                win_pcts.append(float((outcomes == "win").sum()) / n_ep * 100.0)
+                to_pcts.append(float((outcomes == "timeout").sum()) / n_ep * 100.0)
+                pit_mask = outcomes.isin(["pit", "pit_death"])
+                pit_pcts.append(float(pit_mask.sum()) / n_ep * 100.0)
+                haz_pcts.append(float((~outcomes.isin(["win", "timeout", "pit", "pit_death"])).sum()) / n_ep * 100.0)
+
+                b = boards.get((arch_key, mode, "balanced", s))
+                if b:
+                    st_map = b.get("metadata", {}).get("states_discovered_per_level", {})
+                    if f"level_{lvl}" in st_map:
+                        state_counts.append(float(st_map[f"level_{lvl}"]))
+
+            st_str = _fmt_mean_std(state_counts, 0, dnc_label="N/A")
+            lines.append(
+                f"| Level {lvl} | {label} | {_fmt_mean_std(win_pcts, 1, '%')} | "
+                f"{_fmt_mean_std(to_pcts, 1, '%')} | {_fmt_mean_std(pit_pcts, 1, '%')} | "
+                f"{_fmt_mean_std(haz_pcts, 1, '%')} | {st_str} |"
+            )
+
+    save_md.parent.mkdir(parents=True, exist_ok=True)
+    save_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"  [OK] Saved Evaluation Tables: {save_md.name}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MAIN ORCHESTRATOR
+# CLEANUP & SYNC HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
-def evaluate_architecture(arch: str) -> Dict[Tuple[str, str, int, str], pd.DataFrame]:
-    arch_title = ARCH_LABELS.get(arch, arch.title())
-    arch_dir = EVAL_DIR / arch
-    data_dir = arch_dir / "data"
+def cleanup_stale_figures(eval_dir: Path, lncs_fig_dir: Optional[Path] = None) -> int:
+    """
+    Remove legacy figure files (.pdf/.png) whose stem is not in PAPER_FIG_STEMS
+    across eval_dir, eval_dir/{tabular,hybrid_expected,comparison}, and lncs_fig_dir.
+    Never touches data/*.csv or *.md files.
+    """
+    removed = 0
+    candidate_dirs = [
+        eval_dir,
+        eval_dir / "tabular",
+        eval_dir / "hybrid_expected",
+        eval_dir / "comparison",
+    ]
+    if lncs_fig_dir is not None:
+        candidate_dirs.append(lncs_fig_dir)
 
-    print("\n" + "=" * 70)
-    print(f"  Evaluating Architecture: {arch_title} ({arch})")
-    print(f"  Source Data: {data_dir}")
-    print("=" * 70)
+    for folder in candidate_dirs:
+        if not folder.is_dir():
+            continue
+        for fpath in folder.iterdir():
+            if fpath.is_file() and fpath.suffix.lower() in {".pdf", ".png"}:
+                if fpath.stem not in PAPER_FIG_STEMS:
+                    fpath.unlink()
+                    removed += 1
 
-    data_store = load_all_split_data(data_dir)
-    print(f"  ✓ Loaded {len(data_store)} dataset slices for {arch}.")
+    comp_dir = eval_dir / "comparison"
+    if comp_dir.is_dir() and not any(comp_dir.iterdir()):
+        comp_dir.rmdir()
 
-    arch_dir.mkdir(parents=True, exist_ok=True)
-    fig1_pdf = arch_dir / "figure_1_curriculum_win_rate.pdf"
-    fig1_png = arch_dir / "figure_1_curriculum_win_rate.png"
-    fig2_pdf = arch_dir / "figure_2_reward_trajectories.pdf"
-    fig2_png = arch_dir / "figure_2_reward_trajectories.png"
-    fig3_pdf = arch_dir / "figure_3_sample_efficiency.pdf"
-    fig3_png = arch_dir / "figure_3_sample_efficiency.png"
-    summary_md = arch_dir / "curriculum_evaluation_summary.md"
-
-    print("\n  [1/4] Generating Figure 1 (Continuous Win Rate Curves) ...")
-    plot_figure_1_win_rate(data_store, fig1_pdf, fig1_png, arch_title)
-
-    print("\n  [2/4] Generating Figure 2 (Continuous Reward Trajectories) ...")
-    plot_figure_2_reward_trajectories(data_store, fig2_pdf, fig2_png, arch_title)
-
-    print("\n  [3/4] Generating Figure 3 (Dual Sample Efficiency Benchmark) ...")
-    plot_figure_3_sample_efficiency(data_store, fig3_pdf, fig3_png, arch_title)
-
-    print("\n  [4/4] Generating Summary Report ...")
-    generate_summary_report(data_store, summary_md, arch)
-
-    return data_store
+    return removed
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate Mario RL curriculum evaluation suite.")
+    parser = argparse.ArgumentParser(description="Generate Section 7 Mario RL evaluation figures and tables (Levels 1-7).")
     parser.add_argument(
-        "--arch",
-        choices=["all", "tabular", "hybrid_expected"],
-        default="all",
-        help="Architecture to evaluate (default: all)",
+        "--eval-dir",
+        type=Path,
+        default=EVAL_DIR,
+        help="Evaluation root directory (default: evaluation/)",
+    )
+    parser.add_argument(
+        "--outputs-dir",
+        type=Path,
+        default=OUTPUTS_DIR,
+        help="Training outputs directory (default: outputs/)",
     )
     args = parser.parse_args()
 
-    archs_to_run = ["tabular", "hybrid_expected"] if args.arch == "all" else [args.arch]
-    stores = {}
+    eval_dir: Path = args.eval_dir
+    tabular_store = load_all_split_data(eval_dir / "tabular" / "data")
+    hybrid_store = load_all_split_data(eval_dir / "hybrid_expected" / "data")
+    print(f"Loaded {len(tabular_store)} tabular slices and {len(hybrid_store)} hybrid_expected slices (Levels 1-7).")
 
-    for arch in archs_to_run:
-        stores[arch] = evaluate_architecture(arch)
+    fig1_pdf = eval_dir / "fig1_reward_trajectories.pdf"
+    fig1_png = eval_dir / "fig1_reward_trajectories.png"
+    fig2_pdf = eval_dir / "fig2_balanced_overview.pdf"
+    fig2_png = eval_dir / "fig2_balanced_overview.png"
+    fig3_pdf = eval_dir / "fig3_spotlight_l3_l4_l6.pdf"
+    fig3_png = eval_dir / "fig3_spotlight_l3_l4_l6.png"
+    fig4_pdf = eval_dir / "fig4_sample_efficiency.pdf"
+    fig4_png = eval_dir / "fig4_sample_efficiency.png"
+    tables_md = eval_dir / "paper_evaluation_tables.md"
 
-    # If both architectures were evaluated, generate the cross-architecture comparison report
-    if "tabular" in stores and "hybrid_expected" in stores:
-        print("\n" + "=" * 70)
-        print("  Generating Cross-Architecture Comparison Report")
-        print("=" * 70)
-        comp_md = EVAL_DIR / "architecture_comparison.md"
-        generate_cross_architecture_comparison(stores["tabular"], stores["hybrid_expected"], comp_md)
+    plot_fig1_reward_trajectories(tabular_store, hybrid_store, fig1_pdf, fig1_png)
+    plot_fig2_balanced_overview(tabular_store, hybrid_store, fig2_pdf, fig2_png)
+    plot_fig3_spotlight_l3_l4_l6(tabular_store, hybrid_store, fig3_pdf, fig3_png)
+    plot_fig4_sample_efficiency(tabular_store, hybrid_store, fig4_pdf, fig4_png)
+    generate_paper_evaluation_tables(tabular_store, hybrid_store, tables_md, outputs_dir=args.outputs_dir)
 
-    # Synchronize to springer_lncs/figures and evaluation root if applicable
     lncs_fig_dir = PROJECT_ROOT / "springer_lncs" / "figures"
     if lncs_fig_dir.exists():
-        import shutil
-        mapping = {
-            ("tabular", "figure_1_curriculum_win_rate.pdf"): "tabular_figure_1_win_rate.pdf",
-            ("tabular", "figure_2_reward_trajectories.pdf"): "tabular_figure_2_rewards.pdf",
-            ("tabular", "figure_3_sample_efficiency.pdf"): "tabular_figure_3_efficiency.pdf",
-            ("hybrid_expected", "figure_1_curriculum_win_rate.pdf"): "hybrid_figure_1_win_rate.pdf",
-            ("hybrid_expected", "figure_2_reward_trajectories.pdf"): "hybrid_figure_2_rewards.pdf",
-            ("hybrid_expected", "figure_3_sample_efficiency.pdf"): "hybrid_figure_3_efficiency.pdf",
-        }
-        for (arch, src_name), dst_name in mapping.items():
-            src_file = EVAL_DIR / arch / src_name
-            if src_file.exists():
-                shutil.copy(src_file, lncs_fig_dir / dst_name)
-        # Also copy hybrid_expected as default figure_*.pdf in springer_lncs and evaluation root
-        for fig_name in ["figure_1_curriculum_win_rate.pdf", "figure_2_reward_trajectories.pdf", "figure_3_sample_efficiency.pdf"]:
-            src = EVAL_DIR / "hybrid_expected" / fig_name
-            if src.exists():
-                shutil.copy(src, lncs_fig_dir / fig_name)
-                shutil.copy(src, EVAL_DIR / fig_name)
-            src_png = EVAL_DIR / "hybrid_expected" / fig_name.replace(".pdf", ".png")
-            if src_png.exists():
-                shutil.copy(src_png, EVAL_DIR / fig_name.replace(".pdf", ".png"))
-        print("  ✓ Synchronized publication figures to springer_lncs/figures/ and evaluation root.")
+        for stem in PAPER_FIG_STEMS:
+            src_pdf = eval_dir / f"{stem}.pdf"
+            if src_pdf.exists():
+                shutil.copy(src_pdf, lncs_fig_dir / f"{stem}.pdf")
+        print(f"  [OK] Synchronized {len(PAPER_FIG_STEMS)} PDF figures to {lncs_fig_dir}")
 
-    print("\n" + "=" * 70)
-    print("  All evaluations complete! Assets generated successfully.")
-    print("=" * 70)
+    removed = cleanup_stale_figures(eval_dir, lncs_fig_dir if lncs_fig_dir.exists() else None)
+    print(f"  [OK] Cleaned {removed} stale figure file(s).")
 
 
 if __name__ == "__main__":
