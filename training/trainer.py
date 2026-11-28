@@ -32,8 +32,10 @@ def resolve_map_seed(
 ) -> Optional[int]:
     """
     Computes the procedural map seed for Levels 1-7 given episode and rotation interval.
-    Holds explicit map_seed fixed for block 0, then draws block-indexed random seeds on
-    each rotation boundary. Returns None for Level 8 or when disabled.
+    When map_seed is None and rotation is enabled, mixes the canonical map (None)
+    every 3rd block starting at block 2 (block_idx % 3 == 2) so the agent retains
+    standard-level mastery while learning procedural generalization.
+    Returns None for Level 8 or when disabled.
     """
     if level_id < 1 or level_id > 7:
         return None
@@ -43,10 +45,12 @@ def resolve_map_seed(
         block_idx = (max(1, int(level_episode)) - 1) // interval
         if block_idx == 0 and map_seed is not None:
             return int(map_seed)
+        if map_seed is None and block_idx >= 2 and block_idx % 3 == 2:
+            return None
         prev_seed: Optional[int] = None
         if block_idx == 1 and map_seed is not None:
             prev_seed = int(map_seed)
-        elif block_idx >= 1:
+        elif block_idx >= 1 and not (map_seed is None and (block_idx - 1) >= 2 and (block_idx - 1) % 3 == 2):
             prev_seed = _derive_random_map_seed(base_seed, level_id, block_idx - 1)
         candidate = _derive_random_map_seed(base_seed, level_id, block_idx)
         attempt = 1
@@ -548,6 +552,9 @@ class Trainer:
                             reverse_spawns = self._compute_reverse_spawns(
                                 env, lvl, episodes_per_level, curriculum=True
                             )
+                            winning_trajectories[lvl].clear()
+                            if hasattr(agent, "epsilon"):
+                                agent.epsilon = max(float(getattr(agent, "epsilon", 0.0)), 0.25)
                             print(
                                 f"[Trainer] Level {lvl} ep {lvl_ep}: rotated map seed -> {current_map_seed}"
                             )
@@ -789,6 +796,8 @@ class Trainer:
                             reverse_spawns = self._compute_reverse_spawns(
                                 env, lvl, episodes_per_level, curriculum=False
                             )
+                            if hasattr(agent, "epsilon"):
+                                agent.epsilon = max(float(getattr(agent, "epsilon", 0.0)), 0.25)
                             print(
                                 f"[Trainer] Level {lvl} ep {lvl_ep}: rotated map seed -> {current_map_seed}"
                             )
