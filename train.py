@@ -115,6 +115,16 @@ def print_comparison_table(all_results: Dict[Tuple[str, str, str], Dict], levels
                 f"{trained_win:<14} {untrained_r:<14} {trained_r:<14} {clear_steps:<14} {items}"
             )
 
+            if "blind_eval" in stats:
+                be = stats["blind_eval"]
+                be_win = f"{be.get('wins', 0)}/{be.get('total_seeds', 0)} ({be.get('win_rate', 0.0):.1f}%)"
+                be_prog = f"{be.get('avg_progress_pct', 0.0):.1f}%"
+                be_seeds = be.get("winning_seeds", [])
+                print(
+                    f"{'':<16} {'':<12} {'':<10} {'  -> BlindSeeds':<14} {'--':<16} "
+                    f"{be_win:<14} {'AvgProg: '+be_prog:<14} Winning: {be_seeds}"
+                )
+
             # Print zero-shot notes for curriculum
             if mode == "curriculum":
                 if lvl == 2 and "level_3_zero_shot" in summary:
@@ -303,6 +313,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable in-place carriage return progress updates and use plain newline logs",
     )
+    parser.add_argument(
+        "--blind-seeds",
+        type=int,
+        nargs="*",
+        default=list(range(100)),
+        help="Held-out procedural blind test seeds evaluated after each level (default: 0..99 for Levels 1-7). Pass --blind-seeds with no values to disable.",
+    )
     return parser.parse_args()
 
 
@@ -318,6 +335,7 @@ def main() -> None:
         final_eval_episodes = 3
         untrained_eval_episodes = 2
         checkpoint_interval = 5
+        blind_eval_seeds = list(args.blind_seeds[:2]) if args.blind_seeds else []
     else:
         episodes_per_level = args.episodes
         eval_interval = args.eval_interval
@@ -325,6 +343,7 @@ def main() -> None:
         final_eval_episodes = 50
         untrained_eval_episodes = 30
         checkpoint_interval = args.checkpoint_interval
+        blind_eval_seeds = list(args.blind_seeds) if args.blind_seeds else []
 
     # Determine experiment grid
     agents = ["tabular", "hybrid"] if args.agent == "all" else [args.agent]
@@ -409,6 +428,7 @@ def main() -> None:
                     checkpoint_interval=checkpoint_interval,
                     checkpoints_dir=args.checkpoints_dir,
                     outputs_dir=args.outputs_dir,
+                    blind_eval_seeds=blind_eval_seeds,
                     map_seed=args.map_seed,
                     map_seed_interval=args.map_seed_interval,
                     seed=args.seed,

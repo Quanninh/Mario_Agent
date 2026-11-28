@@ -3,7 +3,8 @@ import json
 import os
 from pathlib import Path
 import pickle
-from typing import Optional, Type, Union
+import random
+from typing import List, Optional, Type, Union
 import pygame
 
 from agent.tabular_q_agent import TabularQAgent
@@ -262,6 +263,24 @@ def parse_args() -> argparse.Namespace:
         default=60,
         help="Render frame rate (default: 60)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Optional procedural LevelGenerator seed (Levels 1-5)",
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Optional list of procedural seeds to cycle through after each episode (e.g. --seeds 51 55 59)",
+    )
+    parser.add_argument(
+        "--random-seed",
+        action="store_true",
+        help="Automatically pick a new random procedural seed after each episode (Levels 1-5)",
+    )
     return parser.parse_args()
 
 
@@ -274,9 +293,12 @@ def play_autonomous(
     reward: str = "balanced",
     variant: str = "best",
     fps: int = 60,
+    seed: Optional[int] = None,
+    seeds: Optional[List[int]] = None,
+    random_seed: bool = False,
 ) -> None:
     """
-    Main playback function for autonomous agents (TabularQAgent or HybridAgent).
+    Main playback function for autonomous agents (TabularQAgent, HybridAgent, or DQNAgent).
     Can be called programmatically or via CLI through main().
     """
     current_mode = mode
@@ -285,6 +307,14 @@ def play_autonomous(
     current_variant = variant
     current_agent_choice = agent_type
     current_hybrid_mode = hybrid_mode
+    seed_list = list(seeds) if seeds else None
+    seed_idx = 0
+    if seed_list:
+        current_seed: Optional[int] = seed_list[0]
+    elif random_seed and seed is None and 1 <= current_level <= 5:
+        current_seed = random.randint(1, 999999)
+    else:
+        current_seed = seed
     explicit_checkpoint = checkpoint_path
 
     discretizer = MarioStateDiscretizer()
@@ -316,8 +346,8 @@ def play_autonomous(
 
     reload_policy()
 
-    env = create_env(current_level)
-    cfg = get_level(current_level)
+    env = create_env(current_level, seed=current_seed)
+    cfg = get_level(current_level, seed=current_seed)
     items_total = len(getattr(env, "items", []))
 
     if isinstance(agent, DQNAgent):
@@ -328,11 +358,12 @@ def play_autonomous(
         agent_display_name = "TabularQAgent (Pure Q-Learning)"
 
     print("\n" + "=" * 70)
-    print(f"[AI Player] Playing Level {current_level}: {cfg.name}")
+    print(f"[AI Player] Playing Level {current_level}: {cfg.name} (seed={current_seed})")
     print(f"[AI Player] Mode: {current_mode.upper()} | Reward: {current_reward.upper()} | Variant: {current_variant.upper()}")
     print(f"[AI Player] Active Agent: {agent_display_name}")
     print("Controls:")
     print("  [1 - 8]             Switch Level live (1..8)")
+    print("  [N / C]             New random procedural seed (N) / Canonical static map (C)")
     print("  [F1 / F2 / F3]      Swap Q-Table: Balanced (F1), Sparse (F2), Dense (F3)")
     print("  [T]                 Toggle Variant: Best <-> Final")
     print("  [H / A]             Toggle Agent: TabularQAgent <-> HybridAgent")
@@ -396,12 +427,31 @@ def play_autonomous(
         if new_lvl is not None and new_lvl != current_level:
             env.close()
             current_level = new_lvl
-            env = create_env(current_level)
-            cfg = get_level(current_level)
+            env = create_env(current_level, seed=current_seed)
+            cfg = get_level(current_level, seed=current_seed)
             items_total = len(getattr(env, "items", []))
-            print(f"\n[AI Player] Switched to Level {current_level}: {cfg.name}")
+            print(f"\n[AI Player] Switched to Level {current_level}: {cfg.name} (seed={current_seed})")
             if explicit_checkpoint is None:
                 reload_policy()
+            raw_state = env.reset()
+            discrete_state = get_agent_state(raw_state)
+            steps = 0
+            items_collected = 0
+            episode = 1
+            env.render()
+            if not getattr(env, "is_running", True):
+                break
+            prev_keys = list(keys)
+            continue
+
+        # Procedural seed controls (N = random seed, C = canonical static map)
+        if just_pressed(pygame.K_n) or just_pressed(pygame.K_c):
+            current_seed = random.randint(1, 999999) if just_pressed(pygame.K_n) else None
+            env.close()
+            env = create_env(current_level, seed=current_seed)
+            cfg = get_level(current_level, seed=current_seed)
+            items_total = len(getattr(env, "items", []))
+            print(f"\n[AI Player] Reloaded Level {current_level}: {cfg.name} (seed={current_seed})")
             raw_state = env.reset()
             discrete_state = get_agent_state(raw_state)
             steps = 0
@@ -579,8 +629,21 @@ def play_autonomous(
 
             print(
                 f"[AI Player] Episode {episode}: {outcome_str} in {steps} steps | "
-                f"Items: {items_collected}/{items_total}"
+                f"Items: {items_collected}/{items_total} | Seed: {current_seed}"
             )
+            if (seed_list or random_seed) and 1 <= current_level <= 5:
+                if seed_list:
+                    seed_idx = (seed_idx + 1) % len(seed_list)
+                    next_seed = seed_list[seed_idx]
+                else:
+                    next_seed = random.randint(1, 999999)
+                if next_seed != current_seed:
+                    current_seed = next_seed
+                    env.close()
+                    env = create_env(current_level, seed=current_seed)
+                    cfg = get_level(current_level, seed=current_seed)
+                    items_total = len(getattr(env, "items", []))
+                    print(f"[AI Player] Next Episode Seed -> {current_seed}: {cfg.name}")
             raw_state = env.reset()
             discrete_state = get_agent_state(raw_state)
             steps = 0
@@ -603,6 +666,9 @@ def main() -> None:
         reward=args.reward,
         variant=args.variant,
         fps=args.fps,
+        seed=args.seed,
+        seeds=args.seeds,
+        random_seed=args.random_seed,
     )
 
 

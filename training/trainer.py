@@ -32,8 +32,10 @@ def resolve_map_seed(
 ) -> Optional[int]:
     """
     Computes the procedural map seed for Levels 1-7 given episode and rotation interval.
-    Holds explicit map_seed fixed for block 0, then draws block-indexed random seeds on
-    each rotation boundary. Returns None for Level 8 or when disabled.
+    When map_seed is None and rotation is enabled, mixes the canonical map (None)
+    every 3rd block starting at block 2 (block_idx % 3 == 2) so the agent retains
+    standard-level mastery while learning procedural generalization.
+    Returns None for Level 8 or when disabled.
     """
     if level_id < 1 or level_id > 7:
         return None
@@ -43,10 +45,12 @@ def resolve_map_seed(
         block_idx = (max(1, int(level_episode)) - 1) // interval
         if block_idx == 0 and map_seed is not None:
             return int(map_seed)
+        if map_seed is None and block_idx >= 2 and block_idx % 3 == 2:
+            return None
         prev_seed: Optional[int] = None
         if block_idx == 1 and map_seed is not None:
             prev_seed = int(map_seed)
-        elif block_idx >= 1:
+        elif block_idx >= 1 and not (map_seed is None and (block_idx - 1) >= 2 and (block_idx - 1) % 3 == 2):
             prev_seed = _derive_random_map_seed(base_seed, level_id, block_idx - 1)
         candidate = _derive_random_map_seed(base_seed, level_id, block_idx)
         attempt = 1
@@ -86,6 +90,7 @@ class Trainer:
         checkpoint_interval: int = 200,
         checkpoints_dir: str = "checkpoints",
         outputs_dir: str = "outputs",
+        blind_eval_seeds: Optional[List[int]] = None,
         map_seed: Optional[int] = None,
         map_seed_interval: int = 0,
         seed: int = 42,
@@ -110,6 +115,7 @@ class Trainer:
         self.checkpoint_interval = checkpoint_interval
         self.checkpoints_dir = checkpoints_dir
         self.outputs_dir = outputs_dir
+        self.blind_eval_seeds = list(blind_eval_seeds) if blind_eval_seeds else []
         self.map_seed = map_seed
         self.map_seed_interval = max(0, int(map_seed_interval))
         self.seed = int(seed)
@@ -431,6 +437,112 @@ class Trainer:
             "avg_items_collected": avg_items_collected,
         }
 
+    def evaluate_blind_seeds(
+        self,
+        agent: BaseAgent,
+        level_id: int,
+        seeds: Optional[List[int]] = None,
+    ) -> Dict:
+        """
+        Evaluates the agent greedily across held-out procedural blind test seeds.
+        Restores agent mode and epsilon afterward.
+        """
+        eval_seeds = list(seeds) if seeds is not None else list(self.blind_eval_seeds)
+        if not eval_seeds:
+            return {
+                "wins": 0,
+                "total_seeds": 0,
+                "win_rate": 0.0,
+                "winning_seeds": [],
+                "avg_reward": 0.0,
+                "avg_progress_pct": 0.0,
+                "avg_completion_steps": -1.0,
+                "seed_results": [],
+            }
+
+        prev_training = getattr(agent, "training", True)
+        prev_epsilon = getattr(agent, "epsilon", 1.0)
+        agent.set_mode(False)
+
+        wins = 0
+        winning_seeds: List[int] = []
+        total_rewards: List[float] = []
+        progress_list: List[float] = []
+        completion_steps: List[int] = []
+        seed_results: List[Dict[str, Any]] = []
+
+        try:
+            for s in eval_seeds:
+                env = self._create_env(level_id, map_seed=s)
+                try:
+                    res = self._run_episode(env, agent, training=False)
+                finally:
+                    env.close()
+
+                total_rewards.append(res["total_reward"])
+                progress_list.append(res["progress_pct"])
+                if res["won"]:
+                    wins += 1
+                    winning_seeds.append(s)
+                    completion_steps.append(res["steps"])
+                seed_results.append({
+                    "level_id": level_id,
+                    "seed": s,
+                    "won": bool(res["won"]),
+                    "total_reward": round(float(res["total_reward"]), 2),
+                    "steps": int(res["steps"]),
+                    "progress_pct": round(float(res["progress_pct"]), 2),
+                    "items_collected": int(res["items_collected"]),
+                    "outcome": res["outcome"],
+                })
+        finally:
+            agent.set_mode(prev_training)
+            setattr(agent, "epsilon", prev_epsilon)
+
+        total = len(eval_seeds)
+        return {
+            "wins": wins,
+            "total_seeds": total,
+            "win_rate": round(float((wins / total) * 100.0), 2),
+            "winning_seeds": winning_seeds,
+            "avg_reward": round(float(np.mean(total_rewards)), 2) if total_rewards else 0.0,
+            "avg_progress_pct": round(float(np.mean(progress_list)), 2) if progress_list else 0.0,
+            "avg_completion_steps": (
+                round(float(np.mean(completion_steps)), 1) if completion_steps else -1.0
+            ),
+            "seed_results": seed_results,
+        }
+
+    def _build_eval_summary_entry(
+        self,
+        agent: BaseAgent,
+        level_id: int,
+        untrained_baseline: Dict,
+    ) -> Dict:
+        """Builds evaluation_summary entry for a level, including blind test seeds if configured."""
+        eval_trained = self.evaluate_agent(agent, level_id, self.final_eval_episodes)
+        entry: Dict[str, Any] = {
+            "untrained_win_rate": round(float(untrained_baseline["win_rate"]), 2),
+            "trained_win_rate": round(float(eval_trained["win_rate"]), 2),
+            "untrained_avg_reward": round(float(untrained_baseline["avg_reward"]), 2),
+            "trained_avg_reward": round(float(eval_trained["avg_reward"]), 2),
+            "avg_completion_steps": (
+                round(float(eval_trained["avg_completion_steps"]), 1)
+                if eval_trained["avg_completion_steps"] > 0
+                else -1.0
+            ),
+            "avg_items_collected": round(float(eval_trained["avg_items_collected"]), 2),
+        }
+        if self.blind_eval_seeds and 1 <= level_id <= 7:
+            blind_res = self.evaluate_blind_seeds(agent, level_id, self.blind_eval_seeds)
+            entry["blind_eval"] = blind_res
+            print(
+                f"[Trainer] [Blind Eval] Level {level_id}: "
+                f"{blind_res['wins']}/{blind_res['total_seeds']} wins ({blind_res['win_rate']:.1f}%) | "
+                f"Avg Prog: {blind_res['avg_progress_pct']:.1f}% | Winning seeds: {blind_res['winning_seeds']}"
+            )
+        return entry
+
     def run_experiment(
         self,
         agent_factory: Callable[[], BaseAgent],
@@ -548,6 +660,9 @@ class Trainer:
                             reverse_spawns = self._compute_reverse_spawns(
                                 env, lvl, episodes_per_level, curriculum=True
                             )
+                            winning_trajectories[lvl].clear()
+                            if hasattr(agent, "epsilon"):
+                                agent.epsilon = max(float(getattr(agent, "epsilon", 0.0)), 0.25)
                             print(
                                 f"[Trainer] Level {lvl} ep {lvl_ep}: rotated map seed -> {current_map_seed}"
                             )
@@ -715,19 +830,9 @@ class Trainer:
                 states_discovered_per_level[f"level_{lvl}"] = len(agent.q_table)
 
                 # Level completion trained evaluation
-                eval_trained = self.evaluate_agent(agent, lvl, self.final_eval_episodes)
-                evaluation_summary[f"level_{lvl}"] = {
-                    "untrained_win_rate": round(float(untrained_baselines[lvl]["win_rate"]), 2),
-                    "trained_win_rate": round(float(eval_trained["win_rate"]), 2),
-                    "untrained_avg_reward": round(float(untrained_baselines[lvl]["avg_reward"]), 2),
-                    "trained_avg_reward": round(float(eval_trained["avg_reward"]), 2),
-                    "avg_completion_steps": (
-                        round(float(eval_trained["avg_completion_steps"]), 1)
-                        if eval_trained["avg_completion_steps"] > 0
-                        else -1.0
-                    ),
-                    "avg_items_collected": round(float(eval_trained["avg_items_collected"]), 2),
-                }
+                evaluation_summary[f"level_{lvl}"] = self._build_eval_summary_entry(
+                    agent, lvl, untrained_baselines[lvl]
+                )
 
             # Final checkpoint saves
             agent.save(str(run_cp_dir / "q_table_final.pkl"))
@@ -789,6 +894,8 @@ class Trainer:
                             reverse_spawns = self._compute_reverse_spawns(
                                 env, lvl, episodes_per_level, curriculum=False
                             )
+                            if hasattr(agent, "epsilon"):
+                                agent.epsilon = max(float(getattr(agent, "epsilon", 0.0)), 0.25)
                             print(
                                 f"[Trainer] Level {lvl} ep {lvl_ep}: rotated map seed -> {current_map_seed}"
                             )
@@ -874,19 +981,9 @@ class Trainer:
                 states_discovered_per_level[f"level_{lvl}"] = len(agent.q_table)
 
                 # Level completion trained evaluation
-                eval_trained = self.evaluate_agent(agent, lvl, self.final_eval_episodes)
-                evaluation_summary[f"level_{lvl}"] = {
-                    "untrained_win_rate": round(float(untrained_baselines[lvl]["win_rate"]), 2),
-                    "trained_win_rate": round(float(eval_trained["win_rate"]), 2),
-                    "untrained_avg_reward": round(float(untrained_baselines[lvl]["avg_reward"]), 2),
-                    "trained_avg_reward": round(float(eval_trained["avg_reward"]), 2),
-                    "avg_completion_steps": (
-                        round(float(eval_trained["avg_completion_steps"]), 1)
-                        if eval_trained["avg_completion_steps"] > 0
-                        else -1.0
-                    ),
-                    "avg_items_collected": round(float(eval_trained["avg_items_collected"]), 2),
-                }
+                evaluation_summary[f"level_{lvl}"] = self._build_eval_summary_entry(
+                    agent, lvl, untrained_baselines[lvl]
+                )
 
                 # Save final per-level checkpoints
                 agent.save(str(run_cp_dir / f"q_table_lvl{lvl}_final.pkl"))
@@ -916,6 +1013,7 @@ class Trainer:
                 "levels": levels,
                 "map_seed": self.map_seed,
                 "map_seed_interval": self.map_seed_interval,
+                "blind_eval_seeds": list(self.blind_eval_seeds),
                 "rewarm_epsilon": round(float(self.rewarm_epsilon), 4),
                 "rewarm_epsilon_ghost": round(float(self.rewarm_epsilon_ghost), 4),
                 "replay_ratio": round(float(self.replay_ratio if mode == "curriculum" else 0.0), 4),
@@ -963,5 +1061,30 @@ class Trainer:
 
         print(f"[Trainer] Exported Member 4 JSON board to: {json_out_path}")
         print(f"[Trainer] Exported Member 4 CSV metrics to: {csv_out_path}")
+
+        blind_rows: List[Dict[str, Any]] = []
+        for lvl in levels:
+            be = evaluation_summary.get(f"level_{lvl}", {}).get("blind_eval")
+            if be and be.get("seed_results"):
+                blind_rows.extend(be["seed_results"])
+
+        if blind_rows:
+            blind_csv_path = outputs_dir_path / f"blind_eval_{self.agent_tag}_{mode}_{self.reward_name}.csv"
+            blind_headers = [
+                "level_id",
+                "seed",
+                "won",
+                "total_reward",
+                "steps",
+                "progress_pct",
+                "items_collected",
+                "outcome",
+            ]
+            with open(blind_csv_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=blind_headers)
+                writer.writeheader()
+                for row in blind_rows:
+                    writer.writerow(row)
+            print(f"[Trainer] Exported Blind Eval CSV to: {blind_csv_path}")
 
         return board_data
